@@ -1,0 +1,16 @@
+{
+  "name": "wander-tale-web",
+  "private": true,
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @wander-tale/web dev:clean",
+    "dev:web": "pnpm --filter @wander-tale/web dev:clean",
+    "build": "pnpm --filter @wander-tale/web build",
+    "start": "pnpm --filter @wander-tale/web start",
+    "lint": "pnpm --filter @wander-tale/web lint",
+    "typecheck": "pnpm -r exec tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

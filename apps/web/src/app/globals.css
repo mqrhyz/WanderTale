@@ -1,0 +1,212 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --premium-bg: #f8f7f4;
+  --premium-surface: #ffffff;
+  --premium-ink: #1e1a16;
+  --premium-muted: #6b645c;
+  --premium-accent: #ff5a00;
+  --premium-blue: #7fa9e8;
+  --premium-green: #8bc48a;
+  --premium-purple: #b59ceb;
+  --premium-border: rgba(30, 26, 22, 0.08);
+}
+
+html.dark {
+  color-scheme: dark;
+  --premium-bg: #141413;
+  --premium-surface: #1c1c19;
+  --premium-ink: #f0efe9;
+  --premium-muted: #a09c92;
+  --premium-accent: #ff5a00;
+  --premium-blue: #6a8fc4;
+  --premium-green: #7ab87a;
+  --premium-purple: #9a85c4;
+  --premium-border: rgba(240, 239, 233, 0.1);
+}
+
+@layer base {
+  body {
+    @apply min-h-screen bg-wt-canvas font-sans text-wt-body antialiased dark:bg-wt-night dark:text-wt-night-ink;
+  }
+
+  /* Premium dashboard shell — follows CSS variables toggled on html.dark */
+  html.dark body {
+    background-color: var(--premium-bg);
+    color: var(--premium-ink);
+  }
+
+  ::selection {
+    @apply bg-wt-tlRead/40 text-wt-ink dark:bg-wt-tlRead/25 dark:text-wt-night-ink;
+  }
+}
+
+@layer components {
+  .wt-container {
+    @apply mx-auto w-full max-w-content px-4 sm:px-6;
+  }
+
+  .wt-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.088em] text-wt-primary;
+  }
+
+  .wt-display {
+    @apply font-normal tracking-[-0.025em] text-wt-ink dark:text-wt-night-ink;
+  }
+
+  .wt-field-label {
+    @apply block text-[11px] font-semibold uppercase tracking-[0.088em] text-wt-muted dark:text-wt-muted-soft;
+  }
+
+  .wt-field-input {
+    @apply mt-1 h-11 w-full rounded-wt border border-wt-hairline bg-wt-surface px-4 text-base font-normal text-wt-ink placeholder:text-wt-muted-soft;
+    @apply transition-colors focus:border-wt-ink focus:outline-none focus:ring-1 focus:ring-wt-ink;
+    @apply dark:border-wt-night-border dark:bg-wt-night-elevated dark:text-wt-night-ink dark:placeholder:text-wt-muted;
+    @apply dark:focus:border-wt-night-ink dark:focus:ring-wt-night-ink;
+  }
+
+  .wt-card {
+    @apply rounded-wt-lg border border-wt-hairline bg-wt-surface dark:border-wt-night-border dark:bg-wt-night-elevated;
+  }
+
+  .wt-link {
+    @apply text-wt-primary underline-offset-4 hover:underline dark:text-wt-primary;
+  }
+
+  .wt-skeleton {
+    @apply animate-pulse rounded-wt-lg bg-wt-hairline-soft dark:bg-wt-night-border;
+  }
+
+  /* Dashboard — timeline pills (DESIGN caption-uppercase + pastel fills) */
+  .wt-dash-pill {
+    @apply inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.088em] text-wt-ink dark:text-wt-night-ink;
+  }
+
+  .wt-dash-section-title {
+    @apply text-[1.375rem] font-normal tracking-[-0.02em] text-wt-ink dark:text-wt-night-ink md:text-[1.5rem];
+  }
+
+  /* WanderTale marketing landing — SVG noise (feTurbulence) */
+  .noise-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  .bg-noise {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cfilter id='bn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23bn)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 256px 256px;
+  }
+
+  /* Marketing landing: default sans on root only so `font-serif` / `font-display` utilities win on children. */
+  .landing-wt-root {
+    font-family: var(--font-almarai), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell,
+      sans-serif;
+  }
+
+  /* Auth — full-bleed login.png + liquid glass form */
+  .wt-auth-surface {
+    color-scheme: dark;
+  }
+
+  .wt-auth-glass {
+    @apply rounded-2xl border border-white/25 p-7 sm:p-9;
+    background: linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.22) 0%,
+      rgba(255, 255, 255, 0.08) 45%,
+      rgba(255, 255, 255, 0.12) 100%
+    );
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    box-shadow:
+      0 16px 48px rgba(0, 0, 0, 0.22),
+      inset 0 1px 0 rgba(255, 255, 255, 0.45),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  @supports not (backdrop-filter: blur(1px)) {
+    .wt-auth-glass {
+      background: rgba(20, 20, 19, 0.88);
+    }
+  }
+
+  .wt-auth-glass-chip {
+    @apply rounded-full border border-white/20;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  }
+
+  .wt-auth-glass-footer {
+    @apply rounded-xl border border-white/15 px-4 py-3.5 text-center text-sm text-white/75;
+    background: rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .wt-auth-surface .wt-field-label {
+    @apply text-white/55;
+  }
+
+  .wt-auth-surface .wt-field-input {
+    @apply mt-1.5 h-12 rounded-xl border border-white/25 px-4 text-[15px] text-white placeholder:text-white/40;
+    background: rgba(255, 255, 255, 0.12);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    @apply transition-colors focus:border-white/45 focus:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/20;
+  }
+
+  .wt-auth-surface .wt-link {
+    @apply font-medium text-wt-primary no-underline hover:text-[#ff6a2b] hover:underline;
+  }
+
+  .wt-auth-surface button[type="submit"] {
+    @apply rounded-xl shadow-[0_4px_20px_rgba(245,78,0,0.35)];
+  }
+
+  .wt-auth-surface .text-wt-error {
+    @apply text-[#ff8fa8];
+  }
+
+  .wt-auth-surface .text-wt-success {
+    @apply text-emerald-300;
+  }
+
+  .dash-page-enter {
+    animation: dash-page-enter 0.18s ease-out both;
+  }
+
+  .dash-main-pending {
+    @apply pointer-events-none opacity-60 transition-opacity duration-150;
+  }
+}
+
+@keyframes dash-page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-page-enter {
+    animation: none;
+  }
+}

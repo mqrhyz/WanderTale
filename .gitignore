@@ -1,0 +1,71 @@
+# --- Secrets (không bao giờ commit) ---
+.env
+.env.local
+.env.*.local
+*.pem
+*.p12
+*.jks
+*.key
+*.mobileprovision
+credentials.json
+service-account*.json
+
+# --- Dependencies ---
+node_modules/
+.pnpm-store/
+
+# --- Next.js / Web build ---
+.next/
+out/
+*.tsbuildinfo
+apps/web/.next/
+apps/web/out/
+
+# --- Backend / Mobile / packages (không push — chỉ giữ web trên GitLab) ---
+/backend/
+/mobile/
+/apps/mobile/
+/packages/
+/supabase/
+/docs/
+docker-compose.yml
+
+# --- Backend / agent artifacts (nếu có file rơi vãi) ---
+dist/
+build/
+.hotel-agent-screenshots/
+backend/dist/
+
+# --- Mobile / Gradle (phòng khi copy nhầm) ---
+.gradle/
+local.properties
+*.apk
+*.aab
+.kotlin/
+apps/mobile/.expo/
+apps/mobile/dist/
+
+# --- Python (legacy scripts) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.Python
+*.egg-info/
+
+# --- IDE / OS ---
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Logs / test / cache ---
+*.log
+npm-debug.log*
+coverage/
+.turbo
+.cache/
+
+# --- Expo ---
+*.orig.*
