@@ -74,10 +74,13 @@ printf '%s' 'YOUR_GEMINI_API_KEY' | \
   gcloud secrets create wander-tale-gemini-api-key --data-file=-
 ```
 
-Grant the default Cloud Run runtime service account permission to read them:
+Create a dedicated Cloud Run runtime service account:
 
 ```bash
-export RUNTIME_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud iam service-accounts create wander-tale-runtime \
+  --display-name="WanderTale Cloud Run runtime"
+
+export RUNTIME_SA="wander-tale-runtime@${PROJECT_ID}.iam.gserviceaccount.com"
 
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:${RUNTIME_SA}" \

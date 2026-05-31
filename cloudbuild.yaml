@@ -34,6 +34,8 @@ steps:
       - ${_REGION}
       - --platform
       - managed
+      - --service-account
+      - wander-tale-runtime@$PROJECT_ID.iam.gserviceaccount.com
       - --allow-unauthenticated
       - --port
       - "8000"
