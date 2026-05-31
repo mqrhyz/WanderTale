@@ -1,0 +1,59 @@
+substitutions:
+  _REGION: asia-southeast1
+  _SERVICE: wander-tale-api
+  _REPOSITORY: wander-tale
+  _IMAGE: wander-tale-api
+
+steps:
+  - id: Build container
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --file
+      - backend/Dockerfile
+      - --tag
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA
+      - .
+
+  - id: Push container
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA
+
+  - id: Deploy Cloud Run
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA
+      - --region
+      - ${_REGION}
+      - --platform
+      - managed
+      - --allow-unauthenticated
+      - --port
+      - "8000"
+      - --memory
+      - 2Gi
+      - --cpu
+      - "1"
+      - --timeout
+      - "300"
+      - --concurrency
+      - "4"
+      - --max-instances
+      - "2"
+      - --set-env-vars
+      - TRIP_STAGED_GENERATION=true,TRIP_PLACES_PHOTOS_ENABLED=true,TRIP_OTA_HARD_DEADLINE_MS=90000,TRIP_OTA_SITES=booking,agoda,vntrip
+      - --update-secrets
+      - SUPABASE_URL=wander-tale-supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=wander-tale-supabase-service-role-key:latest,GEMINI_API_KEY_1=wander-tale-gemini-api-key:latest
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA
+
+options:
+  logging: CLOUD_LOGGING_ONLY
