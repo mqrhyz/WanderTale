@@ -123,7 +123,7 @@ TRIP_OTA_SITES=booking,agoda,vntrip
 ```
 
 `TRIP_PLACES_PHOTOS_ENABLED`, `TRIP_STAGED_GENERATION`, `TRIP_OTA_HARD_DEADLINE_MS`, and
-`TRIP_OTA_SITES` are already configured by `cloudbuild.yaml`.
+`TRIP_OTA_SITES` are already configured by `deploy/cloud-run.env.yaml`.
 
 ## 5. Create automatic deploys from GitHub
 
