@@ -58,6 +58,9 @@ async function scrapeOtaLive(criteria: SearchCriteria, sites: BookingSiteId[]): 
   const jobTimeoutMs = hardDeadlineMs + 60_000;
 
   try {
+    console.info(
+      `[trip-ota] start city=${criteria.city} checkIn=${criteria.checkIn} checkOut=${criteria.checkOut} sites=${sites.join(",")} deadlineMs=${hardDeadlineMs}`
+    );
     const { offers, siteScans, errors } = await searchHotel({
       criteria,
       sites,
@@ -69,6 +72,11 @@ async function scrapeOtaLive(criteria: SearchCriteria, sites: BookingSiteId[]): 
     });
 
     console.info(`[trip-ota] city=${criteria.city} sites=${sites.join(",")} offers=${offers.length}`);
+    for (const scan of siteScans) {
+      console.info(
+        `[trip-ota] site=${scan.site} status=${scan.status} offers=${scan.offerCount} error=${scan.error ?? "-"}`
+      );
+    }
 
     if (offers.length === 0) {
       return {

@@ -43,6 +43,7 @@ steps:
       - 2Gi
       - --cpu
       - "1"
+      - --no-cpu-throttling
       - --timeout
       - "300"
       - --concurrency
