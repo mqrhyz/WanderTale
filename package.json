@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "pnpm --filter @wander-tale/web dev:clean",
     "dev:web": "pnpm --filter @wander-tale/web dev:clean",
+    "dev:api": "npm run dev --prefix backend",
     "build": "pnpm --filter @wander-tale/web build",
     "start": "pnpm --filter @wander-tale/web start",
     "lint": "pnpm --filter @wander-tale/web lint",

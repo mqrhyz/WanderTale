@@ -115,3 +115,42 @@ export function buildDayBlockFromLegacy(
   };
   return buildDayBlockData(plan);
 }
+
+function patchSlotImages(slot: ItinerarySlot, title: string, urls: string[]): ItinerarySlot {
+  if ((slot.title?.trim() ?? "") !== title.trim()) return slot;
+  if (urls.length === 0) return slot;
+  return {
+    ...slot,
+    image_preview_url: urls[0],
+    image_preview_urls: urls,
+  };
+}
+
+/** Patch một slot khi nhận SSE `slot_image` — tránh refetch cả trip. */
+export function applySlotImagePatch(
+  itinerary: GeneratedItinerary,
+  payload: Record<string, unknown>
+): GeneratedItinerary {
+  const title = typeof payload.title === "string" ? payload.title.trim() : "";
+  const url = typeof payload.image_preview_url === "string" ? payload.image_preview_url : "";
+  const urlsRaw = payload.image_preview_urls;
+  const urls = Array.isArray(urlsRaw)
+    ? urlsRaw.filter((u): u is string => typeof u === "string" && u.trim().length > 0)
+    : url
+      ? [url]
+      : [];
+  if (!title || urls.length === 0) return itinerary;
+
+  const days = itinerary.days.map((day) => {
+    const patch = (slot: ItinerarySlot) => patchSlotImages(slot, title, urls);
+    return {
+      ...day,
+      activities: day.activities?.map(patch),
+      morning: patch(day.morning),
+      afternoon: patch(day.afternoon),
+      evening: patch(day.evening),
+    };
+  });
+
+  return { ...itinerary, days };
+}

@@ -5,6 +5,8 @@ export interface TripRow {
   end_date: string;
   budget: number;
   created_at: string;
+  /** Ảnh cover thành phố từ Pexels (backend enrich). */
+  cover_image_url?: string | null;
 }
 
 export interface DashboardStats {

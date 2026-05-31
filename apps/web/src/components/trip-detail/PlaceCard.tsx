@@ -10,7 +10,7 @@ import {
   resolveWeatherNote,
 } from "@/lib/trip-agenda";
 import { formatVnd, inferPlaceCategory } from "@/components/trip-detail/trip-detail-utils";
-import { buildMapsSearchUrl } from "@/components/trip-detail/buildMapsUrl";
+import { buildMapsUrlForPlace } from "@/components/trip-detail/buildMapsUrl";
 import { ImageLightbox } from "@/components/trip-detail/ImageLightbox";
 import { ImagePreviewCarousel, slotImages } from "@/components/trip-detail/ImagePreviewCarousel";
 
@@ -31,11 +31,17 @@ export function PlaceCard({ slot, destinationInitial, destination }: Props) {
         : null;
   const images = slotImages(slot).slice(0, 1);
   const mapsUrl =
-    typeof slot?.maps_url === "string"
-      ? slot.maps_url
-      : title !== "—"
-        ? buildMapsSearchUrl(destination ? `${title} ${destination}` : title)
-        : null;
+    title !== "—"
+      ? buildMapsUrlForPlace(
+          title,
+          destination,
+          {
+            lat: typeof slot?.lat === "number" ? slot.lat : undefined,
+            lng: typeof slot?.lng === "number" ? slot.lng : undefined,
+          },
+          typeof slot?.maps_url === "string" ? slot.maps_url : null
+        )
+      : null;
   const { start, end } = resolveActivityTimes(slot);
   const weatherNote = resolveWeatherNote(slot);
   const category = inferPlaceCategory(title, summary);

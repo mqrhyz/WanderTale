@@ -45,6 +45,9 @@ export interface ItinerarySlot {
   image_preview_urls?: string[];
   /** Link Google Maps tới địa điểm */
   maps_url?: string;
+  /** Tọa độ VietMap */
+  lat?: number;
+  lng?: number;
 }
 
 export interface ItineraryDayPlan {
@@ -56,6 +59,12 @@ export interface ItineraryDayPlan {
   morning: ItinerarySlot;
   afternoon: ItinerarySlot;
   evening: ItinerarySlot;
+}
+
+export interface PlaceDistanceFromHotel {
+  place_name: string;
+  distance_km: number;
+  duration_min: number;
 }
 
 export interface BookingSuggestion {
@@ -73,6 +82,14 @@ export interface BookingSuggestion {
   /** Gallery ảnh phòng từ Google Maps */
   image_preview_urls?: string[];
   maps_url?: string;
+  /** Khoảng cách từ KS tới từng điểm tham quan (VietMap Matrix). */
+  distances_to_places?: PlaceDistanceFromHotel[];
+  avg_distance_km?: number;
+  max_distance_km?: number;
+  /** Tên loại phòng từ OTA. */
+  room_name?: string;
+  /** Tiện nghi phòng (WiFi, m², điều hòa…). */
+  room_amenities?: string[];
 }
 
 export interface SuggestedPlace {
@@ -85,6 +102,8 @@ export interface SuggestedPlace {
   image_preview_url?: string;
   image_preview_urls?: string[];
   maps_url?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface TripPricingMeta {
@@ -94,6 +113,13 @@ export interface TripPricingMeta {
     message?: string;
     offers?: Array<{ hotelName: string; priceVnd: number; site: string; bookingUrl?: string }>;
     comparison?: unknown;
+  };
+  route_optimization?: {
+    status: string;
+    message?: string;
+    activity_centroid?: { lat: number; lng: number };
+    places?: Array<{ name: string; lat: number; lng: number; day?: number }>;
+    recommended_hotel_names?: string[];
   };
 }
 
@@ -133,6 +159,8 @@ export interface TripRecord {
   total_estimated_cost: number | null;
   risk_warnings: string[] | null;
   itinerary_json: GeneratedItinerary | null;
+  /** Ảnh cover thành phố (Pexels) — gắn khi list trips, không lưu DB. */
+  cover_image_url?: string | null;
   created_at: string;
   updated_at: string;
 }

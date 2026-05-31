@@ -31,15 +31,26 @@ type DashboardTripGalleryProps = {
 
 function TripCard({ trip, index }: { trip: TripRow; index: number }) {
   const phase = getTripPhase(trip.start_date, trip.end_date);
-  const bg = CARD_BACKGROUNDS[index % CARD_BACKGROUNDS.length]!;
+  const fallbackBg = CARD_BACKGROUNDS[index % CARD_BACKGROUNDS.length]!;
+  const coverUrl = trip.cover_image_url?.trim();
 
   return (
     <div className="w-[min(100%,320px)] shrink-0 snap-start md:w-auto [content-visibility:auto]">
       <Link href={`/trips/${trip.id}`} prefetch className="group block">
         <article
           className="relative aspect-[4/5] overflow-hidden rounded-3xl border border-premium-border shadow-[0_12px_40px_-16px_rgba(30,26,22,0.25)] transition-transform duration-300 ease-out will-change-transform group-hover:-translate-y-1.5"
-          style={{ background: bg }}
+          style={coverUrl ? undefined : { background: fallbackBg }}
         >
+          {coverUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={coverUrl}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : null}
           <div className="absolute inset-0 z-[1] bg-gradient-to-t from-black/85 via-black/35 to-black/10" />
           <span
             className={cn(

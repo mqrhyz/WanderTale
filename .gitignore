@@ -1,51 +1,58 @@
-# --- Secrets (không bao giờ commit) ---
+# --- Secrets: never commit ---
 .env
 .env.local
 .env.*.local
+**/.env
+**/.env.local
+**/.env.*.local
 *.pem
 *.p12
 *.jks
+*.keystore
 *.key
 *.mobileprovision
 credentials.json
 service-account*.json
+google-services.json
+Config.xcconfig
+local.properties
 
 # --- Dependencies ---
 node_modules/
 .pnpm-store/
 
-# --- Next.js / Web build ---
+# --- JavaScript / TypeScript build output ---
 .next/
 out/
-*.tsbuildinfo
-apps/web/.next/
-apps/web/out/
-
-# --- Backend / Mobile / packages (không push — chỉ giữ web trên GitLab) ---
-/backend/
-/mobile/
-/apps/mobile/
-/packages/
-/supabase/
-/docs/
-docker-compose.yml
-
-# --- Backend / agent artifacts (nếu có file rơi vãi) ---
 dist/
-build/
-.hotel-agent-screenshots/
-backend/dist/
+*.tsbuildinfo
+.turbo/
+.cache/
+coverage/
 
-# --- Mobile / Gradle (phòng khi copy nhầm) ---
+# --- Backend runtime artifacts ---
+.hotel-agent-screenshots/
+
+# --- Android build output ---
 .gradle/
-local.properties
+.kotlin/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
 *.apk
 *.aab
-.kotlin/
-apps/mobile/.expo/
-apps/mobile/dist/
+*.iml
 
-# --- Python (legacy scripts) ---
+# --- iOS build output and user state ---
+DerivedData/
+Pods/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+xcuserdata/
+*.xcuserstate
+
+# --- Python ---
 __pycache__/
 *.py[cod]
 .venv/
@@ -60,12 +67,9 @@ venv/
 .DS_Store
 Thumbs.db
 
-# --- Logs / test / cache ---
+# --- Logs ---
 *.log
 npm-debug.log*
-coverage/
-.turbo
-.cache/
 
-# --- Expo ---
+# --- Legacy editor files ---
 *.orig.*

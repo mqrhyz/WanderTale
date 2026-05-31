@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { td } from "@/components/trip-detail/trip-detail-theme";
 import { formatVnd } from "@/components/trip-detail/trip-detail-utils";
 import type { SuggestedPlace } from "@wander-tale/shared/types";
-import { buildMapsSearchUrl } from "@/components/trip-detail/buildMapsUrl";
+import { buildMapsUrlForPlace } from "@/components/trip-detail/buildMapsUrl";
 
 type Props = {
   places: SuggestedPlace[];
@@ -98,7 +98,12 @@ export function AiSuggestionsSection({ places, destination }: Props) {
                       )}
                       {(p.maps_url || p.name) && (
                         <a
-                          href={p.maps_url ?? buildMapsSearchUrl(destination ? `${p.name} ${destination}` : p.name)}
+                          href={buildMapsUrlForPlace(
+                            p.name,
+                            destination,
+                            { lat: p.lat, lng: p.lng },
+                            p.maps_url
+                          )}
                           target="_blank"
                           rel="noopener noreferrer"
                           className={cn("text-xs font-medium", td.accent, td.focusRing)}

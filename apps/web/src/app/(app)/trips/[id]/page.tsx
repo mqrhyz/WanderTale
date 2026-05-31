@@ -2,9 +2,8 @@
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle } from "lucide-react";
-import { AiSuggestionsSection } from "@/components/trip-detail/AiSuggestionsSection";
 import { DayBlock } from "@/components/trip-detail/DayBlock";
+import { DaySchedulePicker } from "@/components/trip-detail/DaySchedulePicker";
 import { HotelSection } from "@/components/trip-detail/HotelSection";
 import { td } from "@/components/trip-detail/trip-detail-theme";
 import { TripDetailHeader } from "@/components/trip-detail/TripDetailHeader";
@@ -14,12 +13,12 @@ import { cn } from "@/lib/cn";
 import {
   countItineraryPlaces,
   summarizeWeatherFromActivities,
-  agendaNeedsSpecificPlaces,
-  agendaNeedsPlaceMedia,
+  applySlotImagePatch,
   buildDayBlockData,
   buildDayBlockFromLegacy,
   type DayBlockData,
 } from "@/lib/trip-agenda-activities";
+import { tripNeedsLivePolling, tripNeedsOtaPolling } from "@/lib/trip-enrichment-state";
 import { apiFetch } from "@/lib/api";
 import { useTripStream } from "@/hooks/useTripStream";
 import { createClient } from "@/lib/supabase/client";
@@ -39,6 +38,8 @@ interface TripDetail {
   itinerary_json: GeneratedItinerary | null;
   generation_status?: string | null;
   hotel_pricing_status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
   map_preview_url?: string | null;
   trip_days: Array<{
     id: string;
@@ -67,6 +68,8 @@ export default function TripDetailPage() {
   const [trip, setTrip] = useState<TripDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [imageProgress, setImageProgress] = useState<{ filled: number; total: number } | null>(null);
+  const [selectedDayIndex, setSelectedDayIndex] = useState(0);
 
   async function loadTrip(signal?: AbortSignal) {
     const supabase = createClient();
@@ -98,20 +101,7 @@ export default function TripDetailPage() {
 
   const needsLiveUpdates = useMemo(() => {
     if (!trip) return false;
-    const otaPending =
-      trip.generation_status === "pricing_pending" ||
-      trip.generation_status === "generating" ||
-      trip.hotel_pricing_status === "pending";
-    const hotels = trip.itinerary_json?.hotel_suggestions ?? [];
-    const waitingGallery =
-      hotels.length > 0 &&
-      hotels.some((h) => !h.image_preview_urls || h.image_preview_urls.length < 1);
-    return (
-      otaPending ||
-      waitingGallery ||
-      agendaNeedsSpecificPlaces(trip.itinerary_json) ||
-      agendaNeedsPlaceMedia(trip.itinerary_json)
-    );
+    return tripNeedsLivePolling(trip);
   }, [trip]);
 
   const reloadTrip = useCallback(() => {
@@ -120,6 +110,25 @@ export default function TripDetailPage() {
 
   const { failed: streamFailed } = useTripStream(params.id, {
     enabled: needsLiveUpdates,
+    onEvent: (event) => {
+      if (event.type === "slot_image" && event.payload) {
+        setTrip((prev) => {
+          if (!prev?.itinerary_json) return prev;
+          return {
+            ...prev,
+            itinerary_json: applySlotImagePatch(prev.itinerary_json, event.payload!),
+          };
+        });
+        const filled = typeof event.payload.filled === "number" ? event.payload.filled : null;
+        const total = typeof event.payload.total === "number" ? event.payload.total : null;
+        if (filled != null && total != null) setImageProgress({ filled, total });
+      }
+      if (event.type === "images_progress" && event.payload) {
+        const filled = typeof event.payload.filled === "number" ? event.payload.filled : null;
+        const total = typeof event.payload.total === "number" ? event.payload.total : null;
+        if (filled != null && total != null) setImageProgress({ filled, total });
+      }
+    },
     onReload: reloadTrip,
   });
 
@@ -141,10 +150,7 @@ export default function TripDetailPage() {
     if (!trip) return null;
     const dayBlocks = buildDayBlocks(trip);
     const it = trip.itinerary_json;
-    const otaPending =
-      trip.generation_status === "pricing_pending" ||
-      trip.generation_status === "generating" ||
-      trip.hotel_pricing_status === "pending";
+    const otaPending = tripNeedsOtaPolling(trip);
     const mapUrl = trip.map_preview_url ?? null;
 
     return {
@@ -174,6 +180,8 @@ export default function TripDetailPage() {
 
   const { dayBlocks, it, otaPending, mapUrl, dayCount, placeCount, weatherSummary, destinationInitial } =
     derived;
+  const activeDayIndex = Math.min(selectedDayIndex, Math.max(dayBlocks.length - 1, 0));
+  const activeDay = dayBlocks[activeDayIndex];
 
   return (
     <div
@@ -190,12 +198,14 @@ export default function TripDetailPage() {
         otaPending={otaPending}
       />
 
+      {imageProgress != null && imageProgress.filled < imageProgress.total && (
+        <p className={cn("mt-4 text-sm", td.textSecondary)}>
+          Đang lấy ảnh {imageProgress.filled}/{imageProgress.total}…
+        </p>
+      )}
+
       <div className="mt-6 space-y-12">
         {mapUrl && <TripHeroMap mapUrl={mapUrl} destination={trip.destination} />}
-
-        {trip.summary && (
-          <p className={cn("max-w-3xl text-sm leading-relaxed", td.textSecondary)}>{trip.summary}</p>
-        )}
 
         <TripSummaryRow
           totalCost={trip.total_estimated_cost}
@@ -204,44 +214,39 @@ export default function TripDetailPage() {
           weatherSummary={weatherSummary}
         />
 
-        {trip.risk_warnings && trip.risk_warnings.length > 0 && (
-          <div className={cn("rounded-xl border p-4", td.warningBox)}>
-            <p className={cn("flex items-center gap-2 text-sm font-medium", td.warningText)}>
-              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-              Cảnh báo rủi ro
-            </p>
-            <ul className={cn("mt-3 space-y-1.5 text-sm", td.warningBody)}>
-              {trip.risk_warnings.map((w) => (
-                <li key={w}>· {w}</li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         <section className="space-y-6">
           <div>
             <h2 className={cn("text-lg font-semibold", td.textPrimary)}>Agenda theo ngày</h2>
             <p className={cn("mt-1 text-sm", td.textSecondary)}>
-              Lịch dọc theo khung giờ — gợi ý địa điểm phù hợp thời tiết từng buổi.
+              Chọn ngày để xem lịch trình chi tiết theo khung giờ.
             </p>
           </div>
-          <div className="space-y-6">
-            {dayBlocks.map((day) => (
-              <DayBlock
-                key={`${day.day_index}-${day.trip_date}`}
-                day={day}
-                destinationInitial={destinationInitial}
-                destination={trip.destination}
-              />
-            ))}
-          </div>
+
+          {dayBlocks.length > 0 && (
+            <DaySchedulePicker
+              days={dayBlocks}
+              selectedIndex={activeDayIndex}
+              onSelect={setSelectedDayIndex}
+            />
+          )}
+
+          {activeDay && (
+            <DayBlock
+              key={`${activeDay.day_index}-${activeDay.trip_date}`}
+              day={activeDay}
+              destinationInitial={destinationInitial}
+              destination={trip.destination}
+              collapsible={false}
+            />
+          )}
         </section>
 
-        <HotelSection hotels={it?.hotel_suggestions ?? []} otaPending={otaPending} destination={trip.destination} />
-
-        {it?.pricing_meta?.suggested_places && it.pricing_meta.suggested_places.length > 0 && (
-          <AiSuggestionsSection places={it.pricing_meta.suggested_places} destination={trip.destination} />
-        )}
+        <HotelSection
+          hotels={it?.hotel_suggestions ?? []}
+          otaPending={otaPending}
+          destination={trip.destination}
+          routeOptimization={it?.pricing_meta?.route_optimization}
+        />
 
         <div className={cn("flex flex-wrap gap-2 border-t pt-6", td.footerBorder)}>
           <button

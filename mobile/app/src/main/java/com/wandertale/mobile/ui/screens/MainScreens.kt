@@ -1,0 +1,751 @@
+package com.wandertale.mobile.ui.screens
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.CardTravel
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Help
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.MonetizationOn
+import androidx.compose.material.icons.outlined.Route
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import com.wandertale.mobile.data.DashboardHomeCache
+import com.wandertale.mobile.WanderTaleApp
+import com.wandertale.mobile.data.model.DashboardStats
+import com.wandertale.mobile.data.model.TripRecord
+import com.wandertale.mobile.ui.components.AppScaffold
+import com.wandertale.mobile.ui.components.DashboardHeroCard
+import com.wandertale.mobile.ui.components.DashboardPageHeader
+import com.wandertale.mobile.ui.components.ErrorText
+import com.wandertale.mobile.ui.components.FavoriteChip
+import com.wandertale.mobile.ui.components.InfoCard
+import com.wandertale.mobile.ui.components.OrangeLoadingSpinner
+import com.wandertale.mobile.ui.components.TripDetailSkeleton
+import com.wandertale.mobile.ui.components.PremiumAccentButton
+import com.wandertale.mobile.ui.components.FavoritesEmptyState
+import com.wandertale.mobile.ui.components.premiumPressScale
+import com.wandertale.mobile.ui.components.PremiumPullRefreshBox
+import com.wandertale.mobile.ui.components.TripsListSkeleton
+import com.wandertale.mobile.ui.components.PastTripsEmptyState
+import com.wandertale.mobile.ui.components.PremiumMetricCard
+import com.wandertale.mobile.ui.components.PremiumSurfaceCard
+import com.wandertale.mobile.ui.components.TallTripListCard
+import com.wandertale.mobile.ui.components.TripSegmentControl
+import com.wandertale.mobile.ui.components.DotPatternBackground
+import com.wandertale.mobile.ui.components.TripGallerySection
+import com.wandertale.mobile.ui.components.TripPlannerPromoCard
+import com.wandertale.mobile.ui.components.WanderTaleBottomNavDark
+import com.wandertale.mobile.ui.components.WanderTaleBottomNavLight
+import com.wandertale.mobile.ui.components.WanderTaleBottomNavOverlayHeight
+import com.wandertale.mobile.ui.navigation.Routes
+import com.wandertale.mobile.ui.theme.PremiumColors
+import com.wandertale.mobile.ui.theme.PremiumDesign
+import com.wandertale.mobile.util.FormatUtils
+import com.wandertale.mobile.util.TripPhase
+import com.wandertale.mobile.util.getTripPhase
+import kotlinx.coroutines.launch
+
+@Composable
+fun MainShell(
+    darkTheme: Boolean,
+    currentTab: String,
+    onTab: (String) -> Unit,
+    onNavigate: (String) -> Unit,
+    onCreateTrip: () -> Unit,
+    content: @Composable (PaddingValues) -> Unit,
+) {
+    val currentRoute = Routes.tabToNavRoute(currentTab)
+    val showNav = currentTab != "create"
+    val navBgColor by animateColorAsState(
+        targetValue = if (darkTheme) Color(0xFF1A1A1A) else Color.White,
+        animationSpec = tween(durationMillis = 300),
+        label = "nav_bg",
+    )
+    val statusBarsPadding = WindowInsets.statusBars.asPaddingValues()
+    val navBarsPadding = WindowInsets.navigationBars.asPaddingValues()
+    val scrollPadding = PaddingValues(
+        top = statusBarsPadding.calculateTopPadding() + 8.dp,
+        bottom = if (showNav) {
+            WanderTaleBottomNavOverlayHeight + 4.dp
+        } else {
+            navBarsPadding.calculateBottomPadding() + 8.dp
+        },
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
+            content(scrollPadding)
+        }
+
+        if (showNav) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .offset(y = PremiumDesign.BottomNavDrop),
+            ) {
+                if (darkTheme) {
+                    WanderTaleBottomNavDark(
+                        currentRoute = currentRoute,
+                        onNavigate = { route -> onTab(Routes.navRouteToTab(route)) },
+                        onCreateClick = onCreateTrip,
+                        backgroundColor = navBgColor,
+                    )
+                } else {
+                    WanderTaleBottomNavLight(
+                        currentRoute = currentRoute,
+                        onNavigate = { route -> onTab(Routes.navRouteToTab(route)) },
+                        onCreateClick = onCreateTrip,
+                        backgroundColor = navBgColor,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun DashboardScreen(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    stats: DashboardStats?,
+    trips: List<TripRecord>,
+    displayName: String,
+    error: String?,
+    animateMetrics: Boolean = false,
+    onOpenTrip: (String) -> Unit,
+    onNavigate: (String) -> Unit,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+) {
+    val listContent: @Composable () -> Unit = {
+        LazyColumn(
+            modifier = modifier.padding(horizontal = PremiumDesign.ScreenPadding, vertical = 12.dp),
+            contentPadding = contentPadding,
+            verticalArrangement = Arrangement.spacedBy(PremiumDesign.SectionGap),
+        ) {
+            item {
+                DashboardHeroCard(
+                    greeting = displayName,
+                    tripCount = stats?.total_trips ?: trips.size,
+                    onCreateTrip = { onNavigate("planner") },
+                )
+            }
+            error?.let { item { ErrorText(it) } }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(
+                        Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        PremiumMetricCard(
+                            label = "Chuyến đi",
+                            value = stats?.total_trips?.toString() ?: "—",
+                            iconBg = PremiumColors.StatTripBg,
+                            icon = Icons.Outlined.CalendarMonth,
+                            iconTint = PremiumColors.StatTripIcon,
+                            modifier = Modifier.weight(1f),
+                            animatedInt = if (animateMetrics) stats?.total_trips else null,
+                        )
+                        PremiumMetricCard(
+                            label = "Điểm đến",
+                            value = stats?.unique_destinations?.toString() ?: "—",
+                            iconBg = PremiumColors.StatDestBg,
+                            icon = Icons.Default.Place,
+                            iconTint = PremiumColors.StatDestIcon,
+                            modifier = Modifier.weight(1f),
+                            animatedInt = if (animateMetrics) stats?.unique_destinations else null,
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        PremiumMetricCard(
+                            label = "Ngân sách",
+                            value = stats?.let { FormatUtils.formatCompactVnd(it.total_budget_planned) } ?: "—",
+                            iconBg = PremiumColors.StatBudgetBg,
+                            icon = Icons.Outlined.MonetizationOn,
+                            iconTint = PremiumColors.StatBudgetIcon,
+                            modifier = Modifier.weight(1f),
+                        )
+                        PremiumMetricCard(
+                            label = "Hoạt động",
+                            value = stats?.places_in_itineraries?.toString() ?: "—",
+                            iconBg = PremiumColors.StatActivityBg,
+                            icon = Icons.Outlined.Route,
+                            iconTint = PremiumColors.StatActivityIcon,
+                            modifier = Modifier.weight(1f),
+                            animatedInt = if (animateMetrics) stats?.places_in_itineraries else null,
+                        )
+                    }
+                }
+            }
+            item {
+                TripGallerySection(
+                    trips = trips.take(6),
+                    onOpenTrip = onOpenTrip,
+                    onCreateTrip = { onNavigate("planner") },
+                )
+            }
+            item { Spacer(Modifier.height(8.dp)) }
+        }
+    }
+
+    if (onRefresh != null) {
+        PremiumPullRefreshBox(
+            refreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = modifier,
+        ) { listContent() }
+    } else {
+        listContent()
+    }
+}
+
+@Composable
+private fun ProfileSettingsRow(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .premiumPressScale(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = PremiumColors.Accent,
+            modifier = Modifier.size(18.dp),
+        )
+        Text(
+            label,
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = PremiumColors.TextMuted,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+}
+
+@Composable
+private fun SettingsDivider() {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(1.dp)
+            .background(PremiumColors.Divider),
+    )
+}
+
+@Composable
+fun TripsListScreen(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    trips: List<TripRecord>,
+    error: String?,
+    isRefreshing: Boolean = false,
+    onRefresh: (() -> Unit)? = null,
+    onOpenTrip: (String) -> Unit,
+    onCreateTrip: () -> Unit,
+) {
+    val activeTrips = trips.filter { getTripPhase(it.start_date, it.end_date) != TripPhase.COMPLETED }
+    val pastTrips = trips.filter { getTripPhase(it.start_date, it.end_date) == TripPhase.COMPLETED }
+    var segmentIndex by remember { mutableStateOf(0) }
+
+    val segmentTrips = when (segmentIndex) {
+        0 -> activeTrips
+        else -> pastTrips
+    }
+
+    val content: @Composable () -> Unit = {
+            Column(Modifier.fillMaxSize()) {
+                FixedTabHeader(
+                    title = "Chuyến đi",
+                    description = "Quản lý mọi hành trình của bạn.",
+                    contentPadding = contentPadding,
+                )
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = PremiumDesign.ScreenPadding, vertical = 12.dp),
+                    contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                    verticalArrangement = Arrangement.spacedBy(PremiumDesign.SectionGap),
+                ) {
+                    item { TripPlannerPromoCard(onCreateTrip) }
+                    error?.let { item { ErrorText(it) } }
+                    item {
+                        TripSegmentControl(
+                            segments = listOf("Sắp tới", "Đã qua"),
+                            selectedIndex = segmentIndex,
+                            onSelect = { segmentIndex = it },
+                        )
+                    }
+                    if (segmentTrips.isEmpty()) {
+                        item {
+                            if (segmentIndex == 1) {
+                                PastTripsEmptyState()
+                            } else {
+                                Column(
+                                    Modifier.fillMaxWidth().padding(vertical = 32.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text("Chưa có chuyến đi", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "Tạo hành trình mới với AI.",
+                                        color = PremiumColors.TextMuted,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.padding(top = 8.dp),
+                                    )
+                                    Spacer(Modifier.height(16.dp))
+                                    PremiumAccentButton("✦ Tạo chuyến AI", onCreateTrip, modifier = Modifier.fillMaxWidth(0.7f))
+                                }
+                            }
+                        }
+                    } else {
+                        items(segmentTrips.size, key = { segmentTrips[it].id }) { index ->
+                            val trip = segmentTrips[index]
+                            val dupes = segmentTrips.filter { it.destination == trip.destination && it.start_date == trip.start_date }
+                            val bookingLabel = if (dupes.size > 1) {
+                                "Booking #${dupes.indexOf(trip) + 1}"
+                            } else null
+                            TallTripListCard(
+                                trip = trip,
+                                index = index,
+                                onClick = { onOpenTrip(trip.id) },
+                                bookingLabel = bookingLabel,
+                            )
+                        }
+                    }
+                    item { Spacer(Modifier.height(8.dp)) }
+                }
+            }
+    }
+
+    if (onRefresh != null) {
+        PremiumPullRefreshBox(
+            refreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = modifier,
+        ) { content() }
+    } else {
+        Box(modifier) { content() }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun FavoritesScreen(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    trips: List<TripRecord>,
+    onOpenTrip: (String) -> Unit,
+    onCreateTrip: () -> Unit,
+) {
+    val favIds by WanderTaleApp.instance.preferencesStore.favoriteTripIds.collectAsState(initial = emptySet())
+    var selectedId by remember { mutableStateOf<String?>(null) }
+    val favoriteTrips = trips.filter { it.id in favIds }
+
+    LaunchedEffect(favoriteTrips.map { it.id }) {
+        if (selectedId !in favoriteTrips.map { it.id }) selectedId = favoriteTrips.firstOrNull()?.id
+    }
+
+    val visibleTrips = selectedId?.let { id -> favoriteTrips.filter { it.id == id } } ?: favoriteTrips
+
+    Column(modifier.fillMaxSize()) {
+        FixedTabHeader(
+            title = "Yêu thích",
+            description = "Chuyến đi bạn đã đánh dấu yêu thích trên thiết bị này.",
+            contentPadding = contentPadding,
+        )
+        if (favoriteTrips.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                DotPatternBackground(Modifier.matchParentSize())
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = PremiumDesign.ScreenPadding)
+                        .padding(bottom = contentPadding.calculateBottomPadding()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    FavoritesEmptyState(onCreateTrip)
+                }
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = PremiumDesign.ScreenPadding, vertical = 12.dp),
+                contentPadding = PaddingValues(bottom = contentPadding.calculateBottomPadding()),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
+            ) {
+                item {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        favoriteTrips.forEach { trip ->
+                            FavoriteChip(
+                                label = trip.destination,
+                                selected = trip.id == (selectedId ?: favoriteTrips.first().id),
+                                onClick = { selectedId = trip.id },
+                            )
+                        }
+                    }
+                }
+                items(visibleTrips.size, key = { visibleTrips[it].id }) { index ->
+                    val trip = visibleTrips[index]
+                    TallTripListCard(
+                        trip = trip,
+                        index = index,
+                        onClick = { onOpenTrip(trip.id) },
+                        showFavoriteHeart = true,
+                    )
+                }
+                item { Spacer(Modifier.height(8.dp)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FixedTabHeader(
+    title: String,
+    description: String,
+    contentPadding: PaddingValues,
+) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = PremiumDesign.ScreenPadding)
+            .padding(
+                top = contentPadding.calculateTopPadding() + 12.dp,
+                bottom = 12.dp,
+            ),
+    ) {
+        DashboardPageHeader(title = title, description = description)
+    }
+}
+
+@Composable
+fun ProfileScreen(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(0.dp),
+    onNavigate: (String) -> Unit,
+    onLogout: () -> Unit,
+    onDisplayNameUpdated: (String) -> Unit = {},
+) {
+    var profile by remember { mutableStateOf(DashboardHomeCache.accountInfo?.profile) }
+    var name by remember { mutableStateOf(DashboardHomeCache.accountInfo?.displayName.orEmpty()) }
+    var email by remember { mutableStateOf(DashboardHomeCache.accountInfo?.email.orEmpty()) }
+    var phone by remember { mutableStateOf(DashboardHomeCache.accountInfo?.phone.orEmpty()) }
+    var saved by remember { mutableStateOf(false) }
+    var saveError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        DashboardHomeCache.accountInfo?.let { info ->
+            profile = info.profile
+            name = info.displayName
+            email = info.email
+            phone = info.phone
+        } ?: runCatching {
+            WanderTaleApp.instance.profileRepository.getAccountInfo()
+        }.onSuccess { info ->
+            DashboardHomeCache.accountInfo = info
+            profile = info.profile
+            name = info.displayName
+            email = info.email
+            phone = info.phone
+            if (info.displayName.isNotBlank()) {
+                DashboardHomeCache.displayName = info.displayName
+            }
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = PremiumDesign.ScreenPadding)
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        ProfileCompactHeader(name = name.ifBlank { "Khách du lịch" })
+
+        PremiumSurfaceCard {
+            Column(
+                Modifier.padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ProfileReadOnlyField("Tên hiển thị", name)
+                ProfileReadOnlyField("Email", email)
+                ProfilePhoneField(phone) { phone = it }
+                PremiumAccentButton(
+                    text = "Lưu thay đổi",
+                    onClick = {
+                        scope.launch {
+                            saveError = null
+                            saved = false
+                            runCatching {
+                                WanderTaleApp.instance.profileRepository.updatePhone(phone.ifBlank { null })
+                                DashboardHomeCache.updateAccountPhone(phone.trim())
+                                saved = true
+                            }.onFailure {
+                                saveError = "Không thể lưu số điện thoại. Vui lòng thử lại."
+                            }
+                        }
+                    },
+                    height = 40.dp,
+                )
+                if (saved) {
+                    Text("Đã lưu.", color = PremiumColors.StatDestIcon, fontSize = 12.sp)
+                }
+                saveError?.let {
+                    Text(it, color = PremiumColors.LogoutRed, fontSize = 12.sp)
+                }
+            }
+        }
+
+        PremiumSurfaceCard {
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                ProfileSettingsRow("Cài đặt", Icons.Filled.Settings) { onNavigate("settings") }
+                SettingsDivider()
+                ProfileSettingsRow("Thông báo", Icons.Filled.Notifications) { }
+                SettingsDivider()
+                ProfileSettingsRow("Trợ giúp & FAQ", Icons.Filled.Help) { }
+                SettingsDivider()
+                ProfileSettingsRow("Điều khoản sử dụng", Icons.Filled.Description) { }
+                if (profile?.is_business == true) {
+                    SettingsDivider()
+                    ProfileSettingsRow("Doanh nghiệp", Icons.Filled.Apartment) { onNavigate("business") }
+                }
+                if (profile?.is_admin == true) {
+                    SettingsDivider()
+                    ProfileSettingsRow("Admin", Icons.Filled.Star) { onNavigate("admin") }
+                }
+            }
+        }
+
+        TextButton(
+            onClick = {
+                scope.launch {
+                    DashboardHomeCache.clear()
+                    WanderTaleApp.instance.authRepository.signOut()
+                    onLogout()
+                }
+            },
+            modifier = Modifier.padding(top = 2.dp),
+        ) {
+            Text("Đăng xuất", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = PremiumColors.LogoutRed)
+        }
+
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ProfileCompactHeader(name: String) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ProfileAvatarCompact(name)
+        Text(
+            text = name,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun ProfileAvatarCompact(name: String) {
+    val initial = remember(name) {
+        name.trim().firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    }
+    Box(
+        Modifier
+            .size(52.dp)
+            .clip(CircleShape)
+            .background(PremiumColors.AccentLight),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = initial,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = PremiumColors.Accent,
+        )
+    }
+}
+
+@Composable
+private fun ProfileReadOnlyField(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            label,
+            color = PremiumColors.TextMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Text(
+            text = value,
+            fontSize = 14.sp,
+            color = PremiumColors.Ink,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(PremiumColors.InputBg)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun ProfilePhoneField(value: String, onChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            "Số điện thoại",
+            color = PremiumColors.TextMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = PremiumColors.Ink),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(PremiumColors.InputBg)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+fun SettingsScreen(onBack: () -> Unit) {
+    val dark by WanderTaleApp.instance.preferencesStore.darkMode.collectAsState(initial = false)
+    val scope = rememberCoroutineScope()
+
+    com.wandertale.mobile.ui.components.AppScaffold(title = "Cài đặt", onBack = onBack) { padding ->
+        Column(padding.padding(PremiumDesign.ScreenPadding)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("Giao diện tối")
+                androidx.compose.material3.Switch(checked = dark, onCheckedChange = { scope.launch { WanderTaleApp.instance.preferencesStore.setDarkMode(it) } })
+            }
+            Spacer(Modifier.height(16.dp))
+            Text("Thông báo chuyến đi — sắp ra mắt", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+fun AdminScreen(onBack: () -> Unit) {
+    var isAdmin by remember { mutableStateOf<Boolean?>(null) }
+    var partners by remember { mutableStateOf<List<com.wandertale.mobile.data.model.PartnerRow>>(emptyList()) }
+    var vouchers by remember { mutableStateOf<List<com.wandertale.mobile.data.model.VoucherRow>>(emptyList()) }
+
+    LaunchedEffect(Unit) {
+        val admin = WanderTaleApp.instance.adminRepository.isAdmin()
+        isAdmin = admin
+        if (admin) {
+            partners = WanderTaleApp.instance.adminRepository.listPartners()
+            vouchers = WanderTaleApp.instance.adminRepository.listVouchersAdmin()
+        }
+    }
+
+    com.wandertale.mobile.ui.components.AppScaffold(title = "Admin", onBack = onBack) { padding ->
+        when (isAdmin) {
+            null -> Box(padding.fillMaxSize(), contentAlignment = Alignment.Center) { OrangeLoadingSpinner() }
+            false -> Text("Không có quyền admin.", padding.padding(PremiumDesign.ScreenPadding))
+            true -> LazyColumn(padding.padding(PremiumDesign.ScreenPadding), verticalArrangement = Arrangement.spacedBy(PremiumDesign.SectionGap)) {
+                item { Text("Đối tác", style = MaterialTheme.typography.titleMedium) }
+                items(partners, key = { it.id }) { InfoCard(it.name, it.website) }
+                item { Text("Voucher", style = MaterialTheme.typography.titleMedium) }
+                items(vouchers, key = { it.id }) { InfoCard(it.code, "${it.title} · ${it.valid_from} → ${it.valid_until}") }
+            }
+        }
+    }
+}

@@ -12,43 +12,59 @@ type Props = {
   destinationInitial: string;
   destination?: string;
   defaultExpanded?: boolean;
+  collapsible?: boolean;
 };
 
-export function DayBlock({ day, destinationInitial, destination, defaultExpanded = true }: Props) {
+export function DayBlock({
+  day,
+  destinationInitial,
+  destination,
+  defaultExpanded = true,
+  collapsible = true,
+}: Props) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const isOpen = collapsible ? expanded : true;
+
+  const header = (
+    <div className="min-w-0 flex-1">
+      <p className={cn("text-lg font-semibold", td.textPrimary)}>
+        Ngày {day.day_index}: {day.trip_date}
+      </p>
+      {day.theme && <p className={cn("mt-1 text-sm", td.textSecondary)}>{day.theme}</p>}
+    </div>
+  );
 
   return (
     <section className={cn("overflow-hidden rounded-xl border", td.border, td.surface)}>
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        aria-expanded={expanded}
-        className={cn(
-          "flex w-full items-start gap-3 border-l-[3px] border-[#F97316] px-4 py-4 text-left transition-colors",
-          "hover:bg-black/[0.02] dark:hover:bg-[#1C1C1C]",
-          td.focusRing
-        )}
-      >
-        <div className="min-w-0 flex-1">
-          <p className={cn("text-lg font-semibold", td.textPrimary)}>
-            Ngày {day.day_index}: {day.trip_date}
-          </p>
-          {day.theme && <p className={cn("mt-1 text-sm", td.textSecondary)}>{day.theme}</p>}
-        </div>
-        <ChevronDown
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={isOpen}
           className={cn(
-            "mt-1 h-5 w-5 shrink-0 transition-transform duration-200 ease-out",
-            td.textSecondary,
-            expanded && "rotate-180"
+            "flex w-full items-start gap-3 border-l-[3px] border-[#F97316] px-4 py-4 text-left transition-colors",
+            "hover:bg-black/[0.02] dark:hover:bg-[#1C1C1C]",
+            td.focusRing
           )}
-          aria-hidden
-        />
-      </button>
+        >
+          {header}
+          <ChevronDown
+            className={cn(
+              "mt-1 h-5 w-5 shrink-0 transition-transform duration-200 ease-out",
+              td.textSecondary,
+              isOpen && "rotate-180"
+            )}
+            aria-hidden
+          />
+        </button>
+      ) : (
+        <div className="border-l-[3px] border-[#F97316] px-4 py-4">{header}</div>
+      )}
 
       <div
         className={cn(
           "grid transition-[grid-template-rows] duration-200 ease-out",
-          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+          isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         )}
       >
         <div className="overflow-hidden">

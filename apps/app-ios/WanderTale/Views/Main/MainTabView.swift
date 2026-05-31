@@ -1,0 +1,117 @@
+import SwiftUI
+
+struct MainTabView: View {
+    @Environment(AppState.self) private var appState
+    @State private var selectedTab: MainTab = .dashboard
+    @State private var tabBeforeCreate: MainTab = .dashboard
+    @State private var path = NavigationPath()
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            tabContent
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(PremiumTheme.bg)
+                .transaction { $0.disablesAnimations = true }
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if showNav {
+                        WanderTaleBottomNav(selectedTab: $selectedTab) {
+                            tabBeforeCreate = selectedTab == .create ? tabBeforeCreate : selectedTab
+                            selectedTab = .create
+                        }
+                        .padding(.horizontal, PremiumTheme.screenPadding)
+                        .padding(.bottom, PremiumTheme.bottomNavBottomInset)
+                        .offset(y: PremiumTheme.bottomNavDrop)
+                        .ignoresSafeArea(.container, edges: .bottom)
+                    }
+                }
+                .navigationDestination(for: Route.self) { route in
+                    switch route {
+                    case .tripDetail(let id):
+                        TripDetailView(tripId: id)
+                    case .settings:
+                        SettingsView()
+                    case .admin:
+                        AdminPortalView()
+                    case .business:
+                        BusinessPortalView()
+                    }
+                }
+        }
+    }
+
+    @ViewBuilder
+    private var tabContent: some View {
+        if appState.accountInfo == nil {
+            ZStack {
+                PremiumTheme.bg.ignoresSafeArea()
+                ProgressView()
+                    .tint(PremiumTheme.accent)
+            }
+        } else if effectiveTab == .create {
+            TripPlannerView(onCreated: { id in
+                path.append(Route.tripDetail(id))
+                selectedTab = tabBeforeCreate
+            }, onBack: {
+                selectedTab = tabBeforeCreate
+            })
+            .id("create")
+        } else {
+            ZStack {
+                DashboardView(path: $path, onCreateTrip: openCreateTrip)
+                    .visibleTab(effectiveTab == .dashboard && homeRole == .user)
+
+                BusinessPortalView()
+                    .visibleTab(effectiveTab == .dashboard && homeRole == .business)
+
+                AdminPortalView()
+                    .visibleTab(effectiveTab == .dashboard && homeRole == .admin)
+
+                TripsListView(path: $path)
+                    .visibleTab(effectiveTab == .trips)
+
+                FavoritesView(path: $path)
+                    .visibleTab(effectiveTab == .favorites)
+
+                ProfileView(path: $path)
+                    .visibleTab(effectiveTab == .profile)
+            }
+            .animation(nil, value: effectiveTab)
+        }
+    }
+
+    private func openCreateTrip() {
+        tabBeforeCreate = selectedTab == .create ? tabBeforeCreate : selectedTab
+        selectedTab = .create
+    }
+
+    private var effectiveTab: MainTab { selectedTab }
+    private var showNav: Bool { selectedTab != .create && homeRole == .user }
+
+    private var homeRole: HomeRole {
+        if appState.accountInfo?.profile?.is_admin == true { return .admin }
+        if appState.accountInfo?.profile?.is_business == true { return .business }
+        return .user
+    }
+}
+
+private enum HomeRole {
+    case user
+    case business
+    case admin
+}
+
+enum Route: Hashable {
+    case tripDetail(String)
+    case settings
+    case admin
+    case business
+}
+
+private extension View {
+    func visibleTab(_ isVisible: Bool) -> some View {
+        opacity(isVisible ? 1 : 0)
+            .allowsHitTesting(isVisible)
+            .accessibilityHidden(!isVisible)
+            .zIndex(isVisible ? 1 : 0)
+    }
+}

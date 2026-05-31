@@ -14,15 +14,21 @@ import {
   splitHotels,
 } from "@/components/trip-detail/trip-detail-utils";
 import { useCountUp } from "@/components/trip-detail/useCountUp";
-import type { BookingSuggestion } from "@wander-tale/shared/types";
+import { dedupeRoomAmenities } from "@/lib/room-amenities";
 
 const MAX_HOTEL_CARDS = 6;
 
-function StarDots({ count }: { count: number }) {
+function HotelStars({ count }: { count: number }) {
   return (
     <span className="inline-flex items-center gap-0.5" aria-label={`${count} sao`}>
-      {Array.from({ length: count }).map((_, i) => (
-        <span key={i} className="h-1.5 w-1.5 rounded-full bg-[#F97316]" aria-hidden />
+      {Array.from({ length: 5 }).map((_, i) => (
+        <span
+          key={i}
+          className={cn("text-sm leading-none", i < count ? "text-amber-400" : "text-neutral-300")}
+          aria-hidden
+        >
+          ★
+        </span>
       ))}
     </span>
   );
@@ -41,11 +47,9 @@ function hotelMapsUrl(hotel: BookingSuggestion, destination?: string): string {
 
 function HotelCard({
   hotel,
-  recommended = false,
   destination,
 }: {
   hotel: BookingSuggestion;
-  recommended?: boolean;
   destination?: string;
 }) {
   const stars = parseHotelRating(hotel.reason, hotel.price_level);
@@ -61,54 +65,49 @@ function HotelCard({
     setLightboxOpen(true);
   };
 
+  const amenities = dedupeRoomAmenities(hotel.room_amenities, hotel.room_name);
+
   return (
-    <article
-      className={cn(
-        "flex flex-col gap-3 rounded-xl border p-3.5 transition-colors sm:flex-row sm:items-stretch",
-        recommended ? td.hotelRecommended : td.hotelAlt
-      )}
-    >
+    <article className={cn("flex flex-col gap-3 rounded-xl border p-3.5 sm:flex-row sm:items-stretch", td.hotelAlt)}>
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex flex-wrap items-start justify-between gap-2">
-          <div className="min-w-0">
-            {recommended && (
+        <h4 className={cn("text-[15px] font-semibold leading-snug", td.textPrimary)}>{hotel.name}</h4>
+        <p className={cn("mt-1 text-xs", td.textSecondary)}>{siteLabel(hotel.site)}</p>
+        <div className="mt-1.5">
+          <HotelStars count={stars} />
+        </div>
+        {hotel.room_name ? (
+          <p className={cn("mt-2 text-sm font-medium leading-snug", td.textPrimary)}>{hotel.room_name}</p>
+        ) : null}
+        {amenities.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {amenities.map((tag) => (
               <span
+                key={tag}
                 className={cn(
-                  "mb-1.5 inline-flex rounded-md px-2 py-0.5 text-xs font-medium",
-                  td.accentBgSoft,
-                  td.accent
+                  "rounded-md border px-2 py-1 text-[11px] leading-tight",
+                  td.border,
+                  td.textSecondary
                 )}
               >
-                Gợi ý
+                {tag}
               </span>
-            )}
-            <h4 className={cn("text-[15px] font-semibold leading-snug", td.textPrimary)}>
-              {hotel.name}
-            </h4>
-            <div className="mt-1.5">
-              <StarDots count={stars} />
-            </div>
+            ))}
           </div>
-          <span
-            className={cn("shrink-0 rounded-md px-2 py-0.5 text-xs", td.surfaceElevated, td.textSecondary)}
-          >
-            {siteLabel(hotel.site)}
-          </span>
-        </div>
-
+        ) : null}
+        {hotel.avg_distance_km != null && (
+          <p className={cn("mt-2 text-xs", td.textSecondary)}>
+            Khoảng cách TB:{" "}
+            <span className={cn("font-medium tabular-nums", td.textPrimary)}>
+              {hotel.avg_distance_km} km
+            </span>
+          </p>
+        )}
         {hotel.price_vnd != null && (
           <p className="mt-2">
-            <span className={cn("text-lg font-semibold", td.accent)}>
-              {formatVnd(animatedPrice)}
-            </span>
+            <span className={cn("text-lg font-semibold", td.accent)}>{formatVnd(animatedPrice)}</span>
             <span className={cn("ml-1 text-xs", td.textSecondary)}>/ đêm</span>
           </p>
         )}
-
-        {hotel.reason && !recommended && (
-          <p className={cn("mt-1.5 line-clamp-2 text-xs", td.textSecondary)}>{hotel.reason}</p>
-        )}
-
         <div className="mt-auto flex flex-wrap gap-1.5 pt-3">
           {hotel.url && (
             <a
@@ -117,9 +116,9 @@ function HotelCard({
               rel="noopener noreferrer"
               className={cn(
                 "inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors",
-                recommended
-                  ? "border-[#F97316]/50 text-[#F97316] hover:border-[#F97316] hover:bg-[#F97316]/10"
-                  : cn(td.border, td.textPrimary, td.borderHover),
+                td.border,
+                td.textPrimary,
+                td.borderHover,
                 td.focusRing
               )}
             >
@@ -178,14 +177,16 @@ type Props = {
   hotels: BookingSuggestion[];
   otaPending: boolean;
   destination?: string;
+  routeOptimization?: {
+    status?: string;
+    places?: Array<{ name: string }>;
+    recommended_hotel_names?: string[];
+  };
 };
 
-export function HotelSection({ hotels, otaPending, destination }: Props) {
+export function HotelSection({ hotels, otaPending, destination, routeOptimization }: Props) {
   const { recommended, alternatives } = splitHotels(hotels);
-  const ordered = [
-    ...(recommended ? [recommended] : []),
-    ...alternatives,
-  ].slice(0, MAX_HOTEL_CARDS);
+  const ordered = [...(recommended ? [recommended] : []), ...alternatives].slice(0, MAX_HOTEL_CARDS);
   const count = hotels.length;
   const siteSet = [...new Set(ordered.map((h) => h.site).filter(Boolean))];
 
@@ -210,6 +211,23 @@ export function HotelSection({ hotels, otaPending, destination }: Props) {
         ))}
       </div>
 
+      {routeOptimization?.status === "ok" && (routeOptimization.places?.length ?? 0) > 0 && (
+        <p className={cn("text-sm", td.textSecondary)}>
+          Agent quét giá trên Booking/Agoda/Vntrip, sau đó VietMap Matrix chọn khách sạn{" "}
+          <span className={cn("font-medium", td.textPrimary)}>gần {routeOptimization.places!.length} điểm tham quan</span>
+          {routeOptimization.recommended_hotel_names?.[0] && (
+            <>
+              {" "}
+              — ưu tiên{" "}
+              <span className={cn("font-medium", td.textPrimary)}>
+                {routeOptimization.recommended_hotel_names[0]}
+              </span>
+            </>
+          )}
+          .
+        </p>
+      )}
+
       {otaPending && count === 0 ? (
         <div
           className={cn(
@@ -225,12 +243,7 @@ export function HotelSection({ hotels, otaPending, destination }: Props) {
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {ordered.map((h, i) => (
-            <HotelCard
-              key={`${h.name}-${h.site ?? ""}-${i}`}
-              hotel={h}
-              recommended={recommended != null && h === recommended}
-              destination={destination}
-            />
+            <HotelCard key={`${h.name}-${h.site ?? ""}-${i}`} hotel={h} destination={destination} />
           ))}
         </div>
       )}

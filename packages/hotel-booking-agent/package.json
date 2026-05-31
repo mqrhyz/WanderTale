@@ -1,0 +1,39 @@
+{
+  "name": "@wander-tale/hotel-booking-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "LangGraph hotel booking agent — Gemini 2.5 Flash + Playwright (VN OTAs)",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "cli": "tsx src/cli.ts",
+    "playwright:install": "playwright install chromium"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.3.42",
+    "@langchain/google-genai": "^0.2.5",
+    "@langchain/langgraph": "^0.2.74",
+    "@langchain/langgraph-checkpoint-postgres": "0.0.5",
+    "@langchain/ollama": "^0.2.0",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0",
+    "playwright": "^1.51.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

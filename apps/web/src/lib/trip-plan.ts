@@ -1,4 +1,5 @@
 import type { WizardValues } from "@/schemas/wizard";
+import { otaSearchLabel } from "@wander-tale/hotel-booking-agent";
 
 export { ROOM_TYPES } from "@/lib/room-types";
 
@@ -26,10 +27,7 @@ export type HotelSearchForm = {
 };
 
 export function cityFromDestination(destination: string): string {
-  const trimmed = destination.trim();
-  if (!trimmed) return "";
-  const first = trimmed.split(",")[0]?.trim();
-  return first || trimmed;
+  return otaSearchLabel(destination);
 }
 
 function todayPlus(days: number): string {

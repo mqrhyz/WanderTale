@@ -1,0 +1,251 @@
+package com.wandertale.mobile.ui.screens
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.wandertale.mobile.WanderTaleApp
+import com.wandertale.mobile.ui.components.AuthErrorText
+import com.wandertale.mobile.ui.components.AuthFormShell
+import com.wandertale.mobile.ui.components.AuthPrimaryButton
+import com.wandertale.mobile.ui.components.AuthScreenLayout
+import com.wandertale.mobile.ui.components.LoginAuthLayout
+import com.wandertale.mobile.ui.components.AuthSuccessText
+import com.wandertale.mobile.ui.components.AuthTextField
+import com.wandertale.mobile.ui.theme.PremiumColors
+import com.wandertale.mobile.util.formatAuthError
+import kotlinx.coroutines.launch
+
+@Composable
+fun LoginScreen(
+    onBack: (() -> Unit)? = null,
+    onSuccess: () -> Unit,
+    onRegister: () -> Unit,
+    onForgot: () -> Unit,
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val auth = WanderTaleApp.instance.authRepository
+
+    LoginAuthLayout {
+        AuthFormShell(
+            kicker = "Tài khoản",
+            title = "Đăng nhập",
+            description = "Tiếp tục hành trình — lịch trình và chuyến đi của bạn đang chờ.",
+            footer = {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "Quên mật khẩu?",
+                        color = PremiumColors.Accent,
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable(onClick = onForgot),
+                    )
+                    Text("  ·  ", color = Color.White.copy(alpha = 0.45f), fontSize = 14.sp)
+                    Text(
+                        text = "Tạo tài khoản mới",
+                        color = PremiumColors.Accent,
+                        fontSize = 14.sp,
+                        modifier = Modifier.clickable(onClick = onRegister),
+                    )
+                }
+            },
+        ) {
+            AuthTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                placeholder = "ban@email.com",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            )
+            Spacer(Modifier.height(16.dp))
+            AuthTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Mật khẩu",
+                placeholder = "••••••••",
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            )
+            error?.let {
+                Spacer(Modifier.height(12.dp))
+                AuthErrorText(it)
+            }
+            Spacer(Modifier.height(20.dp))
+            AuthPrimaryButton(
+                text = if (loading) "Đang xử lý…" else "Đăng nhập",
+                enabled = !loading && email.isNotBlank() && password.isNotBlank(),
+                onClick = {
+                    loading = true
+                    error = null
+                    scope.launch {
+                        runCatching {
+                            auth.initSession()
+                            auth.signIn(email.trim(), password)
+                        }
+                            .onSuccess { onSuccess() }
+                            .onFailure { error = formatAuthError(it, "Đăng nhập thất bại") }
+                        loading = false
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+fun RegisterScreen(onBack: () -> Unit, onSuccess: () -> Unit, onLogin: () -> Unit) {
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    AuthScreenLayout(onBack = onBack, showHero = false) {
+        AuthFormShell(
+            kicker = "Bắt đầu",
+            title = "Đăng ký",
+            description = "Tạo tài khoản WanderTale — đồng bộ chuyến đi trên mọi thiết bị.",
+            footer = {
+                Text(
+                    text = "Đã có tài khoản? Đăng nhập",
+                    color = PremiumColors.Accent,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onLogin),
+                )
+            },
+        ) {
+            AuthTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = "Tên hiển thị",
+                placeholder = "Tên của bạn",
+            )
+            Spacer(Modifier.height(16.dp))
+            AuthTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                placeholder = "ban@email.com",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            )
+            Spacer(Modifier.height(16.dp))
+            AuthTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = "Mật khẩu",
+                placeholder = "Tối thiểu 6 ký tự",
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            )
+            error?.let {
+                Spacer(Modifier.height(12.dp))
+                AuthErrorText(it)
+            }
+            Spacer(Modifier.height(20.dp))
+            AuthPrimaryButton(
+                text = if (loading) "Đang tạo…" else "Tạo tài khoản",
+                enabled = !loading && email.isNotBlank() && password.length >= 6,
+                onClick = {
+                    loading = true
+                    error = null
+                    scope.launch {
+                        runCatching {
+                            WanderTaleApp.instance.authRepository.signUp(email.trim(), password, name.trim())
+                            WanderTaleApp.instance.profileRepository.ensureProfileExists(
+                                displayName = name.trim(),
+                                email = email.trim(),
+                            )
+                        }.onSuccess { onSuccess() }
+                            .onFailure { error = formatAuthError(it, "Đăng ký thất bại") }
+                        loading = false
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+fun ForgotPasswordScreen(onBack: () -> Unit) {
+    var email by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var loading by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    AuthScreenLayout(onBack = onBack, showHero = false) {
+        AuthFormShell(
+            kicker = "Khôi phục",
+            title = "Quên mật khẩu",
+            description = "Nhập email đã đăng ký — chúng tôi gửi link đặt lại mật khẩu.",
+            footer = {
+                Text(
+                    text = "Quay lại đăng nhập",
+                    color = PremiumColors.Accent,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = onBack),
+                )
+            },
+        ) {
+            AuthTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = "Email",
+                placeholder = "ban@email.com",
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            )
+            error?.let {
+                Spacer(Modifier.height(12.dp))
+                AuthErrorText(it)
+            }
+            message?.let {
+                Spacer(Modifier.height(12.dp))
+                AuthSuccessText(it)
+            }
+            Spacer(Modifier.height(20.dp))
+            AuthPrimaryButton(
+                text = if (loading) "Đang gửi…" else "Gửi link",
+                enabled = !loading && email.isNotBlank(),
+                onClick = {
+                    loading = true
+                    error = null
+                    message = null
+                    scope.launch {
+                        runCatching { WanderTaleApp.instance.authRepository.resetPassword(email.trim()) }
+                            .onSuccess { message = "Đã gửi email đặt lại mật khẩu. Vui lòng kiểm tra hộp thư." }
+                            .onFailure { error = formatAuthError(it, "Gửi email thất bại") }
+                        loading = false
+                    }
+                },
+            )
+        }
+    }
+}
