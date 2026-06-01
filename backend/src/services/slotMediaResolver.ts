@@ -9,21 +9,14 @@ import {
 import { fuzzyPlaceNameScore } from "../lib/placeNameMatch.js";
 import { filterValidImageUrls, normalizeAgendaImageUrl } from "../lib/agendaImageUrl.js";
 import { getPlaceholderImage } from "../lib/placeholders.js";
-import { fetchWikidataImagesForSlots } from "./placeMediaWikidata.js";
-import {
-  fetchWikimediaForSlots,
-  normalizePlaceTitle,
-} from "./placeMediaWikimedia.js";
+import { normalizePlaceTitle } from "./placeMediaWikimedia.js";
 import { fetchGooglePlacesImagesForSlots } from "./placeMediaGooglePlaces.js";
 import { isGoogleMapsConfigured } from "./googleMaps.js";
 import { searchDuckDuckGoImagesBatch } from "./placeMediaDuckDuckGo.js";
 
-const WIKI_CATEGORIES = new Set(["landmark", "nature", "activity"]);
 const PLAYWRIGHT_CATEGORIES = new Set(["restaurant", "cafe", "landmark", "nature", "activity"]);
 const FOOD_PLACEHOLDER_CATEGORIES = new Set(["restaurant", "cafe"]);
 
-const WIKI_TEXT_MIN_SCORE = 0.35;
-const WIKIDATA_MIN_SCORE = 0.45;
 const PLAYWRIGHT_FOOD_MIN_SCORE = 0.55;
 const PLAYWRIGHT_LANDMARK_MIN_SCORE = 0.35;
 
@@ -156,7 +149,7 @@ export async function resolveSlotImages(
   return map.get(title) ?? [];
 }
 
-/** Resolve ảnh agenda: cache → Wikipedia → Wikidata → DuckDuckGo → Places Photos → Playwright → placeholder F&B. */
+/** Resolve ảnh agenda: cache → DuckDuckGo → Places Photos → Playwright → placeholder F&B. */
 export async function resolveAllSlotImages(
   slots: ItinerarySlot[],
   destination: string,
@@ -191,58 +184,12 @@ export async function resolveAllSlotImages(
 
   if (pending.length === 0) return out;
 
-  const wikiSlots = pending.filter((s) => WIKI_CATEGORIES.has(inferSlotCategory(s)));
-  const wikiCoordsPayload = wikiSlots
-    .map((s) => {
-      const c = slotCoords(s);
-      if (!c) return null;
-      return { title: s.title!.trim(), lat: c.lat, lng: c.lng };
-    })
-    .filter((x): x is { title: string; lat: number; lng: number } => x != null);
-
-  const [wikiTextMap, wikidataMap] = await Promise.all([
-    fetchWikimediaForSlots(
-      wikiSlots.map((s) => ({ title: s.title!.trim(), destination })),
-      concurrency,
-      WIKI_TEXT_MIN_SCORE
-    ),
-    fetchWikidataImagesForSlots(wikiCoordsPayload, concurrency, WIKIDATA_MIN_SCORE),
-  ]);
-
   const playwrightQueue: ItinerarySlot[] = [];
   const placesQueue: ItinerarySlot[] = [];
   const duckDuckGoQueue: ItinerarySlot[] = [];
 
   for (const slot of pending) {
     const title = slot.title!.trim();
-
-    const wikiHit = wikiTextMap.get(title);
-    if (wikiHit) {
-      const valid = await acceptUrls([wikiHit.imageUrl]);
-      if (valid?.length) {
-        commitResolvedSlot(out, title, valid, total, onProgress);
-        void setCachedImagesForSlot(
-          cacheContext(slot, destination, wikiHit.pageTitle),
-          valid,
-          "wikimedia",
-        ).catch(console.error);
-        continue;
-      }
-    }
-
-    const wikidataHit = wikidataMap.get(title);
-    if (wikidataHit) {
-      const valid = await acceptUrls([wikidataHit.imageUrl]);
-      if (valid?.length) {
-        commitResolvedSlot(out, title, valid, total, onProgress);
-        void setCachedImagesForSlot(
-          cacheContext(slot, destination, wikidataHit.itemId),
-          valid,
-          "wikidata",
-        ).catch(console.error);
-        continue;
-      }
-    }
 
     if (env.TRIP_DDG_IMAGES_ENABLED) {
       duckDuckGoQueue.push(slot);
