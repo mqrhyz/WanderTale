@@ -61,7 +61,7 @@ gcloud projects add-iam-policy-binding "$PROJECT_ID" \
 
 ## 3. Create required runtime secrets
 
-Create three required secrets:
+Create the required runtime secrets:
 
 ```bash
 printf '%s' 'https://YOUR_PROJECT.supabase.co' | \
@@ -72,6 +72,22 @@ printf '%s' 'YOUR_SUPABASE_SERVICE_ROLE_KEY' | \
 
 printf '%s' 'YOUR_GEMINI_API_KEY' | \
   gcloud secrets create wander-tale-gemini-api-key --data-file=-
+
+printf '%s' 'YOUR_OPENWEATHER_API_KEY' | \
+  gcloud secrets create wander-tale-openweather-api-key --data-file=-
+
+printf '%s' 'YOUR_VIETMAP_API_KEY' | \
+  gcloud secrets create wander-tale-vietmap-api-key --data-file=-
+
+printf '%s' 'YOUR_PEXELS_API_KEY' | \
+  gcloud secrets create wander-tale-pexels-api-key --data-file=-
+```
+
+If a secret already exists, rotate its value by adding a new version:
+
+```bash
+printf '%s' 'YOUR_NEW_VALUE' | \
+  gcloud secrets versions add wander-tale-openweather-api-key --data-file=-
 ```
 
 Create a dedicated Cloud Run runtime service account:
@@ -103,8 +119,8 @@ cd EXE202
 gcloud builds submit --config cloudbuild.yaml .
 ```
 
-The build uses the required Secret Manager values automatically. Optional runtime
-variables can be configured later in:
+The build uses the Secret Manager values automatically. Optional runtime variables can
+be configured later in:
 
 ```text
 Google Cloud Console > Cloud Run > wander-tale-api > Edit and deploy new revision
@@ -114,8 +130,6 @@ Optional variables:
 
 ```text
 GOOGLE_MAPS_API_KEY
-VIETMAP_API_KEY
-PEXELS_API_KEY
 TRIP_PLACES_PHOTOS_ENABLED=true
 TRIP_STAGED_GENERATION=true
 TRIP_OTA_HARD_DEADLINE_MS=90000
