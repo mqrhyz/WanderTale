@@ -61,6 +61,12 @@ const envSchema = z.object({
   TRIP_OTA_SITES: z.string().default("booking,agoda,vntrip"),
   /** Số địa điểm tối đa quét Maps agent (agenda + khách sạn). */
   TRIP_MAPS_MEDIA_MAX: z.coerce.number().default(24),
+  /** DuckDuckGo Image Search HTTP — tier chính, không cần API key. */
+  TRIP_DDG_IMAGES_ENABLED: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false" && v !== "0"),
+  TRIP_DDG_IMAGES_CONCURRENCY: z.coerce.number().int().min(1).max(12).default(6),
   /** Tab Playwright song song khi lấy ảnh Maps (fallback sau Places Photos API). */
   TRIP_MAPS_BROWSER_CONCURRENCY: z.coerce.number().default(2),
   /** Google Places Photos — tier nhanh trước Playwright (cần GOOGLE_MAPS_API_KEY). */

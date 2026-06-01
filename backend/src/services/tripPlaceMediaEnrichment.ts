@@ -12,6 +12,7 @@ import {
   type SlotMediaProgressCallback,
 } from "./slotMediaResolver.js";
 import type { ItinerarySlot } from "./openaiItinerary.js";
+import { searchDuckDuckGoImagesBatch } from "./placeMediaDuckDuckGo.js";
 
 const HOTEL_PHOTOS = 3;
 
@@ -47,12 +48,35 @@ async function resolveHotelMediaQueries(
   }
   if (queries.length === 0) return out;
 
-  try {
-    const browserMap = await resolveMapsPlacesBatchParallel(
-      queries.map(({ query, maxPhotos }) => ({ query, maxPhotos })),
-      Math.min(2, env.TRIP_MAPS_BROWSER_CONCURRENCY)
+  if (env.TRIP_DDG_IMAGES_ENABLED) {
+    const ddg = await searchDuckDuckGoImagesBatch(
+      queries.map(({ query, maxPhotos }) => ({
+        title: query,
+        destination: "",
+        maxPhotos,
+      })),
+      env.TRIP_DDG_IMAGES_CONCURRENCY
     );
     for (const { query, maxPhotos } of queries) {
+      const urls = ddg.get(query)?.slice(0, maxPhotos);
+      if (!urls?.length) continue;
+      out.set(query, {
+        maps_url: buildGoogleMapsSearchUrl(query),
+        image_preview_url: urls[0],
+        image_preview_urls: urls,
+      });
+    }
+  }
+
+  const missing = queries.filter(({ query }) => !out.get(query)?.image_preview_url);
+  if (missing.length === 0) return out;
+
+  try {
+    const browserMap = await resolveMapsPlacesBatchParallel(
+      missing.map(({ query, maxPhotos }) => ({ query, maxPhotos })),
+      Math.min(2, env.TRIP_MAPS_BROWSER_CONCURRENCY)
+    );
+    for (const { query, maxPhotos } of missing) {
       const b = browserMap.get(query);
       if (!b) continue;
       out.set(query, {

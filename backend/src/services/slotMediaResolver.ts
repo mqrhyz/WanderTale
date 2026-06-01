@@ -16,6 +16,7 @@ import {
 } from "./placeMediaWikimedia.js";
 import { fetchGooglePlacesImagesForSlots } from "./placeMediaGooglePlaces.js";
 import { isGoogleMapsConfigured } from "./googleMaps.js";
+import { searchDuckDuckGoImagesBatch } from "./placeMediaDuckDuckGo.js";
 
 const WIKI_CATEGORIES = new Set(["landmark", "nature", "activity"]);
 const PLAYWRIGHT_CATEGORIES = new Set(["restaurant", "cafe", "landmark", "nature", "activity"]);
@@ -155,7 +156,7 @@ export async function resolveSlotImages(
   return map.get(title) ?? [];
 }
 
-/** Resolve ảnh agenda: cache → Wikipedia → Wikidata → Places Photos → Playwright → placeholder F&B. */
+/** Resolve ảnh agenda: cache → Wikipedia → Wikidata → DuckDuckGo → Places Photos → Playwright → placeholder F&B. */
 export async function resolveAllSlotImages(
   slots: ItinerarySlot[],
   destination: string,
@@ -210,6 +211,7 @@ export async function resolveAllSlotImages(
 
   const playwrightQueue: ItinerarySlot[] = [];
   const placesQueue: ItinerarySlot[] = [];
+  const duckDuckGoQueue: ItinerarySlot[] = [];
 
   for (const slot of pending) {
     const title = slot.title!.trim();
@@ -242,13 +244,39 @@ export async function resolveAllSlotImages(
       }
     }
 
-    if (isGoogleMapsConfigured() && env.TRIP_PLACES_PHOTOS_ENABLED) {
+    if (env.TRIP_DDG_IMAGES_ENABLED) {
+      duckDuckGoQueue.push(slot);
+    } else if (isGoogleMapsConfigured() && env.TRIP_PLACES_PHOTOS_ENABLED) {
       placesQueue.push(slot);
     } else if (playwrightCandidate(slot)) {
       playwrightQueue.push(slot);
     } else {
       const instant = getInstantSlotImages(slot);
       if (instant.length > 0) commitResolvedSlot(out, title, instant, total, onProgress);
+    }
+  }
+
+  if (duckDuckGoQueue.length > 0) {
+    const ddgResults = await searchDuckDuckGoImagesBatch(
+      duckDuckGoQueue.map((slot) => ({
+        title: slot.title!.trim(),
+        destination,
+        maxPhotos: 1,
+      })),
+      env.TRIP_DDG_IMAGES_CONCURRENCY
+    );
+
+    for (const slot of duckDuckGoQueue) {
+      const title = slot.title!.trim();
+      const valid = await acceptUrls(ddgResults.get(title) ?? []);
+      if (valid?.length) {
+        commitResolvedSlot(out, title, valid, total, onProgress);
+        void setCachedImagesForSlot(cacheContext(slot, destination), valid, "duckduckgo").catch(console.error);
+      } else if (isGoogleMapsConfigured() && env.TRIP_PLACES_PHOTOS_ENABLED) {
+        placesQueue.push(slot);
+      } else if (playwrightCandidate(slot)) {
+        playwrightQueue.push(slot);
+      }
     }
   }
 
