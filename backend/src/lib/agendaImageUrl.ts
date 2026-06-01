@@ -37,7 +37,8 @@ export async function filterValidImageUrls(urls: string[]): Promise<string[]> {
     if (
       url.includes("googleusercontent.com") ||
       url.includes("ggpht.com") ||
-      url.includes("googleapis.com/maps/api/place")
+      url.includes("googleapis.com/maps/api/place") ||
+      url.includes("bing.net/th/id/")
     ) {
       out.push(url);
       continue;

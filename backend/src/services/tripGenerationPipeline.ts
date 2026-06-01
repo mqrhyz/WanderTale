@@ -13,7 +13,6 @@ import {
   enrichItineraryWithAgendaImages,
   enrichItineraryWithInstantPlaceholders,
   enrichItineraryWithSearchMaps,
-  applySlotImagesToItineraryByTitle,
 } from "./tripPlaceMediaEnrichment.js";
 import { enrichItineraryWithCoordinates, applyCoordMapsToItinerary, prepareItineraryCoordsForMedia } from "./tripCoordsEnrichment.js";
 import { mergeItineraryPreserveMedia } from "./tripItineraryMerge.js";
@@ -25,27 +24,6 @@ import type { TripGenerationStatus, TripHotelPricingStatus } from "./tripGenerat
 import { getDayActivities } from "./tripAgendaActivities.js";
 import { env } from "../lib/env.js";
 import { emitTripEvent } from "../lib/tripEvents.js";
-
-function createDebouncedItinerarySaver(
-  userId: string,
-  tripId: string,
-  hotelPricingStatus: string,
-  delayMs = 700
-) {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  return (itinerary: GeneratedItinerary) => {
-    if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      void updateTripAfterOtaPricing({
-        userId,
-        tripId,
-        itinerary,
-        hotelPricingStatus,
-        generationStatus: "pricing_pending",
-      }).catch(console.error);
-    }, delayMs);
-  };
-}
 
 function countAgendaImageSlots(itinerary: GeneratedItinerary): number {
   let n = 0;
@@ -138,34 +116,11 @@ export async function enrichTripWithOtaInBackground(params: {
     emitTripEvent(tripId, "skeleton_ready", { generation_status: "pricing_pending" });
     console.info(`[trip-ota] skeleton maps saved ${Date.now() - t0}ms`);
 
-    const { hotelPricing, itinerary: afterOtaItinerary } = await scrapeHotelPrices({
-      tripId,
-      userId,
-      body,
-      itinerary,
-      suggestedPlaces,
-      destination,
-    });
-
-    const withCoords = await prepareItineraryCoordsForMedia(
-      afterOtaItinerary,
-      destination,
-      hotelPricing.route_optimization
-    );
-
-    const imageSlotTotal = countAgendaImageSlots(withCoords);
+    const imageSlotTotal = countAgendaImageSlots(itinerary);
     emitTripEvent(tripId, "images_progress", { filled: 0, total: imageSlotTotal });
 
-    let progressiveItinerary = withCoords;
-    const savePartialImages = createDebouncedItinerarySaver(
-      userId,
-      tripId,
-      hotelPricing.status
-    );
-
-    const withImages = await enrichItineraryWithAgendaImages(withCoords, destination, {
+    const agendaImagesPromise = enrichItineraryWithAgendaImages(itinerary, destination, {
       onProgress: ({ title, urls, filled, total }) => {
-        progressiveItinerary = applySlotImagesToItineraryByTitle(progressiveItinerary, title, urls);
         emitTripEvent(tripId, "slot_image", {
           title,
           image_preview_url: urls[0],
@@ -174,21 +129,51 @@ export async function enrichTripWithOtaInBackground(params: {
           total,
         });
         emitTripEvent(tripId, "images_progress", { filled, total });
-        savePartialImages(progressiveItinerary);
       },
+    }).then(async (withImages) => {
+      await updateTripAfterOtaPricing({
+        userId,
+        tripId,
+        itinerary: withImages,
+        hotelPricingStatus: "pending",
+        generationStatus: "pricing_pending",
+      });
+      emitTripEvent(tripId, "images_ready", { generation_status: "pricing_pending" });
+      console.info(`[trip-media] agenda images ${Date.now() - t0}ms`);
+      return withImages;
     });
+
+    const otaPromise = scrapeHotelPrices({
+      tripId,
+      userId,
+      body,
+      itinerary,
+      suggestedPlaces,
+      destination,
+    });
+
+    const [{ hotelPricing, itinerary: afterOtaItinerary }, withImages] = await Promise.all([
+      otaPromise,
+      agendaImagesPromise,
+    ]);
+    const itineraryWithPricingAndImages = mergeItineraryPreserveMedia(withImages, afterOtaItinerary);
+
+    const withCoords = await prepareItineraryCoordsForMedia(
+      itineraryWithPricingAndImages,
+      destination,
+      hotelPricing.route_optimization
+    );
+
     await updateTripAfterOtaPricing({
       userId,
       tripId,
-      itinerary: withImages,
+      itinerary: withCoords,
       hotelPricingStatus: hotelPricing.status,
       generationStatus: "pricing_pending",
     });
-    emitTripEvent(tripId, "images_ready", { generation_status: "pricing_pending" });
-    console.info(`[trip-media] agenda images ${Date.now() - t0}ms`);
 
     let merged = enrichItineraryWithPricing(
-      withImages,
+      withCoords,
       suggestedPlaces,
       hotelPricing,
       destination,
@@ -222,7 +207,7 @@ export async function enrichTripWithOtaInBackground(params: {
           hotel_suggestions: withCoords.hotel_suggestions,
           pricing_meta: withCoords.pricing_meta ?? withHotelImages.pricing_meta,
         };
-        const finalItinerary = mergeItineraryPreserveMedia(withImages, coordMerged);
+        const finalItinerary = mergeItineraryPreserveMedia(withCoords, coordMerged);
         await updateTripAfterOtaPricing({
           userId,
           tripId,
