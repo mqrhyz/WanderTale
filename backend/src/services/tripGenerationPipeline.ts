@@ -69,15 +69,16 @@ async function loadSuggestedPlacesWithRetry(
   body: TripGenerateInput,
   context: TripGenerationContext
 ): Promise<SuggestedPlace[]> {
-  let plan = await suggestPlacesForTrip(body, context);
-  if (plan.places.length > 0) return plan.places;
-
-  console.warn("[trip-gen] suggestPlaces empty — retry once");
-  plan = await suggestPlacesForTrip(body, context);
-  if (plan.places.length === 0) {
-    console.warn("[trip-gen] suggestPlaces still empty after retry");
+  try {
+    const plan = await suggestPlacesForTrip(body, context);
+    if (plan.places.length === 0) {
+      console.warn("[trip-gen] suggested places empty — continue with skeleton");
+    }
+    return plan.places;
+  } catch (error) {
+    console.warn("[trip-gen] suggested places failed — continue with skeleton:", error);
+    return [];
   }
-  return plan.places;
 }
 
 /** Quét OTA + ảnh agenda + ảnh KS — jobs tách, emit SSE events. */

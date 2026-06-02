@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { llmGenerateJsonFast, parseModelJsonText, llmContextCharLimit } from "../lib/llm.js";
+import { searchPlacesOptional } from "../lib/placesProvider.js";
 import type { TripGenerateInput } from "../schemas/trip.js";
 import type { TripGenerationContext } from "./tripGenerationContext.js";
 
@@ -18,6 +19,65 @@ export const suggestedPlacesSchema = z.object({
 
 export type SuggestedPlace = z.infer<typeof suggestedPlaceSchema>;
 export type SuggestedPlacesPlan = z.infer<typeof suggestedPlacesSchema>;
+
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms)
+    ),
+  ]);
+}
+
+async function suggestPlacesFromVietMap(
+  body: TripGenerateInput,
+  context: TripGenerationContext
+): Promise<SuggestedPlacesPlan> {
+  try {
+    const searches: Array<{ query: string; type: SuggestedPlace["type"] }> = [
+      { query: `${body.destination} địa điểm du lịch`, type: "attraction" },
+      { query: `${body.destination} thắng cảnh`, type: "attraction" },
+      { query: `${body.destination} nhà hàng`, type: "restaurant" },
+      { query: `${body.destination} cafe`, type: "activity" },
+    ];
+    const results = await Promise.all(
+      searches.map(async (search) => ({
+        type: search.type,
+        result: await searchPlacesOptional(search.query, context.lat, context.lng),
+      }))
+    );
+    const places: SuggestedPlace[] = [];
+    const seen = new Set<string>();
+    for (const { result, type } of results) {
+      const rows =
+        result && typeof result === "object" && Array.isArray((result as { places?: unknown }).places)
+          ? ((result as { places: unknown[] }).places)
+          : [];
+      for (const row of rows) {
+        if (!row || typeof row !== "object") continue;
+        const rec = row as Record<string, unknown>;
+        const name =
+          typeof rec.name === "string"
+            ? rec.name.trim()
+            : typeof rec.formattedAddress === "string"
+              ? rec.formattedAddress.trim()
+              : "";
+        const key = name.toLocaleLowerCase("vi-VN");
+        if (!name || seen.has(key)) continue;
+        seen.add(key);
+        places.push({
+          name,
+          type,
+          day: (places.length % Math.max(context.dates.length, 1)) + 1,
+        });
+      }
+    }
+    return { places };
+  } catch (error) {
+    console.warn("[trip-gen] VietMap suggested places fallback failed:", error);
+    return { places: [] };
+  }
+}
 
 export async function suggestPlacesForTrip(
   body: TripGenerateInput,
@@ -41,13 +101,13 @@ export async function suggestPlacesForTrip(
     `PLACES_JSON:\n${JSON.stringify(context.places).slice(0, ctx)}`,
   ].join("\n");
 
-  const text = await llmGenerateJsonFast(prompt);
-  let parsed: unknown;
   try {
-    parsed = parseModelJsonText(text);
-  } catch {
-    return { places: [] };
+    const text = await withTimeout(llmGenerateJsonFast(prompt), 12_000, "suggestPlaces");
+    const parsed = parseModelJsonText(text);
+    const check = suggestedPlacesSchema.safeParse(parsed);
+    if (check.success && check.data.places.length > 0) return check.data;
+  } catch (error) {
+    console.warn("[trip-gen] Gemini suggested places failed, fallback VietMap:", error);
   }
-  const check = suggestedPlacesSchema.safeParse(parsed);
-  return check.success ? check.data : { places: [] };
+  return suggestPlacesFromVietMap(body, context);
 }
