@@ -17,6 +17,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,8 +47,11 @@ import com.wandertale.mobile.ui.components.AuthSuccessText
 import com.wandertale.mobile.ui.components.AuthTextField
 import com.wandertale.mobile.ui.theme.PremiumColors
 import com.wandertale.mobile.util.formatAuthError
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.status.SessionStatus
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -75,6 +80,25 @@ fun LoginScreen(
                 onSuccess()
             }
         }
+    }
+
+    // Nếu user huỷ OAuth (đóng trình duyệt) → quay lại app mà chưa đăng nhập → tắt spinner.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && (googleLoading || facebookLoading)) {
+                scope.launch {
+                    delay(1200)
+                    val authed = auth.supabase.auth.sessionStatus.value is SessionStatus.Authenticated
+                    if (!authed) {
+                        googleLoading = false
+                        facebookLoading = false
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     LoginAuthLayout {
