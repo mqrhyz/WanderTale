@@ -451,7 +451,10 @@ struct GoogleSignInButton: View {
                 if loading {
                     ProgressView().tint(Color(red: 0.26, green: 0.52, blue: 0.96))
                 } else {
-                    GoogleGlyph().frame(width: 18, height: 18)
+                    Image("GoogleLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
                     Text("Đăng nhập bằng Google")
                         .font(.system(size: 15, weight: .semibold))
                 }
@@ -467,14 +470,5 @@ struct GoogleSignInButton: View {
             )
         }
         .disabled(loading)
-    }
-}
-
-/// Minimal multi-color Google "G" rendered with SF Symbol fallback.
-private struct GoogleGlyph: View {
-    var body: some View {
-        Text("G")
-            .font(.system(size: 16, weight: .bold, design: .rounded))
-            .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
     }
 }

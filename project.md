@@ -234,3 +234,9 @@
   3. Supabase → Authentication → URL Configuration → Redirect URLs: thêm `wandertale://login-callback`.
   4. Chạy migration `20260607130000_google_oauth_profile.sql`.
 - **Test:** iOS `xcodebuild` BUILD SUCCEEDED, Android `compileDebugKotlin` exit 0. (Luồng OAuth runtime cần config dashboard ở trên mới chạy được.)
+
+## [2026-06-07] Logo Google chính thức (đa màu) cho nút đăng nhập
+- **iOS:** thêm asset `Assets.xcassets/GoogleLogo.imageset` (SVG + `preserves-vector-representation`); `AuthViews.swift` dùng `Image("GoogleLogo")` thay struct `GoogleGlyph` (đã xóa). Đã `xcodegen generate`.
+- **Android:** thêm vector drawable `res/drawable/ic_google_logo.xml` (4 path FFC107/FF3D00/4CAF50/1976D2); `AuthScreens.kt` dùng `Image(painterResource(R.drawable.ic_google_logo))` thay chữ "G".
+- **Cấu hình Supabase (đã làm qua terminal trước đó):** Google provider enabled, client_id/secret set, redirect `wandertale://login-callback`, migration trigger Google đã push. Verify authorize endpoint 302 → accounts.google.com.
+- **Test:** Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED.

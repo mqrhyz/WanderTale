@@ -1,6 +1,7 @@
 package com.wandertale.mobile.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,12 +27,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wandertale.mobile.R
 import com.wandertale.mobile.WanderTaleApp
 import com.wandertale.mobile.ui.components.AuthErrorText
 import com.wandertale.mobile.ui.components.AuthFormShell
@@ -184,7 +187,11 @@ private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFF4285F4))
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Image(
+                    painter = painterResource(R.drawable.ic_google_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
                 Spacer(Modifier.width(10.dp))
                 Text("Đăng nhập bằng Google", color = Color(0xFF212121), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
