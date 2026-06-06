@@ -52,6 +52,8 @@ steps:
       - "2"
       - --env-vars-file
       - deploy/cloud-run.env.yaml
+      - --remove-secrets
+      - GEMINI_API_KEY_2,GEMINI_API_KEY_3,INTERNAL_WORKER_TOKEN
       - --update-secrets
       - SUPABASE_URL=wander-tale-supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=wander-tale-supabase-service-role-key:latest,GEMINI_API_KEY_1=wander-tale-gemini-api-key:latest,OPENWEATHER_API_KEY=wander-tale-openweather-api-key:latest,VIETMAP_API_KEY=wander-tale-vietmap-api-key:latest,PEXELS_API_KEY=wander-tale-pexels-api-key:latest
 
