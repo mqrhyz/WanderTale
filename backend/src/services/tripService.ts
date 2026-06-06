@@ -184,27 +184,23 @@ export async function dashboardStats(userId: string) {
   const sb = getSupabase();
   const { data: trips, error } = await sb
     .from("trips")
-    .select("id, budget, destination, created_at")
-    .eq("user_id", userId);
+    .select("id, budget, destination, itinerary_json, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   const list = trips ?? [];
   const totalTrips = list.length;
   const totalBudget = list.reduce((s, t) => s + Number(t.budget ?? 0), 0);
   const destinations = new Set(list.map((t) => t.destination as string)).size;
 
-  const tripIds = list.map((t) => t.id);
+  // Count places from itinerary_json (fast, no extra DB query).
   let placesVisited = 0;
-  if (tripIds.length) {
-    const { data: days, error: dErr } = await sb.from("trip_days").select("id").in("trip_id", tripIds);
-    if (dErr) throw new Error(dErr.message);
-    const dayIds = (days ?? []).map((d) => d.id);
-    if (dayIds.length) {
-      const { count, error: cErr } = await sb
-        .from("trip_activities")
-        .select("id", { count: "exact", head: true })
-        .in("trip_day_id", dayIds);
-      if (cErr) throw new Error(cErr.message);
-      placesVisited = count ?? 0;
+  for (const trip of list) {
+    const itinerary = trip.itinerary_json as { days?: Array<{ activities?: unknown[] }> } | null;
+    if (itinerary?.days) {
+      for (const day of itinerary.days) {
+        placesVisited += Array.isArray(day.activities) ? day.activities.length : 0;
+      }
     }
   }
 

@@ -27,6 +27,13 @@
 
 ## Lịch sử thay đổi (Changelog)
 
+### 2026-06-07 — Fix voucher Android + icon/UI business portal đẹp hơn (giống iOS)
+
+- **Voucher Android không tạo được:** model gửi sai schema — thiếu `title` (backend bắt buộc → `voucher_title_required`), dùng `condition_label/starts_at/ends_at` thay vì `audience/valid_from/valid_until`, và map "Miễn phí" → `free_shipping` (sai CHECK, đúng là `free`).
+  - Sửa `BusinessVoucherCreate`/`BusinessVoucherRow` (PlatformModels.kt) khớp backend; dialog thêm field **Tên voucher**, map `audience`/`valid_from`/`valid_until`/`free`; hiển thị dùng `valid_until`.
+- **Icon/UI:** thay các glyph chữ ("▣/◎/☰/⌖/✿"...) bằng **Material Icons**: `PortalHeader` (Menu/Back + action icon), `PortalBottomBar` (Dashboard=GridView, Quảng cáo=Campaign, Voucher=ConfirmationNumber, Business=Storefront, Cài đặt=Settings, Users=Group, Hồ sơ=Person), voucher row=ConfirmationNumber, location card=Place. Header action theo tab (Add/Edit/PersonAdd/FilterList/Download/Notifications).
+- **Ghi chú:** mobile-only, không cần deploy backend. Build `compileDebugKotlin` OK. Push `main` `de0f6b0..97245a7`. Các chức năng business khác (campaign/location/media/reply/mua gói) đã đối chiếu — khớp backend, hoạt động.
+
 ### 2026-06-07 — Fix nút "Chi trả" payout + lỗi config leak ở tab Users
 
 - **Triệu chứng:** Tab Users (admin) hiện dòng xanh `{"error":"payout_provider_not_configured"}`; nút "Chi trả" không có gì xảy ra.

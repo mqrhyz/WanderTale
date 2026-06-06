@@ -55,33 +55,34 @@ export async function getActiveBusinessDetail(businessId: string) {
 }
 
 export async function businessOverview(businessId: string) {
-  const { data: business } = await getSupabaseAdmin()
-    .from("businesses")
-    .select("id,name,status,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at")
-    .eq("id", businessId)
-    .maybeSingle();
+  const sb = getSupabaseAdmin();
 
-  const { data: bookings } = await getSupabaseAdmin()
-    .from("bookings")
-    .select("id,gross_amount,net_amount,commission_amount,status")
-    .eq("business_id", businessId)
-    .in("status", ["confirmed", "pending"]);
+  const [businessResult, bookingsResult, activeAdsResult, campaignsResult] = await Promise.all([
+    sb.from("businesses")
+      .select("id,name,status,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at")
+      .eq("id", businessId)
+      .maybeSingle(),
+    sb.from("bookings")
+      .select("id,gross_amount,net_amount,commission_amount,status")
+      .eq("business_id", businessId)
+      .in("status", ["confirmed", "pending"]),
+    sb.from("business_ad_orders")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("status", "active"),
+    sb.from("business_ad_campaigns")
+      .select("id,impressions,clicks,suggested_count,budget_vnd,spent_vnd,status,starts_at,ends_at")
+      .eq("business_id", businessId),
+  ]);
 
-  const confirmed = (bookings ?? []).filter((b) => b.status === "confirmed");
+  const business = businessResult.data;
+  const bookings = bookingsResult.data ?? [];
+  const confirmed = bookings.filter((b) => b.status === "confirmed");
   const bookingCount = confirmed.length;
   const grossRevenue = confirmed.reduce((s, b) => s + n(b.gross_amount), 0);
   const netRevenue = confirmed.reduce((s, b) => s + n(b.net_amount ?? b.gross_amount) - n(b.commission_amount), 0);
 
-  const { data: activeAds } = await getSupabaseAdmin()
-    .from("business_ad_orders")
-    .select("id")
-    .eq("business_id", businessId)
-    .eq("status", "active");
-
-  const { data: campaigns } = await getSupabaseAdmin()
-    .from("business_ad_campaigns")
-    .select("id,impressions,clicks,suggested_count,budget_vnd,spent_vnd,status,starts_at,ends_at")
-    .eq("business_id", businessId);
+  const campaigns = campaignsResult.data ?? [];
 
   const activeCampaigns = (campaigns ?? []).filter((c) => c.status === "active");
   const impressions = (campaigns ?? []).reduce((s, c) => s + n(c.impressions), 0);
@@ -97,7 +98,7 @@ export async function businessOverview(businessId: string) {
     booking_count: bookingCount,
     gross_revenue_vnd: grossRevenue,
     net_revenue_vnd: netRevenue,
-    active_ad_campaigns: activeAds?.length ?? 0,
+    active_ad_campaigns: activeAdsResult.data?.length ?? 0,
     campaign_count: activeCampaigns.length,
     impressions,
     clicks,
@@ -327,59 +328,39 @@ export async function purchaseAdPackage(businessId: string, packageId: string) {
 }
 
 export async function adminOverview() {
-  const { data: tx } = await getSupabaseAdmin()
-    .from("platform_transactions")
-    .select("kind,commission_amount,gross_amount,net_amount,status")
-    .eq("status", "completed");
+  const sb = getSupabaseAdmin();
+  const startToday = new Date();
+  startToday.setHours(0, 0, 0, 0);
 
-  const rows = tx ?? [];
+  const [txResult, userResult, businessResult, bookingResult, tripsTodayResult, pendingResult, bannedResult] =
+    await Promise.all([
+      sb.from("platform_transactions").select("kind,commission_amount,gross_amount,net_amount,status").eq("status", "completed"),
+      sb.from("profiles").select("id", { count: "exact", head: true }),
+      sb.from("businesses").select("id", { count: "exact", head: true }),
+      sb.from("bookings").select("id", { count: "exact", head: true }).eq("status", "confirmed"),
+      sb.from("trips").select("id", { count: "exact", head: true }).gte("created_at", startToday.toISOString()),
+      sb.from("businesses").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      sb.from("profiles").select("id", { count: "exact", head: true }).eq("status", "banned"),
+    ]);
+
+  const rows = txResult.data ?? [];
   const commissionRevenue = rows
-    .filter((r) => r.kind === "booking_commission")
+    .filter((r) => r.kind === "booking_commission" || r.kind === "commission")
     .reduce((s, r) => s + n(r.commission_amount), 0);
   const adRevenue = rows
     .filter((r) => r.kind === "ad_purchase")
     .reduce((s, r) => s + n(r.gross_amount), 0);
 
-  const { count: userCount } = await getSupabaseAdmin()
-    .from("profiles")
-    .select("id", { count: "exact", head: true });
-
-  const { count: businessCount } = await getSupabaseAdmin()
-    .from("businesses")
-    .select("id", { count: "exact", head: true });
-
-  const { count: bookingCount } = await getSupabaseAdmin()
-    .from("bookings")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "confirmed");
-
-  const startToday = new Date();
-  startToday.setHours(0, 0, 0, 0);
-  const { count: tripsToday } = await getSupabaseAdmin()
-    .from("trips")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", startToday.toISOString());
-
-  const { count: pendingBusinessCount } = await getSupabaseAdmin()
-    .from("businesses")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "pending");
-
-  const { count: bannedUserCount } = await getSupabaseAdmin()
-    .from("profiles")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "banned");
-
   return {
     commission_revenue_vnd: commissionRevenue,
     ad_revenue_vnd: adRevenue,
     total_revenue_vnd: commissionRevenue + adRevenue,
-    user_count: userCount ?? 0,
-    business_count: businessCount ?? 0,
-    booking_count: bookingCount ?? 0,
-    trips_today: tripsToday ?? 0,
-    pending_business_count: pendingBusinessCount ?? 0,
-    banned_user_count: bannedUserCount ?? 0,
+    user_count: userResult.count ?? 0,
+    business_count: businessResult.count ?? 0,
+    booking_count: bookingResult.count ?? 0,
+    trips_today: tripsTodayResult.count ?? 0,
+    pending_business_count: pendingResult.count ?? 0,
+    banned_user_count: bannedResult.count ?? 0,
   };
 }
 
