@@ -152,8 +152,8 @@ export async function businessPortalRoutes(app: FastifyInstance) {
       try {
         const businessId = await getBusinessIdForOwner(req.userId!);
         if (!businessId) return reply.code(404).send({ error: "business_not_found" });
-        const order = await purchaseAdPackage(businessId, req.params.packageId);
-        return { order };
+        const result = await purchaseAdPackage(businessId, req.params.packageId);
+        return result;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "error";
         return reply.code(500).send({ error: msg });
@@ -179,7 +179,7 @@ export async function businessPortalRoutes(app: FastifyInstance) {
       try {
         const packageId = req.body?.package_id;
         if (!packageId) return reply.code(400).send({ error: "package_id_required" });
-        return { order: await purchaseAdPackage(req.businessId!, packageId) };
+        return await purchaseAdPackage(req.businessId!, packageId);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "error";
         return reply.code(400).send({ error: msg });
