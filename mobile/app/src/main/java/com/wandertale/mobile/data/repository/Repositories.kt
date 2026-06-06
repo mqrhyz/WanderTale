@@ -11,6 +11,7 @@ import com.wandertale.mobile.data.model.ProfileRow
 import com.wandertale.mobile.data.model.VoucherRow
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Facebook
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
@@ -71,6 +72,10 @@ class AuthRepository(@Suppress("UNUSED_PARAMETER") context: Context) {
      *  (handled in MainActivity) and updates [io.github.jan.supabase.auth.Auth.sessionStatus]. */
     suspend fun signInWithGoogle() {
         supabase.auth.signInWith(Google)
+    }
+
+    suspend fun signInWithFacebook() {
+        supabase.auth.signInWith(Facebook)
     }
 
     suspend fun resetPassword(email: String) {

@@ -80,6 +80,13 @@ final class AppState {
         isAuthenticated = true
     }
 
+    func signInWithFacebook() async throws {
+        try await SupabaseClient.signInWithFacebook()
+        await loadAccountInfo()
+        await preload()
+        isAuthenticated = true
+    }
+
     func signOut() {
         SupabaseClient.signOut()
         isAuthenticated = false

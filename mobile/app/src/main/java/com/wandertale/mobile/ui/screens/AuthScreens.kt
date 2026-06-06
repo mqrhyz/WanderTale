@@ -61,14 +61,16 @@ fun LoginScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
     var googleLoading by remember { mutableStateOf(false) }
+    var facebookLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val auth = WanderTaleApp.instance.authRepository
 
-    // Khi OAuth (Google) hoàn tất qua deep link, session chuyển sang Authenticated.
+    // Khi OAuth (Google/Facebook) hoàn tất qua deep link, session chuyển sang Authenticated.
     LaunchedEffect(Unit) {
         auth.supabase.auth.sessionStatus.collect { status ->
-            if (status is SessionStatus.Authenticated && googleLoading) {
+            if (status is SessionStatus.Authenticated && (googleLoading || facebookLoading)) {
                 googleLoading = false
+                facebookLoading = false
                 auth.initSession()
                 onSuccess()
             }
@@ -155,6 +157,20 @@ fun LoginScreen(
                     }
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            FacebookSignInButton(loading = facebookLoading) {
+                error = null
+                facebookLoading = true
+                scope.launch {
+                    runCatching {
+                        auth.initSession()
+                        auth.signInWithFacebook()
+                    }.onFailure {
+                        error = formatAuthError(it, "Đăng nhập Facebook thất bại")
+                        facebookLoading = false
+                    }
+                }
+            }
         }
     }
 }
@@ -194,6 +210,29 @@ private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
                 )
                 Spacer(Modifier.width(10.dp))
                 Text("Đăng nhập bằng Google", color = Color(0xFF212121), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FacebookSignInButton(loading: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xFF1877F2))
+            .clickable(enabled = !loading, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Text("f", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Spacer(Modifier.width(10.dp))
+                Text("Đăng nhập bằng Facebook", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
         }
     }

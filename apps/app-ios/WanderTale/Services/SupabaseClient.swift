@@ -81,15 +81,25 @@ enum SupabaseClient {
         KeychainStore.clearSession()
     }
 
-    /// OAuth (Google) login via Supabase. Opens a secure web session, then stores
-    /// the access/refresh tokens returned in the redirect callback.
+    /// OAuth (Google) login via Supabase.
     static func signInWithGoogle() async throws {
+        try await signInWithOAuth(provider: "google")
+    }
+
+    /// OAuth (Facebook) login via Supabase.
+    static func signInWithFacebook() async throws {
+        try await signInWithOAuth(provider: "facebook")
+    }
+
+    /// Shared OAuth flow: opens a secure web session, then stores the
+    /// access/refresh tokens returned in the redirect callback.
+    private static func signInWithOAuth(provider: String) async throws {
         let redirect = "wandertale://login-callback"
         guard var comp = URLComponents(string: "\(AppConfig.supabaseURL)/auth/v1/authorize") else {
             throw ApiError(message: "URL Supabase không hợp lệ")
         }
         comp.queryItems = [
-            URLQueryItem(name: "provider", value: "google"),
+            URLQueryItem(name: "provider", value: provider),
             URLQueryItem(name: "redirect_to", value: redirect),
         ]
         guard let authURL = comp.url else { throw ApiError(message: "URL đăng nhập không hợp lệ") }
@@ -104,7 +114,7 @@ enum SupabaseClient {
             throw ApiError(message: errorDesc.replacingOccurrences(of: "+", with: " "))
         }
         guard let accessToken = params["access_token"], !accessToken.isEmpty else {
-            throw ApiError(message: "Không nhận được phiên đăng nhập từ Google")
+            throw ApiError(message: "Không nhận được phiên đăng nhập")
         }
         KeychainStore.save("access_token", value: accessToken)
         if let refresh = params["refresh_token"], !refresh.isEmpty {

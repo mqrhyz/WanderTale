@@ -11,6 +11,7 @@ struct LoginView: View {
     @State private var error: String?
     @State private var loading = false
     @State private var googleLoading = false
+    @State private var facebookLoading = false
     @State private var showRegister = false
     @State private var showForgot = false
     @FocusState private var focusedField: AuthFocusField?
@@ -71,6 +72,9 @@ struct LoginView: View {
                             authDivider
                             GoogleSignInButton(loading: googleLoading) {
                                 Task { await submitGoogle() }
+                            }
+                            FacebookSignInButton(loading: facebookLoading) {
+                                Task { await submitFacebook() }
                             }
                         }
                         authFooterLinks
@@ -159,6 +163,21 @@ struct LoginView: View {
             }
         }
         googleLoading = false
+    }
+
+    private func submitFacebook() async {
+        focusedField = nil
+        facebookLoading = true
+        error = nil
+        do {
+            try await appState.signInWithFacebook()
+        } catch {
+            let nsError = error as NSError
+            if !(nsError.domain == "com.apple.AuthenticationServices.WebAuthenticationSession") {
+                self.error = formatAuthError(error, fallback: "Đăng nhập Facebook thất bại")
+            }
+        }
+        facebookLoading = false
     }
 }
 
@@ -468,6 +487,33 @@ struct GoogleSignInButton: View {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .stroke(Color.black.opacity(0.12), lineWidth: 1)
             )
+        }
+        .disabled(loading)
+    }
+}
+
+struct FacebookSignInButton: View {
+    var loading = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if loading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("f")
+                        .font(.system(size: 20, weight: .bold, design: .serif))
+                        .foregroundStyle(.white)
+                    Text("Đăng nhập bằng Facebook")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .foregroundStyle(.white)
+            .background(Color(red: 0.10, green: 0.34, blue: 0.65))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .disabled(loading)
     }

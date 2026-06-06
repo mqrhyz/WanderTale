@@ -240,3 +240,10 @@
 - **Android:** thêm vector drawable `res/drawable/ic_google_logo.xml` (4 path FFC107/FF3D00/4CAF50/1976D2); `AuthScreens.kt` dùng `Image(painterResource(R.drawable.ic_google_logo))` thay chữ "G".
 - **Cấu hình Supabase (đã làm qua terminal trước đó):** Google provider enabled, client_id/secret set, redirect `wandertale://login-callback`, migration trigger Google đã push. Verify authorize endpoint 302 → accounts.google.com.
 - **Test:** Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED.
+
+## [2026-06-07] Thêm đăng nhập bằng Facebook (OAuth qua Supabase)
+- **iOS:** `SupabaseClient.swift` refactor thành `signInWithOAuth(provider:)` dùng chung; thêm `signInWithFacebook()`. `AppState.signInWithFacebook()`. `AuthViews.swift`: `FacebookSignInButton` (nền xanh FB) + state `facebookLoading` + `submitFacebook()`.
+- **Android:** `Repositories.kt`: `signInWithFacebook()` = `supabase.auth.signInWith(Facebook)`. `AuthScreens.kt`: `FacebookSignInButton` + flag `facebookLoading`; observer sessionStatus xử lý cả Google lẫn Facebook.
+- **Dùng lại deep link** `wandertale://login-callback` đã cấu hình sẵn → không cần đổi manifest/Info.plist.
+- **CẦN THAO TÁC (user):** tạo Facebook App tại developers.facebook.com → Facebook Login → lấy App ID + App Secret; Valid OAuth Redirect URI = `https://bdtilpfskhrylwebnliu.supabase.co/auth/v1/callback`. Sau đó đưa App ID + Secret để bật provider Facebook trên Supabase qua Management API.
+- **Test:** Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED.
