@@ -23,6 +23,7 @@ struct BusinessPortalView: View {
     @State private var showingLocationForm = false
     @State private var showingMediaForm = false
     @State private var adPayResponse: AdPurchaseResponse?
+    @State private var purchaseLoading = false
     @State private var voucherFilter = "active"
     @State private var reviewFilter = "all"
 
@@ -526,15 +527,23 @@ struct BusinessPortalView: View {
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(BusinessPortalStyle.muted)
                         }
-                        Button("Mua gói") {
+                        Button {
                             Task { await purchase(pkg.id) }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if purchaseLoading {
+                                    ProgressView().tint(.white).scaleEffect(0.8)
+                                }
+                                Text(purchaseLoading ? "Đang xử lý…" : "Mua gói")
+                            }
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 42)
+                            .background(purchaseLoading ? BusinessPortalStyle.accent.opacity(0.6) : BusinessPortalStyle.accent)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 42)
-                        .background(BusinessPortalStyle.accent)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .disabled(purchaseLoading)
                     }
                     .padding(16)
                     .background(BusinessPortalStyle.card)
@@ -1126,14 +1135,17 @@ struct BusinessPortalView: View {
     }
 
     private func purchase(_ id: String) async {
+        purchaseLoading = true
+        purchaseMessage = nil
+        defer { purchaseLoading = false }
         do {
             let res = try await ApiService.purchaseAdPackage(id: id)
             if let url = res.checkout_url, !url.isEmpty {
-                // PayOS mode: show payment QR/details.
-                adPayResponse = res
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    adPayResponse = res
+                }
                 purchaseMessage = "Thanh toán để kích hoạt gói."
             } else {
-                // Simulation mode: already activated.
                 purchaseMessage = "Đã kích hoạt gói quảng cáo."
                 await load()
             }

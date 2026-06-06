@@ -327,10 +327,13 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                 if (packages.isNotEmpty()) {
                                     item { PortalSectionTitle("GÓI QUẢNG CÁO") }
                                     items(packages, key = { it.id }) { pkg ->
+                                        var purchasing by remember { mutableStateOf(false) }
                                         BusinessAdPackageCard(
                                             pkg = pkg,
+                                            purchasing = purchasing,
                                             onPurchase = {
                                                 scope.launch {
+                                                    purchasing = true
                                                     runCatching {
                                                         val res = ApiClient.purchaseAdPackage(pkg.id)
                                                         if (!res.checkout_url.isNullOrBlank()) {
@@ -343,6 +346,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                                     }.onFailure {
                                                         purchaseMessage = it.message ?: "Không mua được gói"
                                                     }
+                                                    purchasing = false
                                                 }
                                             },
                                         )
@@ -754,7 +758,7 @@ private fun voucherStatusText(status: String?): String = when (status?.lowercase
 }
 
 @Composable
-private fun BusinessAdPackageCard(pkg: AdPackage, onPurchase: () -> Unit) {
+private fun BusinessAdPackageCard(pkg: AdPackage, purchasing: Boolean = false, onPurchase: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -772,13 +776,23 @@ private fun BusinessAdPackageCard(pkg: AdPackage, onPurchase: () -> Unit) {
         }
         Button(
             onClick = onPurchase,
+            enabled = !purchasing,
             modifier = Modifier.fillMaxWidth().height(46.dp),
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PortalGreen, contentColor = Color.White),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (purchasing) PortalGreen.copy(alpha = 0.6f) else PortalGreen,
+                contentColor = Color.White,
+            ),
         ) {
-            Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(Modifier.width(8.dp))
-            Text("Mua gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            if (purchasing) {
+                OrangeLoadingSpinner()
+                Spacer(Modifier.width(8.dp))
+                Text("Đang xử lý…", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            } else {
+                Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Mua gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            }
         }
     }
 }
