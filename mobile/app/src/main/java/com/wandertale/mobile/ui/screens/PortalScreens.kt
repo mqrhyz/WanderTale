@@ -42,10 +42,12 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -572,14 +574,33 @@ private fun BusinessVoucherCompactRow(voucher: BusinessVoucherRow) {
 @Composable
 private fun BusinessCampaignCard(campaign: BusinessCampaignRow) {
     DarkPortalCard {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(campaign.name ?: "Chiến dịch", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(Icons.Filled.Campaign, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(20.dp))
+                    Text(campaign.name ?: "Chiến dịch", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                }
                 BusinessStatusPill(campaign.status ?: "—")
             }
-            Text("${compactNumber(campaign.impressions)} hiển thị · ${compactNumber(campaign.clicks)} click · ${compactNumber(campaign.suggested_count)} gợi ý", color = portalMuted(), fontSize = 13.sp)
-            Text("${campaign.target_type ?: "Target"} · ${campaign.region ?: "Khu vực"} · ${campaign.season ?: "Mùa"}", color = portalMuted(), fontSize = 12.sp)
-            Text("${formatPortalDate(campaign.starts_at)} — ${formatPortalDate(campaign.ends_at)} · ${formatPlatformVnd(campaign.budget_vnd)}", color = PortalGreen, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${compactNumber(campaign.impressions)}", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("hiển thị", color = portalMuted(), fontSize = 11.sp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${compactNumber(campaign.clicks)}", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("click", color = portalMuted(), fontSize = 11.sp)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("${compactNumber(campaign.suggested_count)}", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text("gợi ý", color = portalMuted(), fontSize = 11.sp)
+                }
+            }
+            HorizontalDivider(color = portalStroke(), thickness = 0.5.dp)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("${campaign.target_type ?: "Target"} · ${campaign.region ?: "Khu vực"} · ${campaign.season ?: ""}", color = portalMuted(), fontSize = 12.sp)
+            }
+            Text("${formatPortalDate(campaign.starts_at)} — ${formatPortalDate(campaign.ends_at)} · ${formatPlatformVnd(campaign.budget_vnd)}", color = PortalGreen, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
     }
 }
@@ -718,21 +739,30 @@ private fun voucherStatusText(status: String?): String = when (status?.lowercase
 
 @Composable
 private fun BusinessAdPackageCard(pkg: AdPackage, onPurchase: () -> Unit) {
-    DarkPortalCard {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(pkg.name, color = portalText(), fontWeight = FontWeight.Bold, fontSize = 17.sp)
-            pkg.description?.let { Text(it, color = portalMuted(), fontSize = 13.sp) }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(formatPlatformVnd(pkg.price_vnd), color = PortalGreen, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("${pkg.duration_days ?: 0} ngày", color = portalMuted(), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-            }
-            Button(
-                onClick = onPurchase,
-                modifier = Modifier.fillMaxWidth().height(42.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = PortalGreen, contentColor = Color.White),
-            ) {
-                Text("Mua gói", fontWeight = FontWeight.Bold)
-            }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, portalStroke(), RoundedCornerShape(16.dp))
+            .background(portalCard())
+            .padding(18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(pkg.name, color = portalText(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        pkg.description?.let { Text(it, color = portalMuted(), fontSize = 13.sp) }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+            Text(formatPlatformVnd(pkg.price_vnd), color = PortalGreen, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text("${pkg.duration_days ?: 0} ngày", color = portalMuted(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        }
+        Button(
+            onClick = onPurchase,
+            modifier = Modifier.fillMaxWidth().height(46.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = PortalGreen, contentColor = Color.White),
+        ) {
+            Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Mua gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
         }
     }
 }
