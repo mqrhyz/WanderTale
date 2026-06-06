@@ -1622,7 +1622,6 @@ private struct AdPackagePaymentSheet: View {
     let response: AdPurchaseResponse
     let onDone: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @State private var activated = false
     @State private var pollTask: Task<Void, Never>?
 
@@ -1678,12 +1677,6 @@ private struct AdPackagePaymentSheet: View {
                         .frame(maxWidth: .infinity).frame(height: 44)
                         .background(PremiumTheme.accentLight)
                         .clipShape(RoundedRectangle(cornerRadius: 12))
-
-                        if let urlStr = response.checkout_url, let url = URL(string: urlStr) {
-                            Button("Mở trang PayOS") { openURL(url) }
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(PremiumTheme.accent)
-                        }
                     }
                 }
                 .padding(PremiumTheme.screenPadding)

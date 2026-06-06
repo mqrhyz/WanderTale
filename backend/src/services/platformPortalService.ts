@@ -1,7 +1,7 @@
 import { getSupabaseAdmin } from "../lib/auth.js";
 import { env } from "../lib/env.js";
 import { logSystemEvent } from "../lib/auditLog.js";
-import { createPaymentLink, isPayosConfigured } from "../lib/payos.js";
+import { createPaymentLink, getPaymentLinkInfo, isPayosConfigured } from "../lib/payos.js";
 
 function n(v: unknown): number {
   const x = typeof v === "number" ? v : Number(v);
@@ -341,6 +341,13 @@ export async function purchaseAdPackage(businessId: string, packageId: string) {
 
     return {
       ...order,
+      order: {
+        id: order.id,
+        status: order.status,
+        amount_vnd: order.amount_vnd,
+        starts_at: order.starts_at,
+        ends_at: order.ends_at,
+      },
       payment_status: "pending_payment",
       checkout_url: link.checkoutUrl,
       qr_code: link.qrCode ?? null,
@@ -659,14 +666,44 @@ export async function businessAdExpiry(businessId: string): Promise<string | nul
 
 /** Status of a specific ad order (for polling payment activation). */
 export async function getBusinessAdOrderStatus(businessId: string, orderId: string) {
-  const { data, error } = await getSupabaseAdmin()
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
     .from("business_ad_orders")
-    .select("id,status,package_id,amount_vnd,starts_at,ends_at")
+    .select("id,status,package_id,amount_vnd,starts_at,ends_at,payment_transaction_id")
     .eq("id", orderId)
     .eq("business_id", businessId)
     .maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("order_not_found");
+
+  // Fallback: nếu order còn pending, hỏi trực tiếp PayOS để finalize
+  // (phòng trường hợp webhook bị miss/trễ).
+  if (data.status !== "active" && data.payment_transaction_id && isPayosConfigured()) {
+    const { data: tx } = await sb
+      .from("platform_transactions")
+      .select("id,status,metadata")
+      .eq("id", data.payment_transaction_id)
+      .maybeSingle();
+    const orderCode = Number((tx?.metadata as Record<string, unknown> | null)?.order_code);
+    if (tx && tx.status !== "captured" && Number.isFinite(orderCode)) {
+      const info = await getPaymentLinkInfo(orderCode);
+      if (info?.status === "PAID") {
+        await sb
+          .from("platform_transactions")
+          .update({ status: "captured", provider_ref: info.reference ?? null })
+          .eq("id", tx.id);
+        await sb.from("business_ad_orders").update({ status: "active" }).eq("id", orderId);
+        await logSystemEvent({
+          level: "success",
+          title: "Ad package payment confirmed (poll)",
+          source: "advertising",
+          metadata: { order_code: orderCode, order_id: orderId },
+        });
+        return { ...data, status: "active" };
+      }
+    }
+  }
+
   return data;
 }
 

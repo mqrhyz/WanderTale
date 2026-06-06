@@ -189,3 +189,14 @@
   - Thêm `ApiClient.businessAdOrderStatus(id)`.
   - `AdPackagePaymentOverlay`: thêm `LaunchedEffect` poll order mỗi 4s; khi active → dialog success (icon CheckCircle + "Gói đã kích hoạt thành công!"); trong lúc chờ hiện spinner "Đang chờ xác nhận thanh toán…".
 - **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `0f0f2f5f`, tag `adorder-79679a1`).
+
+## [2026-06-06] Fix: thanh toán xong vẫn đứng ở sheet + bỏ link "Mở trang PayOS"
+- **Bug gốc:** response của `purchaseAdPackage` (PayOS mode) trả shape phẳng `{...order, checkout_url,...}` — KHÔNG có object `order` lồng. Trong khi client poll dựa vào `response.order?.id` → luôn nil → poll không bao giờ chạy → thanh toán xong vẫn đứng tại sheet.
+- **Sửa backend:**
+  - `platformPortalService.ts`: thêm object `order: { id, status, amount_vnd, starts_at, ends_at }` lồng vào response PayOS để client lấy được `order.id`.
+  - `lib/payos.ts`: thêm `getPaymentLinkInfo(orderCode)` GET `/v2/payment-requests/{orderCode}` trả `{status, reference}`.
+  - `getBusinessAdOrderStatus`: nếu order còn `pending`, hỏi trực tiếp PayOS; nếu `PAID` → tự finalize (mark tx captured + order active) ngay trong poll. Không còn phụ thuộc 100% vào webhook (phòng webhook miss/trễ).
+- **Bỏ link PayOS web (chỉ thanh toán trong app):**
+  - iOS `BusinessPortalView.swift`: xóa nút "Mở trang PayOS" + bỏ `@Environment(\.openURL)`.
+  - Android `PortalScreens.kt`: xóa `TextButton` "Mở trang PayOS" + bỏ `LocalContext`.
+- **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `95476e3a`).

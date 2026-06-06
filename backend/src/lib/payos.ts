@@ -166,3 +166,36 @@ export function verifyWebhook(body: {
     desc: typeof d.desc === "string" ? d.desc : undefined,
   };
 }
+
+/**
+ * Query a payment link's current status from PayOS by orderCode.
+ * Used as a fallback so activation does not depend solely on the webhook.
+ * Returns the status string ("PAID" | "PENDING" | "CANCELLED" | ...) or null.
+ */
+export async function getPaymentLinkInfo(orderCode: number): Promise<{
+  status: string;
+  reference?: string;
+} | null> {
+  if (!isPayosConfigured()) return null;
+  try {
+    const res = await fetch(`${env.PAYOS_API_BASE}/v2/payment-requests/${orderCode}`, {
+      method: "GET",
+      headers: {
+        "x-client-id": env.PAYOS_CLIENT_ID,
+        "x-api-key": env.PAYOS_API_KEY,
+      },
+      signal: AbortSignal.timeout(15_000),
+    });
+    const json = (await res.json()) as {
+      code?: string;
+      data?: { status?: string; transactions?: Array<{ reference?: string }> };
+    };
+    if (json.code !== "00" || !json.data?.status) return null;
+    return {
+      status: json.data.status,
+      reference: json.data.transactions?.[0]?.reference,
+    };
+  } catch {
+    return null;
+  }
+}

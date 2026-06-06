@@ -1988,7 +1988,6 @@ private fun AdPackagePaymentOverlay(
     onDone: () -> Unit,
     onCancel: () -> Unit,
 ) {
-    val context = LocalContext.current
     var activated by remember { mutableStateOf(false) }
 
     LaunchedEffect(info.order?.id) {
@@ -2043,11 +2042,6 @@ private fun AdPackagePaymentOverlay(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = PortalGreen)
                     Text("Đang chờ xác nhận thanh toán…", fontSize = 13.sp, color = PortalGreen, fontWeight = FontWeight.Medium)
-                }
-                info.checkout_url?.let { url ->
-                    TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }) {
-                        Text("Mở trang PayOS", fontSize = 12.sp)
-                    }
                 }
             }
         },
