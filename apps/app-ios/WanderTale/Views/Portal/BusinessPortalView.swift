@@ -509,10 +509,22 @@ struct BusinessPortalView: View {
             if !packages.isEmpty {
                 sectionTitle("GÓI QUẢNG CÁO")
                 ForEach(packages) { pkg in
+                    let isCurrent = overview?.active_ad_package?.package_id == pkg.id
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(pkg.name)
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(BusinessPortalStyle.text)
+                        HStack {
+                            Text(pkg.name)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(BusinessPortalStyle.text)
+                            if isCurrent {
+                                Text("Đang dùng")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 8).padding(.vertical, 3)
+                                    .background(BusinessPortalStyle.accent)
+                                    .clipShape(Capsule())
+                            }
+                            Spacer()
+                        }
                         if let desc = pkg.description {
                             Text(desc)
                                 .font(.system(size: 13, weight: .medium))
@@ -527,30 +539,61 @@ struct BusinessPortalView: View {
                                 .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(BusinessPortalStyle.muted)
                         }
-                        Button {
-                            Task { await purchase(pkg.id) }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if purchaseLoading {
-                                    ProgressView().tint(.white).scaleEffect(0.8)
-                                }
-                                Text(purchaseLoading ? "Đang xử lý…" : "Mua gói")
+                        if isCurrent {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.seal.fill")
+                                Text(currentPackageExpiryText)
                             }
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(BusinessPortalStyle.accent)
                             .frame(maxWidth: .infinity)
                             .frame(height: 42)
-                            .background(purchaseLoading ? BusinessPortalStyle.accent.opacity(0.6) : BusinessPortalStyle.accent)
+                            .background(BusinessPortalStyle.accent.opacity(0.12))
                             .clipShape(RoundedRectangle(cornerRadius: 10))
+                        } else {
+                            Button {
+                                Task { await purchase(pkg.id) }
+                            } label: {
+                                HStack(spacing: 8) {
+                                    if purchaseLoading {
+                                        ProgressView().tint(.white).scaleEffect(0.8)
+                                    }
+                                    Text(purchaseLoading ? "Đang xử lý…" : "Mua gói")
+                                }
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 42)
+                                .background(purchaseLoading ? BusinessPortalStyle.accent.opacity(0.6) : BusinessPortalStyle.accent)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .disabled(purchaseLoading)
                         }
-                        .disabled(purchaseLoading)
                     }
                     .padding(16)
                     .background(BusinessPortalStyle.card)
                     .clipShape(RoundedRectangle(cornerRadius: 13))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 13)
+                            .stroke(isCurrent ? BusinessPortalStyle.accent : Color.clear, lineWidth: 1.5)
+                    )
                 }
             }
         }
+    }
+
+    private var currentPackageExpiryText: String {
+        guard let ends = overview?.active_ad_package?.ends_at else { return "Đang sử dụng" }
+        let isoFrac = ISO8601DateFormatter()
+        isoFrac.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let iso = ISO8601DateFormatter()
+        if let date = isoFrac.date(from: ends) ?? iso.date(from: ends) {
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "vi_VN")
+            df.dateFormat = "dd/MM/yyyy"
+            return "Hết hạn \(df.string(from: date))"
+        }
+        return "Đang sử dụng"
     }
 
     private var weeklyGrowthEstimate: Int {
@@ -708,6 +751,18 @@ struct BusinessPortalView: View {
                         Text("Tham gia \(formatBusinessJoinDate(business.created_at))")
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundStyle(Color(red: 0.0, green: 0.43, blue: 0.34))
+                        if let pkgName = overview?.active_ad_package?.name {
+                            HStack(spacing: 4) {
+                                Image(systemName: "crown.fill")
+                                Text(pkgName)
+                            }
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color(red: 0.0, green: 0.48, blue: 0.38))
+                            .clipShape(Capsule())
+                        }
                     }
                     Spacer()
                 }
@@ -1681,7 +1736,7 @@ private struct AdPackagePaymentSheet: View {
                 }
                 .padding(PremiumTheme.screenPadding)
             }
-            .background(PremiumTheme.bg)
+            .background(Color.white)
             .navigationTitle("Thanh toán")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

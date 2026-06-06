@@ -12,6 +12,7 @@ data class BusinessOverview(
     val gross_revenue_vnd: Double = 0.0,
     val net_revenue_vnd: Double = 0.0,
     val active_ad_campaigns: Int = 0,
+    val active_ad_package: ActiveAdPackage? = null,
     val campaign_count: Int = 0,
     val impressions: Int = 0,
     val clicks: Int = 0,
@@ -19,6 +20,13 @@ data class BusinessOverview(
     val suggested_count: Int = 0,
     val remaining_budget_vnd: Double = 0.0,
     val ad_package_expiry: String? = null,
+)
+
+@Serializable
+data class ActiveAdPackage(
+    val package_id: String? = null,
+    val name: String? = null,
+    val ends_at: String? = null,
 )
 
 @Serializable

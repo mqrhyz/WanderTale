@@ -200,3 +200,16 @@
   - iOS `BusinessPortalView.swift`: xóa nút "Mở trang PayOS" + bỏ `@Environment(\.openURL)`.
   - Android `PortalScreens.kt`: xóa `TextButton` "Mở trang PayOS" + bỏ `LocalContext`.
 - **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `95476e3a`).
+
+## [2026-06-07] Hiển thị gói hiện tại + nhãn gói ở Hồ sơ + nền trắng màn success
+- **Backend** (`platformPortalService.ts` `businessOverview`): trả thêm `active_ad_package { package_id, name, ends_at }` — gói active mới nhất (join `ad_packages.name`, order by `ends_at` desc).
+- **iOS** (`PlatformModels.swift`, `BusinessPortalView.swift`):
+  - Model `ActiveAdPackage`; `BusinessOverview.active_ad_package`.
+  - Tab Quảng cáo: card gói trùng `active_ad_package.package_id` hiện badge "Đang dùng" + viền xanh + thay nút "Mua gói" bằng "Hết hạn dd/MM/yyyy" (không cho mua lại).
+  - Tab Hồ sơ: header hiện nhãn gói (icon vương miện + tên gói).
+  - Màn success thanh toán: đổi nền từ kem (`PremiumTheme.bg`) sang trắng cho đồng bộ.
+- **Android** (`PlatformModels.kt`, `PortalScreens.kt`):
+  - Data class `ActiveAdPackage`; `BusinessOverview.active_ad_package`.
+  - `BusinessAdPackageCard` nhận `isCurrent`/`currentExpiry`: badge "Đang dùng" + viền xanh + box "Hết hạn dd/MM/yyyy" thay nút mua.
+  - `BusinessIdentityCard`/`BusinessProfileCard` nhận `activePackageName` → nhãn gói (♛) ở header Hồ sơ.
+- **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `dac91b8e`).

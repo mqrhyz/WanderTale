@@ -333,6 +333,8 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                         BusinessAdPackageCard(
                                             pkg = pkg,
                                             purchasing = purchasing,
+                                            isCurrent = overview?.active_ad_package?.package_id == pkg.id,
+                                            currentExpiry = if (overview?.active_ad_package?.package_id == pkg.id) overview?.active_ad_package?.ends_at else null,
                                             onPurchase = {
                                                 scope.launch {
                                                     purchasing = true
@@ -370,7 +372,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                             }
                             else -> {
                                 val filteredReviews = filteredBusinessReviews(reviews, reviewFilter)
-                                item { BusinessProfileCard(overview?.business) }
+                                item { BusinessProfileCard(overview?.business, overview?.active_ad_package?.name) }
                                 item { PortalSectionTitle("ĐỊA ĐIỂM ĐÃ ĐĂNG KÝ") }
                                 if (locations.isEmpty()) item { EmptyPortalText("Chưa có địa điểm.") }
                                 items(locations, key = { it.id }) { loc -> BusinessLocationCard(loc) }
@@ -525,7 +527,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
 }
 
 @Composable
-private fun BusinessIdentityCard(business: com.wandertale.mobile.data.model.BusinessProfileRow?) {
+private fun BusinessIdentityCard(business: com.wandertale.mobile.data.model.BusinessProfileRow?, activePackageName: String? = null) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -540,9 +542,18 @@ private fun BusinessIdentityCard(business: com.wandertale.mobile.data.model.Busi
         ) {
             Text(initials(business?.name ?: "BT"), color = Color(0xFF00705C), fontWeight = FontWeight.Bold, fontSize = 20.sp)
         }
-        Column {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(business?.name ?: "Doanh nghiệp", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
             Text("⊙ ${businessStatusText(business?.status)}", color = PortalGreen, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+            if (!activePackageName.isNullOrBlank()) {
+                Text(
+                    "♛ $activePackageName",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(Color(0xFF00705C)).padding(horizontal = 10.dp, vertical = 3.dp),
+                )
+            }
         }
     }
 }
@@ -651,9 +662,9 @@ private fun BusinessVoucherCard(voucher: BusinessVoucherRow) {
 }
 
 @Composable
-private fun BusinessProfileCard(business: com.wandertale.mobile.data.model.BusinessProfileRow?) {
+private fun BusinessProfileCard(business: com.wandertale.mobile.data.model.BusinessProfileRow?, activePackageName: String? = null) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BusinessIdentityCard(business)
+        BusinessIdentityCard(business, activePackageName)
         PortalSectionTitle("THÔNG TIN DOANH NGHIỆP")
         UserInfoRow("Loại hình", business?.business_type ?: "—")
         UserInfoRow("Khu vực", business?.region ?: "—")
@@ -760,43 +771,78 @@ private fun voucherStatusText(status: String?): String = when (status?.lowercase
 }
 
 @Composable
-private fun BusinessAdPackageCard(pkg: AdPackage, purchasing: Boolean = false, onPurchase: () -> Unit) {
+private fun BusinessAdPackageCard(
+    pkg: AdPackage,
+    purchasing: Boolean = false,
+    isCurrent: Boolean = false,
+    currentExpiry: String? = null,
+    onPurchase: () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .border(1.dp, portalStroke(), RoundedCornerShape(16.dp))
+            .border(if (isCurrent) 1.5.dp else 1.dp, if (isCurrent) PortalGreen else portalStroke(), RoundedCornerShape(16.dp))
             .background(portalCard())
             .padding(18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(pkg.name, color = portalText(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(pkg.name, color = portalText(), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            if (isCurrent) {
+                Text(
+                    "Đang dùng",
+                    color = Color.White,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clip(RoundedCornerShape(50)).background(PortalGreen).padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
+        }
         pkg.description?.let { Text(it, color = portalMuted(), fontSize = 13.sp) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
             Text(formatPlatformVnd(pkg.price_vnd), color = PortalGreen, fontWeight = FontWeight.Bold, fontSize = 20.sp)
             Text("${pkg.duration_days ?: 0} ngày", color = portalMuted(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
-        Button(
-            onClick = onPurchase,
-            enabled = !purchasing,
-            modifier = Modifier.fillMaxWidth().height(46.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (purchasing) PortalGreen.copy(alpha = 0.6f) else PortalGreen,
-                contentColor = Color.White,
-            ),
-        ) {
-            if (purchasing) {
-                OrangeLoadingSpinner()
+        if (isCurrent) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(PortalGreen.copy(alpha = 0.12f)).padding(vertical = 12.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Đang xử lý…", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-            } else {
-                Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Mua gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(adPackageExpiryLabel(currentExpiry), color = PortalGreen, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+        } else {
+            Button(
+                onClick = onPurchase,
+                enabled = !purchasing,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (purchasing) PortalGreen.copy(alpha = 0.6f) else PortalGreen,
+                    contentColor = Color.White,
+                ),
+            ) {
+                if (purchasing) {
+                    OrangeLoadingSpinner()
+                    Spacer(Modifier.width(8.dp))
+                    Text("Đang xử lý…", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                } else {
+                    Icon(Icons.Filled.ShoppingCart, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Mua gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                }
             }
         }
     }
+}
+
+private fun adPackageExpiryLabel(ends: String?): String {
+    if (ends.isNullOrBlank()) return "Đang sử dụng"
+    val datePart = ends.take(10).split("-")
+    return if (datePart.size == 3) "Hết hạn ${datePart[2]}/${datePart[1]}/${datePart[0]}" else "Đang sử dụng"
 }
 
 private fun voucherSubtitle(voucher: BusinessVoucherRow): String {

@@ -6,6 +6,7 @@ struct BusinessOverview: Codable {
     var gross_revenue_vnd: Double = 0
     var net_revenue_vnd: Double = 0
     var active_ad_campaigns: Int = 0
+    var active_ad_package: ActiveAdPackage?
     var campaign_count: Int = 0
     var impressions: Int = 0
     var clicks: Int = 0
@@ -13,6 +14,12 @@ struct BusinessOverview: Codable {
     var suggested_count: Int = 0
     var remaining_budget_vnd: Double = 0
     var ad_package_expiry: String?
+}
+
+struct ActiveAdPackage: Codable {
+    var package_id: String?
+    var name: String?
+    var ends_at: String?
 }
 
 struct AdminOverview: Codable {

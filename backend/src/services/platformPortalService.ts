@@ -69,9 +69,10 @@ export async function businessOverview(businessId: string) {
       .eq("business_id", businessId)
       .in("status", ["confirmed", "pending"]),
     sb.from("business_ad_orders")
-      .select("id")
+      .select("id,package_id,ends_at,ad_packages(name)")
       .eq("business_id", businessId)
-      .eq("status", "active"),
+      .eq("status", "active")
+      .order("ends_at", { ascending: false }),
     sb.from("business_ad_campaigns")
       .select("id,impressions,clicks,suggested_count,budget_vnd,spent_vnd,status,starts_at,ends_at")
       .eq("business_id", businessId),
@@ -95,12 +96,26 @@ export async function businessOverview(businessId: string) {
 
   const adPackageExpiry = await businessAdExpiry(businessId);
 
+  const activeOrders = activeAdsResult.data ?? [];
+  const topOrder = activeOrders[0] as
+    | { package_id?: string; ends_at?: string; ad_packages?: { name?: string } | { name?: string }[] }
+    | undefined;
+  const pkgRel = Array.isArray(topOrder?.ad_packages) ? topOrder?.ad_packages[0] : topOrder?.ad_packages;
+  const activeAdPackage = topOrder
+    ? {
+        package_id: topOrder.package_id ?? null,
+        name: pkgRel?.name ?? null,
+        ends_at: topOrder.ends_at ?? null,
+      }
+    : null;
+
   return {
     business,
     booking_count: bookingCount,
     gross_revenue_vnd: grossRevenue,
     net_revenue_vnd: netRevenue,
-    active_ad_campaigns: activeAdsResult.data?.length ?? 0,
+    active_ad_campaigns: activeOrders.length,
+    active_ad_package: activeAdPackage,
     campaign_count: activeCampaigns.length,
     impressions,
     clicks,
