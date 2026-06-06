@@ -1,6 +1,7 @@
 package com.wandertale.mobile.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -70,6 +71,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -173,6 +176,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var purchaseMessage by remember { mutableStateOf<String?>(null) }
+    var adPayInfo by remember { mutableStateOf<com.wandertale.mobile.data.model.AdPurchaseResponse?>(null) }
     var showCampaignForm by remember { mutableStateOf(false) }
     var showVoucherForm by remember { mutableStateOf(false) }
     var showLocationForm by remember { mutableStateOf(false) }
@@ -328,9 +332,14 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                             onPurchase = {
                                                 scope.launch {
                                                     runCatching {
-                                                        ApiClient.purchaseAdPackage(pkg.id)
-                                                        purchaseMessage = "Đã kích hoạt gói ${pkg.name}."
-                                                        load()
+                                                        val res = ApiClient.purchaseAdPackage(pkg.id)
+                                                        if (!res.checkout_url.isNullOrBlank()) {
+                                                            adPayInfo = res
+                                                            purchaseMessage = "Thanh toán để kích hoạt gói ${pkg.name}."
+                                                        } else {
+                                                            purchaseMessage = "Đã kích hoạt gói ${pkg.name}."
+                                                            load()
+                                                        }
                                                     }.onFailure {
                                                         purchaseMessage = it.message ?: "Không mua được gói"
                                                     }
@@ -497,6 +506,13 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
             accountInfo = DashboardHomeCache.accountInfo,
             businessName = overview?.business?.name,
             onDismiss = { showBusinessAccountInfo = false },
+        )
+    }
+    adPayInfo?.let { info ->
+        AdPackagePaymentOverlay(
+            info = info,
+            onDone = { adPayInfo = null; scope.launch { load() } },
+            onCancel = { adPayInfo = null },
         )
     }
     }
@@ -1938,6 +1954,55 @@ private fun BusinessPayoutRow(payout: PayoutRecord) {
             BusinessStatusPill(payoutStatusLabel(payout.status))
         }
     }
+}
+
+private fun portalQrBitmap(content: String): android.graphics.Bitmap? = runCatching {
+    val size = 600
+    val matrix = com.google.zxing.qrcode.QRCodeWriter().encode(content, com.google.zxing.BarcodeFormat.QR_CODE, size, size)
+    val bmp = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.RGB_565)
+    for (x in 0 until size) for (y in 0 until size) {
+        bmp.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+    }
+    bmp
+}.getOrNull()
+
+@Composable
+private fun AdPackagePaymentOverlay(
+    info: com.wandertale.mobile.data.model.AdPurchaseResponse,
+    onDone: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onCancel,
+        confirmButton = {
+            TextButton(onClick = onDone) { Text("Đã thanh toán", fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("Huỷ", color = PremiumColors.LogoutRed) }
+        },
+        title = { Text("Thanh toán gói quảng cáo", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                info.qr_code?.let { qr ->
+                    portalQrBitmap(qr)?.let { bmp ->
+                        Image(bmp.asImageBitmap(), contentDescription = "QR thanh toán",
+                            modifier = Modifier.size(200.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp))
+                    }
+                }
+                info.account_number?.let { Row(Modifier.fillMaxWidth()) { Text("Số tài khoản", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) } }
+                info.account_name?.let { Row(Modifier.fillMaxWidth()) { Text("Chủ tài khoản", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) } }
+                Row(Modifier.fillMaxWidth()) { Text("Số tiền", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(formatPlatformVnd(info.amount), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = PortalGreen) }
+                info.transfer_content?.let { Row(Modifier.fillMaxWidth()) { Text("Nội dung CK", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) } }
+                Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt sau khi nhận tiền.", fontSize = 12.sp, color = portalMuted())
+                info.checkout_url?.let { url ->
+                    TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }) {
+                        Text("Mở trang PayOS", fontSize = 12.sp)
+                    }
+                }
+            }
+        },
+    )
 }
 
 private fun payoutStatusLabel(status: String?): String = when (status?.lowercase(Locale.ROOT)) {

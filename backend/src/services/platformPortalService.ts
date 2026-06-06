@@ -1,5 +1,7 @@
 import { getSupabaseAdmin } from "../lib/auth.js";
+import { env } from "../lib/env.js";
 import { logSystemEvent } from "../lib/auditLog.js";
+import { createPaymentLink, isPayosConfigured } from "../lib/payos.js";
 
 function n(v: unknown): number {
   const x = typeof v === "number" ? v : Number(v);
@@ -281,33 +283,36 @@ export async function purchaseAdPackage(businessId: string, packageId: string) {
 
   const now = new Date();
   const ends = new Date(now.getTime() + Number(pkg.duration_days) * 86400000);
+  const amount = Math.round(Number(pkg.price_vnd));
+  const orderCode = Number(`${Date.now()}`.slice(-12));
 
-  // Ledger first: business pays the platform for advertising (captured).
+  // Ledger: pending payment for the ad package.
   const { data: tx, error: txErr } = await getSupabaseAdmin()
     .from("platform_transactions")
     .insert({
       kind: "ad_purchase",
       source: "advertising",
       business_id: businessId,
-      gross_amount: pkg.price_vnd,
+      gross_amount: amount,
       commission_amount: 0,
-      net_amount: pkg.price_vnd,
+      net_amount: amount,
       currency: "VND",
-      status: "captured",
+      status: "pending",
       description: `Mua gói quảng cáo: ${pkg.name}`,
-      metadata: { package_id: packageId, duration_days: pkg.duration_days },
+      metadata: { package_id: packageId, duration_days: pkg.duration_days, order_code: orderCode },
     })
     .select("id")
     .single();
   if (txErr) throw txErr;
 
+  // Order starts as pending; activated only after payment confirmed.
   const { data: order, error: orderErr } = await getSupabaseAdmin()
     .from("business_ad_orders")
     .insert({
       business_id: businessId,
       package_id: packageId,
-      amount_vnd: pkg.price_vnd,
-      status: "active",
+      amount_vnd: amount,
+      status: "pending",
       starts_at: now.toISOString(),
       ends_at: ends.toISOString(),
       payment_transaction_id: tx.id,
@@ -316,15 +321,47 @@ export async function purchaseAdPackage(businessId: string, packageId: string) {
     .single();
   if (orderErr) throw orderErr;
 
+  // PayOS mode: create payment link, business must pay to activate.
+  if (!env.PAYMENT_SIMULATION_MODE && isPayosConfigured()) {
+    const link = await createPaymentLink({
+      orderCode,
+      amount,
+      description: `WanderTale ${pkg.name.slice(0, 15)}`,
+    });
+    await getSupabaseAdmin()
+      .from("platform_transactions")
+      .update({ provider_ref: link.paymentLinkId, status: "authorized" })
+      .eq("id", tx.id);
+
+    await logSystemEvent({
+      title: "Ad package payment link created",
+      source: "advertising",
+      metadata: { business_id: businessId, package_id: packageId, order_code: orderCode },
+    });
+
+    return {
+      ...order,
+      payment_status: "pending_payment",
+      checkout_url: link.checkoutUrl,
+      qr_code: link.qrCode ?? null,
+      account_number: link.accountNumber ?? null,
+      account_name: link.accountName ?? null,
+      amount: link.amount ?? amount,
+      transfer_content: link.description ?? null,
+      order_code: orderCode,
+    };
+  }
+
+  // Simulation mode: activate immediately.
+  await getSupabaseAdmin().from("business_ad_orders").update({ status: "active" }).eq("id", order.id);
+  await getSupabaseAdmin().from("platform_transactions").update({ status: "captured" }).eq("id", tx.id);
   await logSystemEvent({
     level: "success",
-    title: "Ad package purchased",
+    title: "Ad package purchased (simulation)",
     source: "advertising",
-    detail: `${pkg.name} — ${pkg.price_vnd} VND`,
-    metadata: { business_id: businessId, package_id: packageId, order_id: order.id, payment_tx: tx.id },
+    metadata: { business_id: businessId, package_id: packageId, order_id: order.id },
   });
-
-  return order;
+  return { ...order, status: "active", payment_status: "paid" };
 }
 
 export async function adminOverview() {

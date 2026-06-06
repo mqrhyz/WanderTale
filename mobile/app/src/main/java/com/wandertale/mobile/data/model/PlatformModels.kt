@@ -64,7 +64,17 @@ data class AdPackage(
 data class AdPackageList(val items: List<AdPackage> = emptyList())
 
 @Serializable
-data class AdPurchaseResponse(val order: AdOrder? = null)
+data class AdPurchaseResponse(
+    val order: AdOrder? = null,
+    val payment_status: String? = null,
+    val checkout_url: String? = null,
+    val qr_code: String? = null,
+    val account_number: String? = null,
+    val account_name: String? = null,
+    val amount: Double? = null,
+    val transfer_content: String? = null,
+    val order_code: Long? = null,
+)
 
 @Serializable
 data class AdOrder(

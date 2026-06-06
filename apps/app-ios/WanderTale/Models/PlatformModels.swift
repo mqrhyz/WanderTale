@@ -58,6 +58,14 @@ struct AdPackageList: Codable {
 
 struct AdPurchaseResponse: Codable {
     var order: AdOrder?
+    var payment_status: String?
+    var checkout_url: String?
+    var qr_code: String?
+    var account_number: String?
+    var account_name: String?
+    var amount: Double?
+    var transfer_content: String?
+    var order_code: Int?
 }
 
 struct AdOrder: Codable, Identifiable {
