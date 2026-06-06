@@ -199,15 +199,17 @@ data class BusinessVoucherRow(
     val id: String,
     val business_id: String? = null,
     val code: String? = null,
+    val title: String? = null,
+    val description: String? = null,
     val discount_type: String? = null,
     val discount_value: Double? = null,
     val max_discount_vnd: Double? = null,
-    val condition_label: String? = null,
+    val audience: String? = null,
     val usage_limit: Int? = null,
     val used_count: Int = 0,
     val status: String? = null,
-    val starts_at: String? = null,
-    val ends_at: String? = null,
+    val valid_from: String? = null,
+    val valid_until: String? = null,
     val created_at: String? = null,
 )
 
@@ -217,13 +219,15 @@ data class BusinessVoucherList(val items: List<BusinessVoucherRow> = emptyList()
 @Serializable
 data class BusinessVoucherCreate(
     val code: String,
+    val title: String,
+    val description: String? = null,
     val discount_type: String,
     val discount_value: Double,
     val max_discount_vnd: Double? = null,
-    val condition_label: String? = null,
+    val audience: String? = null,
     val usage_limit: Int? = null,
-    val starts_at: String,
-    val ends_at: String,
+    val valid_from: String,
+    val valid_until: String,
 )
 
 @Serializable

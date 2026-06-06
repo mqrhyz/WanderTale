@@ -28,7 +28,23 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.ConfirmationNumber
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -215,10 +231,10 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
             },
             onBack = onBack,
             rightIcon = when (tab) {
-                1 -> "▣"
-                2 -> "+"
-                3 -> "✎"
-                else -> "◎"
+                1 -> Icons.Filled.Add
+                2 -> Icons.Filled.Add
+                3 -> Icons.Filled.Edit
+                else -> Icons.Outlined.Notifications
             },
             onRight = {
                 when (tab) {
@@ -543,7 +559,7 @@ private fun BusinessVoucherCompactRow(voucher: BusinessVoucherRow) {
         Box(
             Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDEAFF)),
             contentAlignment = Alignment.Center,
-        ) { Text("✿", color = PortalPurple, fontWeight = FontWeight.Bold) }
+        ) { Icon(Icons.Filled.ConfirmationNumber, contentDescription = null, tint = PortalPurple, modifier = Modifier.size(22.dp)) }
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(voucher.code ?: "Voucher", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
@@ -579,7 +595,7 @@ private fun BusinessVoucherCard(voucher: BusinessVoucherRow) {
             Text(voucherSubtitle(voucher), color = portalMuted(), fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Hết hạn", color = portalMuted(), fontWeight = FontWeight.SemiBold)
-                Text(formatPortalDate(voucher.ends_at), color = portalText(), fontWeight = FontWeight.Bold)
+                Text(formatPortalDate(voucher.valid_until), color = portalText(), fontWeight = FontWeight.Bold)
             }
             val limit = voucher.usage_limit ?: voucher.used_count.coerceAtLeast(1)
             val ratio = (voucher.used_count.toFloat() / limit.coerceAtLeast(1)).coerceIn(0f, 1f)
@@ -608,7 +624,7 @@ private fun BusinessLocationCard(location: BusinessLocationRow) {
     DarkPortalCard {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(portalCard()), contentAlignment = Alignment.Center) {
-                Text("⌖", color = portalText(), fontSize = 24.sp)
+                Icon(Icons.Filled.Place, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(26.dp))
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -810,10 +826,10 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
             },
             onBack = onBack,
             rightIcon = when (section) {
-                1 -> "♁"
-                2 -> "▽"
-                3 -> "⇩"
-                else -> "◎"
+                1 -> Icons.Filled.PersonAdd
+                2 -> Icons.Filled.FilterList
+                3 -> Icons.Filled.Download
+                else -> Icons.Outlined.Notifications
             },
             onRight = {
                 when (section) {
@@ -1126,7 +1142,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
 private fun PortalHeader(
     title: String,
     onBack: (() -> Unit)?,
-    rightIcon: String = "◎",
+    rightIcon: ImageVector? = null,
     onRight: (() -> Unit)? = null,
     onMenu: (() -> Unit)? = null,
     darkTheme: Boolean = true,
@@ -1138,35 +1154,38 @@ private fun PortalHeader(
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = if (onBack != null) "‹" else "☰",
-            color = portalText(),
-            fontSize = 30.sp,
-            textAlign = TextAlign.Center,
+        Box(
             modifier = Modifier
-                .size(50.dp)
+                .size(46.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(portalCard())
                 .border(1.dp, portalStroke(), RoundedCornerShape(12.dp))
-                .then(Modifier.clickable { if (onBack != null) onBack() else onMenu?.invoke() })
-                .padding(top = 4.dp),
-        )
+                .clickable { if (onBack != null) onBack() else onMenu?.invoke() },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = if (onBack != null) Icons.AutoMirrored.Filled.ArrowBack else Icons.Filled.Menu,
+                contentDescription = if (onBack != null) "Quay lại" else "Menu",
+                tint = portalText(),
+                modifier = Modifier.size(24.dp),
+            )
+        }
         Spacer(Modifier.weight(1f))
         Text(title, color = portalText(), fontSize = 22.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.weight(1f))
-        Text(
-            text = rightIcon,
-            color = portalText(),
-            fontSize = 22.sp,
-            textAlign = TextAlign.Center,
+        Box(
             modifier = Modifier
-                .size(50.dp)
+                .size(46.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(portalCard())
                 .border(1.dp, portalStroke(), RoundedCornerShape(12.dp))
-                .then(if (onRight != null) Modifier.clickable(onClick = onRight) else Modifier)
-                .padding(top = 11.dp),
-        )
+                .then(if (onRight != null) Modifier.clickable(onClick = onRight) else Modifier),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (rightIcon != null) {
+                Icon(imageVector = rightIcon, contentDescription = null, tint = portalText(), modifier = Modifier.size(22.dp))
+            }
+        }
     }
 }
 
@@ -1192,28 +1211,12 @@ private fun PortalBottomBar(sections: List<String>, selected: Int, onSelect: (In
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                if (label == "Users" || label == "Hồ sơ") {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = label,
-                        tint = if (selected == index) PortalPurple else portalMuted(),
-                        modifier = Modifier.size(23.dp),
-                    )
-                } else {
-                    Text(
-                        text = when (label) {
-                            "Dashboard" -> "▦"
-                            "Quảng cáo" -> "◉"
-                            "Voucher" -> "▣"
-                            "Business" -> "▣"
-                            "Cài đặt" -> "⚙"
-                            else -> "▦"
-                        },
-                        color = if (selected == index) PortalPurple else portalMuted(),
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
+                Icon(
+                    imageVector = portalTabIcon(label),
+                    contentDescription = label,
+                    tint = if (selected == index) PortalPurple else portalMuted(),
+                    modifier = Modifier.size(23.dp),
+                )
                 Text(
                     text = label,
                     color = if (selected == index) PortalPurple else portalMuted(),
@@ -1223,6 +1226,17 @@ private fun PortalBottomBar(sections: List<String>, selected: Int, onSelect: (In
             }
         }
     }
+}
+
+private fun portalTabIcon(label: String): ImageVector = when (label) {
+    "Dashboard" -> Icons.Filled.GridView
+    "Quảng cáo" -> Icons.Filled.Campaign
+    "Voucher" -> Icons.Filled.ConfirmationNumber
+    "Business" -> Icons.Filled.Storefront
+    "Cài đặt" -> Icons.Filled.Settings
+    "Users" -> Icons.Filled.Group
+    "Hồ sơ" -> Icons.Filled.Person
+    else -> Icons.Filled.GridView
 }
 
 @Composable
@@ -1723,6 +1737,7 @@ private fun BusinessCampaignDialog(onDismiss: () -> Unit, onSave: (BusinessCampa
 @Composable
 private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVoucherCreate) -> Unit) {
     var code by remember { mutableStateOf("") }
+    var title by remember { mutableStateOf("") }
     var discountType by remember { mutableStateOf("% phần trăm") }
     var discount by remember { mutableStateOf("") }
     var maxDiscount by remember { mutableStateOf("") }
@@ -1733,10 +1748,10 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
     var validationError by remember { mutableStateOf<String?>(null) }
     val apiDiscountType = when (discountType) {
         "Số tiền cố định" -> "fixed"
-        "Miễn phí" -> "free_shipping"
+        "Miễn phí" -> "free"
         else -> "percent"
     }
-    val condition = when (audience) {
+    val apiAudience = when (audience) {
         "Tất cả user" -> "all"
         "User premium" -> "premium"
         else -> "new_user"
@@ -1748,7 +1763,8 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
             val discountValue = moneyDigits(discount).toDoubleOrNull() ?: 0.0
             validationError = when {
                 code.trim().isBlank() -> "Nhập mã voucher."
-                discountValue <= 0.0 && apiDiscountType != "free_shipping" -> "Nhập giá trị giảm hợp lệ."
+                title.trim().isBlank() -> "Nhập tên voucher."
+                discountValue <= 0.0 && apiDiscountType != "free" -> "Nhập giá trị giảm hợp lệ."
                 start.trim().isBlank() || end.trim().isBlank() -> "Nhập thời hạn voucher."
                 else -> null
             }
@@ -1756,19 +1772,21 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
             onSave(
                 BusinessVoucherCreate(
                     code = code.trim().uppercase(Locale.ROOT),
+                    title = title.trim(),
                     discount_type = apiDiscountType,
                     discount_value = discountValue,
                     max_discount_vnd = moneyDigits(maxDiscount).toDoubleOrNull(),
-                    condition_label = condition,
+                    audience = apiAudience,
                     usage_limit = limit.toIntOrNull(),
-                    starts_at = ddmmyyyyToIso(start),
-                    ends_at = ddmmyyyyToIso(end),
+                    valid_from = ddmmyyyyToIso(start),
+                    valid_until = ddmmyyyyToIso(end),
                 ),
             )
         },
     ) {
         validationError?.let { Text(it, color = PremiumColors.LogoutRed, fontSize = 12.sp) }
         PortalTextField("Mã voucher", code, "Nhập mã voucher") { code = it }
+        PortalTextField("Tên voucher", title, "Ví dụ: Giảm 20% cuối tuần") { title = it }
         PortalChoiceGroup("Loại giảm giá", listOf("% phần trăm", "Số tiền cố định", "Miễn phí"), discountType) { discountType = it }
         PortalTextField("Giá trị giảm", discount, "Nhập giá trị", KeyboardType.Number) { discount = it }
         PortalTextField("Giảm tối đa", maxDiscount, "Tuỳ chọn", KeyboardType.Number) { maxDiscount = it }

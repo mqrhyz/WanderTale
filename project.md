@@ -27,6 +27,13 @@
 
 ## Lịch sử thay đổi (Changelog)
 
+### 2026-06-07 — Fix nút "Chi trả" payout + lỗi config leak ở tab Users
+
+- **Triệu chứng:** Tab Users (admin) hiện dòng xanh `{"error":"payout_provider_not_configured"}`; nút "Chi trả" không có gì xảy ra.
+- **Nguyên nhân:** `dispatchPayout` dùng chung `PAYMENT_SIMULATION_MODE` (đã =false để bật PayOS thu tiền). PayOS không làm disbursement nên payout ném `payout_provider_not_configured`. Lỗi lưu vào `actionMessage` dùng chung → hiện ở tab khác.
+- **Sửa:** thêm env riêng `PAYOUT_SIMULATION_MODE` (mặc định true) cho `dispatchPayout` → payout mô phỏng (mark paid) cho tới khi nối provider chi trả thật; `actionMessage` được xoá khi đổi tab admin (iOS + Android). Deploy Cloud Run SUCCESS (backend-only fix, không cần build lại app để "Chi trả" chạy).
+- Push `main` `2805ef4..de0f6b0`.
+
 ### 2026-06-07 — Thanh toán PayOS hiển thị trong app (QR + chuyển khoản), không mở web
 
 - **Yêu cầu:** Hiện thông tin thanh toán PayOS ngay trong app thay vì mở trang web ngoài.
