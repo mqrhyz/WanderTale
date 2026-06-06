@@ -2008,7 +2008,7 @@ private fun AdPackagePaymentOverlay(
                 info.account_name?.let { Row(Modifier.fillMaxWidth()) { Text("Chủ tài khoản", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) } }
                 Row(Modifier.fillMaxWidth()) { Text("Số tiền", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(formatPlatformVnd(info.amount), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = PortalGreen) }
                 info.transfer_content?.let { Row(Modifier.fillMaxWidth()) { Text("Nội dung CK", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) } }
-                Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt sau khi nhận tiền.", fontSize = 12.sp, color = portalMuted())
+                Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt khi thanh toán thành công.", fontSize = 12.sp, color = portalMuted())
                 info.checkout_url?.let { url ->
                     TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }) {
                         Text("Mở trang PayOS", fontSize = 12.sp)

@@ -1623,44 +1623,70 @@ private struct AdPackagePaymentSheet: View {
     let onDone: () -> Void
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @State private var activated = false
+    @State private var pollTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 16) {
-                    Text("Thanh toán gói quảng cáo")
-                        .font(.system(size: 18, weight: .bold))
+                    if activated {
+                        VStack(spacing: 12) {
+                            Image(systemName: "checkmark.seal.fill")
+                                .font(.system(size: 48))
+                                .foregroundStyle(PremiumTheme.statDestIcon)
+                            Text("Gói đã kích hoạt thành công!")
+                                .font(.system(size: 18, weight: .bold))
+                            Button("Xong") { dismiss(); onDone() }
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity).frame(height: 44)
+                                .background(PremiumTheme.accent)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .padding(.top, 20)
+                    } else {
+                        Text("Thanh toán gói quảng cáo")
+                            .font(.system(size: 18, weight: .bold))
 
-                    if let qr = response.qr_code, let img = qrImage(from: qr) {
-                        Image(uiImage: img)
-                            .interpolation(.none)
-                            .resizable()
-                            .frame(width: 200, height: 200)
-                            .background(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
+                        if let qr = response.qr_code, let img = qrImage(from: qr) {
+                            Image(uiImage: img)
+                                .interpolation(.none)
+                                .resizable()
+                                .frame(width: 200, height: 200)
+                                .background(.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        if let acc = response.account_number { infoRow("Số tài khoản", acc) }
-                        if let name = response.account_name { infoRow("Chủ tài khoản", name) }
-                        infoRow("Số tiền", FormatUtils.formatVnd(response.amount))
-                        if let content = response.transfer_content { infoRow("Nội dung CK", content) }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(14)
-                    .background(PremiumTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.border))
+                        VStack(alignment: .leading, spacing: 8) {
+                            if let acc = response.account_number { infoRow("Số tài khoản", acc) }
+                            if let name = response.account_name { infoRow("Chủ tài khoản", name) }
+                            infoRow("Số tiền", FormatUtils.formatVnd(response.amount))
+                            if let content = response.transfer_content { infoRow("Nội dung CK", content) }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(14)
+                        .background(PremiumTheme.surface)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.border))
 
-                    Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt sau khi nhận tiền.")
-                        .font(.system(size: 13))
-                        .foregroundStyle(PremiumTheme.muted)
-                        .multilineTextAlignment(.center)
+                        HStack(spacing: 8) {
+                            ProgressView().tint(PremiumTheme.accent)
+                            Text("Đang chờ thanh toán… tự cập nhật khi hoàn tất.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(PremiumTheme.muted)
+                        }
 
-                    if let urlStr = response.checkout_url, let url = URL(string: urlStr) {
-                        Button("Mở trang PayOS") { openURL(url) }
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(PremiumTheme.accent)
+                        Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt khi thanh toán thành công.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(PremiumTheme.muted)
+                            .multilineTextAlignment(.center)
+
+                        if let urlStr = response.checkout_url, let url = URL(string: urlStr) {
+                            Button("Mở trang PayOS") { openURL(url) }
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(PremiumTheme.accent)
+                        }
                     }
                 }
                 .padding(PremiumTheme.screenPadding)
@@ -1671,6 +1697,24 @@ private struct AdPackagePaymentSheet: View {
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Xong") { dismiss(); onDone() }
+                }
+            }
+            .task { startPolling() }
+            .onDisappear { pollTask?.cancel() }
+        }
+    }
+
+    private func startPolling() {
+        pollTask = Task {
+            // Poll ad_orders status via overview reload (lightweight check)
+            for _ in 0..<90 { // ~6 phút
+                try? await Task.sleep(for: .seconds(4))
+                if Task.isCancelled { return }
+                // Check if order is now active by re-fetching the package orders
+                if let overview = try? await ApiService.businessOverview(),
+                   overview.active_ad_campaigns > 0 || (overview.ad_package_expiry != nil) {
+                    withAnimation { activated = true }
+                    return
                 }
             }
         }
