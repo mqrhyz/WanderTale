@@ -1624,7 +1624,7 @@ private struct AdPackagePaymentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var activated = false
-    @State private var checking = false
+    @State private var pollTask: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -1669,20 +1669,15 @@ private struct AdPackagePaymentSheet: View {
                             .foregroundStyle(PremiumTheme.muted)
                             .multilineTextAlignment(.center)
 
-                        Button {
-                            Task { await checkActivation() }
-                        } label: {
-                            HStack(spacing: 8) {
-                                if checking { ProgressView().tint(PremiumTheme.accent).scaleEffect(0.8) }
-                                Text(checking ? "Đang kiểm tra…" : "Đã thanh toán, kiểm tra")
-                            }
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(PremiumTheme.accent)
-                            .frame(maxWidth: .infinity).frame(height: 44)
-                            .background(PremiumTheme.accentLight)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        HStack(spacing: 8) {
+                            ProgressView().tint(PremiumTheme.accent).scaleEffect(0.8)
+                            Text("Đang chờ xác nhận thanh toán…")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(PremiumTheme.accent)
                         }
-                        .disabled(checking)
+                        .frame(maxWidth: .infinity).frame(height: 44)
+                        .background(PremiumTheme.accentLight)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
 
                         if let urlStr = response.checkout_url, let url = URL(string: urlStr) {
                             Button("Mở trang PayOS") { openURL(url) }
@@ -1701,26 +1696,27 @@ private struct AdPackagePaymentSheet: View {
                     Button("Xong") { dismiss(); onDone() }
                 }
             }
+            .task { startPolling() }
+            .onDisappear { pollTask?.cancel() }
         }
     }
 
-    private func checkActivation() async {
-        checking = true
-        defer { checking = false }
-        do {
-            let overview = try await ApiService.businessOverview()
-            // So sánh ad_package_expiry với order.ends_at — nếu gói mới active thì expiry >= order.ends_at.
-            if let expiry = overview.ad_package_expiry,
-               let orderEnd = response.order?.ends_at,
-               expiry >= orderEnd {
-                withAnimation { activated = true }
+    private func startPolling() {
+        guard let orderId = response.order?.id else { return }
+        pollTask?.cancel()
+        pollTask = Task {
+            while !Task.isCancelled && !activated {
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                if Task.isCancelled { break }
+                if let order = try? await ApiService.businessAdOrderStatus(id: orderId),
+                   order.status == "active" {
+                    await MainActor.run {
+                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { activated = true }
+                    }
+                    break
+                }
             }
-            // Fallback: nếu overview ko có expiry cũ nhưng giờ có → gói mới kích hoạt.
-            else if overview.ad_package_expiry != nil && response.order?.status == "pending" {
-                // Nếu ban đầu gói pending mà giờ expiry có giá trị → đã active.
-                withAnimation { activated = true }
-            }
-        } catch {}
+        }
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {

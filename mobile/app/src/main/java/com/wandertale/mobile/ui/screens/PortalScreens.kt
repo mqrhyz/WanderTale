@@ -32,6 +32,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Campaign
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
@@ -48,6 +49,7 @@ import androidx.compose.material.icons.filled.Storefront
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.Icon
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -1987,11 +1989,40 @@ private fun AdPackagePaymentOverlay(
     onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
+    var activated by remember { mutableStateOf(false) }
+
+    LaunchedEffect(info.order?.id) {
+        val orderId = info.order?.id ?: return@LaunchedEffect
+        while (!activated) {
+            kotlinx.coroutines.delay(4000)
+            val order = runCatching { ApiClient.businessAdOrderStatus(orderId) }.getOrNull()
+            if (order?.status == "active") {
+                activated = true
+                break
+            }
+        }
+    }
+
+    if (activated) {
+        AlertDialog(
+            onDismissRequest = onDone,
+            confirmButton = {
+                TextButton(onClick = onDone) { Text("Xong", fontWeight = FontWeight.Bold, color = PortalGreen) }
+            },
+            title = { Text("Thành công", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(48.dp))
+                    Text("Gói đã kích hoạt thành công!", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            },
+        )
+        return
+    }
+
     AlertDialog(
         onDismissRequest = onCancel,
-        confirmButton = {
-            TextButton(onClick = onDone) { Text("Đã thanh toán", fontWeight = FontWeight.Bold) }
-        },
+        confirmButton = {},
         dismissButton = {
             TextButton(onClick = onCancel) { Text("Huỷ", color = PremiumColors.LogoutRed) }
         },
@@ -2009,6 +2040,10 @@ private fun AdPackagePaymentOverlay(
                 Row(Modifier.fillMaxWidth()) { Text("Số tiền", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(formatPlatformVnd(info.amount), fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = PortalGreen) }
                 info.transfer_content?.let { Row(Modifier.fillMaxWidth()) { Text("Nội dung CK", fontSize = 13.sp, color = portalMuted(), modifier = Modifier.weight(1f)); Text(it, fontSize = 14.sp, fontWeight = FontWeight.SemiBold) } }
                 Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt khi thanh toán thành công.", fontSize = 12.sp, color = portalMuted())
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = PortalGreen)
+                    Text("Đang chờ xác nhận thanh toán…", fontSize = 13.sp, color = PortalGreen, fontWeight = FontWeight.Medium)
+                }
                 info.checkout_url?.let { url ->
                     TextButton(onClick = { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))) }) {
                         Text("Mở trang PayOS", fontSize = 12.sp)

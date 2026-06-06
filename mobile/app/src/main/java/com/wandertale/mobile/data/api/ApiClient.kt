@@ -259,6 +259,8 @@ object ApiClient {
     suspend fun businessTransactions(): PlatformTransactionList = portalGet("/api/business/transactions")
     suspend fun businessAdPackages(): AdPackageList = portalGet("/api/business/ad-packages")
     suspend fun purchaseAdPackage(id: String): AdPurchaseResponse = portalPost("/api/business/ad-packages/$id/purchase")
+    suspend fun businessAdOrderStatus(id: String): com.wandertale.mobile.data.model.AdOrder =
+        portalGet("/api/business/ad-orders/$id")
     suspend fun businessCampaigns(): BusinessCampaignList = portalGet("/api/business/campaigns")
     suspend fun createBusinessCampaign(body: BusinessCampaignCreate): BusinessCampaignRow =
         portalPost("/api/business/campaigns", body)

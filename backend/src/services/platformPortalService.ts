@@ -657,6 +657,19 @@ export async function businessAdExpiry(businessId: string): Promise<string | nul
   return data?.ends_at ?? null;
 }
 
+/** Status of a specific ad order (for polling payment activation). */
+export async function getBusinessAdOrderStatus(businessId: string, orderId: string) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("business_ad_orders")
+    .select("id,status,package_id,amount_vnd,starts_at,ends_at")
+    .eq("id", orderId)
+    .eq("business_id", businessId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("order_not_found");
+  return data;
+}
+
 export async function adminListAdPackages() {
   const { data } = await getSupabaseAdmin()
     .from("ad_packages")

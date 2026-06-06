@@ -175,3 +175,17 @@
   - Đã build thành công cả hai: `./gradlew :app:compileDebugKotlin` (exit 0) và `xcodebuild ... build` (BUILD SUCCEEDED).
   - **Còn lại (chưa làm trong phiên này):** các lỗi Medium/Low khác trong báo cáo review (SSE/REST chưa refresh token trên iOS, timeout 300s áp cho mọi request, "Xem tất cả" wire nhầm, AdminPortal load tuần tự, touch target < 44pt/accessibility, DashboardHomeCache race trên Android, mất state khi xoay màn hình, O(n²) trong LazyColumn, key trùng…).
   - **Chưa verify được:** lệch JSON shape so với response thật của backend Fastify (cần đối chiếu runtime).
+
+## [2026-06-06] Auto-kích hoạt gói quảng cáo khi thanh toán PayOS thành công (không cần bấm nút)
+- **Vấn đề:** sheet thanh toán gói trước đây yêu cầu user tự bấm "Đã thanh toán, kiểm tra", và logic check dựa vào tín hiệu overview chung (`ad_package_expiry`) → false-positive nếu business đã có gói active sẵn.
+- **Giải pháp:** poll trạng thái của chính order vừa tạo qua endpoint riêng, tự chuyển sang màn "Gói đã kích hoạt thành công" khi `status == "active"`.
+- **Backend:**
+  - `services/platformPortalService.ts`: thêm `getBusinessAdOrderStatus(businessId, orderId)` trả `{id,status,package_id,amount_vnd,starts_at,ends_at}` từ bảng `business_ad_orders` (scoped theo business).
+  - `routes/business-portal.ts`: thêm route `GET /api/business/ad-orders/:id` (preHandler `requireBusinessOwner`).
+- **iOS** (`Views/Portal/BusinessPortalView.swift`, `Services/PlatformApiService.swift`):
+  - Thêm API `businessAdOrderStatus(id:)`.
+  - `AdPackagePaymentSheet`: bỏ nút check thủ công, thêm auto-poll `.task { startPolling() }` gọi mỗi 4s, hiện "Đang chờ xác nhận thanh toán…"; khi active → `withAnimation` chuyển màn success. `.onDisappear` cancel task.
+- **Android** (`ui/screens/PortalScreens.kt`, `data/api/ApiClient.kt`):
+  - Thêm `ApiClient.businessAdOrderStatus(id)`.
+  - `AdPackagePaymentOverlay`: thêm `LaunchedEffect` poll order mỗi 4s; khi active → dialog success (icon CheckCircle + "Gói đã kích hoạt thành công!"); trong lúc chờ hiện spinner "Đang chờ xác nhận thanh toán…".
+- **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `0f0f2f5f`, tag `adorder-79679a1`).

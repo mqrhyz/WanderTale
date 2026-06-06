@@ -17,6 +17,10 @@ extension ApiService {
         try await request(path: "/api/business/ad-packages/\(id)/purchase", method: "POST")
     }
 
+    static func businessAdOrderStatus(id: String) async throws -> AdOrder {
+        try await request(path: "/api/business/ad-orders/\(id)")
+    }
+
     static func businessCampaigns() async throws -> BusinessCampaignList {
         try await request(path: "/api/business/campaigns")
     }

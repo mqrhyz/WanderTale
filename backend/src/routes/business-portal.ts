@@ -10,6 +10,7 @@ import {
   createBusinessCampaign,
   createBusinessLocation,
   createBusinessVoucher,
+  getBusinessAdOrderStatus,
   getBusinessIdForOwner,
   getBusinessProfile,
   listAdPackages,
@@ -156,6 +157,20 @@ export async function businessPortalRoutes(app: FastifyInstance) {
         return result;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "error";
+        return reply.code(500).send({ error: msg });
+      }
+    },
+  );
+
+  app.get<{ Params: { id: string } }>(
+    "/business/ad-orders/:id",
+    { preHandler: requireBusinessOwner },
+    async (req, reply) => {
+      try {
+        return await getBusinessAdOrderStatus(req.businessId!, req.params.id);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        if (msg === "order_not_found") return reply.code(404).send({ error: msg });
         return reply.code(500).send({ error: msg });
       }
     },
