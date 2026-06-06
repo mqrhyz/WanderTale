@@ -11,6 +11,7 @@ import com.wandertale.mobile.data.model.ProfileRow
 import com.wandertale.mobile.data.model.VoucherRow
 import io.github.jan.supabase.auth.Auth
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
@@ -27,7 +28,10 @@ class AuthRepository(@Suppress("UNUSED_PARAMETER") context: Context) {
     ) {
         requestTimeout = 60.seconds
         httpEngine = OkHttp.create()
-        install(Auth)
+        install(Auth) {
+            scheme = "wandertale"
+            host = "login-callback"
+        }
         install(Postgrest)
     }
 
@@ -61,6 +65,12 @@ class AuthRepository(@Suppress("UNUSED_PARAMETER") context: Context) {
             data = buildJsonObject { put("display_name", displayName) }
         }
         ApiClient.setTokenProvider { supabase.auth.currentAccessTokenOrNull() }
+    }
+
+    /** Opens the browser OAuth flow for Google. Session arrives via deep link
+     *  (handled in MainActivity) and updates [io.github.jan.supabase.auth.Auth.sessionStatus]. */
+    suspend fun signInWithGoogle() {
+        supabase.auth.signInWith(Google)
     }
 
     suspend fun resetPassword(email: String) {

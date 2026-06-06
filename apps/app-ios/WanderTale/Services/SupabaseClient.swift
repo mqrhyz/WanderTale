@@ -81,6 +81,54 @@ enum SupabaseClient {
         KeychainStore.clearSession()
     }
 
+    /// OAuth (Google) login via Supabase. Opens a secure web session, then stores
+    /// the access/refresh tokens returned in the redirect callback.
+    static func signInWithGoogle() async throws {
+        let redirect = "wandertale://login-callback"
+        guard var comp = URLComponents(string: "\(AppConfig.supabaseURL)/auth/v1/authorize") else {
+            throw ApiError(message: "URL Supabase không hợp lệ")
+        }
+        comp.queryItems = [
+            URLQueryItem(name: "provider", value: "google"),
+            URLQueryItem(name: "redirect_to", value: redirect),
+        ]
+        guard let authURL = comp.url else { throw ApiError(message: "URL đăng nhập không hợp lệ") }
+
+        let callback = try await GoogleAuthCoordinator.shared.authenticate(
+            authURL: authURL,
+            callbackScheme: "wandertale"
+        )
+
+        let params = parseCallbackParams(callback)
+        if let errorDesc = params["error_description"] ?? params["error"] {
+            throw ApiError(message: errorDesc.replacingOccurrences(of: "+", with: " "))
+        }
+        guard let accessToken = params["access_token"], !accessToken.isEmpty else {
+            throw ApiError(message: "Không nhận được phiên đăng nhập từ Google")
+        }
+        KeychainStore.save("access_token", value: accessToken)
+        if let refresh = params["refresh_token"], !refresh.isEmpty {
+            KeychainStore.save("refresh_token", value: refresh)
+        }
+    }
+
+    /// Parses key/value pairs from both the URL fragment (`#a=b&...`) and query string.
+    private static func parseCallbackParams(_ url: URL) -> [String: String] {
+        var result: [String: String] = [:]
+        func absorb(_ raw: String?) {
+            guard let raw, !raw.isEmpty else { return }
+            for pair in raw.split(separator: "&") {
+                let kv = pair.split(separator: "=", maxSplits: 1).map(String.init)
+                guard kv.count == 2 else { continue }
+                result[kv[0]] = kv[1].removingPercentEncoding ?? kv[1]
+            }
+        }
+        let comp = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        absorb(comp?.fragment)
+        absorb(comp?.query)
+        return result
+    }
+
     static func refreshSession() async throws {
         guard let refreshToken else {
             throw ApiError(message: "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.")

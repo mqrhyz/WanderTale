@@ -213,3 +213,24 @@
   - `BusinessAdPackageCard` nhận `isCurrent`/`currentExpiry`: badge "Đang dùng" + viền xanh + box "Hết hạn dd/MM/yyyy" thay nút mua.
   - `BusinessIdentityCard`/`BusinessProfileCard` nhận `activePackageName` → nhãn gói (♛) ở header Hồ sơ.
 - **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `dac91b8e`).
+
+## [2026-06-07] Thêm đăng nhập bằng Google (OAuth qua Supabase)
+- **Kiến trúc:** auth do client gọi thẳng Supabase Auth; backend chỉ verify token → KHÔNG sửa backend. Dùng luồng OAuth qua trình duyệt (không cần Google SDK native), redirect về scheme `wandertale://login-callback`.
+- **iOS:**
+  - `Services/GoogleAuthCoordinator.swift` (mới): ASWebAuthenticationSession.
+  - `Services/SupabaseClient.swift`: `signInWithGoogle()` mở `/auth/v1/authorize?provider=google&redirect_to=wandertale://login-callback`, parse access/refresh token từ fragment/query → lưu Keychain.
+  - `App/AppState.swift`: `signInWithGoogle()`.
+  - `Views/Auth/AuthViews.swift`: nút "Đăng nhập bằng Google" + divider "hoặc" + `GoogleSignInButton`.
+  - `Info.plist`: thêm `CFBundleURLTypes` scheme `wandertale`. Đã `xcodegen generate`.
+- **Android:**
+  - `data/repository/Repositories.kt`: `install(Auth){ scheme="wandertale"; host="login-callback" }`; `signInWithGoogle()` = `supabase.auth.signInWith(Google)`.
+  - `MainActivity.kt`: `handleDeeplinks(intent)` trong onCreate + onNewIntent.
+  - `AndroidManifest.xml`: intent-filter VIEW/BROWSABLE cho `wandertale://login-callback`.
+  - `ui/screens/AuthScreens.kt`: nút Google + divider; observe `sessionStatus` → khi Authenticated thì `initSession()` + `onSuccess()`.
+- **Supabase:** migration `20260607130000_google_oauth_profile.sql` — trigger `handle_new_user` lấy `display_name` từ `full_name`/`name` của Google.
+- **CẦN THAO TÁC THỦ CÔNG (user):**
+  1. Google Cloud Console: tạo OAuth Client ID (Web application), lấy Client ID + Secret.
+  2. Supabase Dashboard → Authentication → Providers → Google: bật + dán Client ID/Secret.
+  3. Supabase → Authentication → URL Configuration → Redirect URLs: thêm `wandertale://login-callback`.
+  4. Chạy migration `20260607130000_google_oauth_profile.sql`.
+- **Test:** iOS `xcodebuild` BUILD SUCCEEDED, Android `compileDebugKotlin` exit 0. (Luồng OAuth runtime cần config dashboard ở trên mới chạy được.)

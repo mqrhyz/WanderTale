@@ -10,6 +10,7 @@ struct LoginView: View {
     @State private var password = ""
     @State private var error: String?
     @State private var loading = false
+    @State private var googleLoading = false
     @State private var showRegister = false
     @State private var showForgot = false
     @FocusState private var focusedField: AuthFocusField?
@@ -66,6 +67,11 @@ struct LoginView: View {
                             ) {
                                 Task { await submit() }
                             }
+
+                            authDivider
+                            GoogleSignInButton(loading: googleLoading) {
+                                Task { await submitGoogle() }
+                            }
                         }
                         authFooterLinks
                     }
@@ -104,6 +110,15 @@ struct LoginView: View {
         .padding(.bottom, 14)
     }
 
+    private var authDivider: some View {
+        HStack(spacing: 12) {
+            Rectangle().fill(Color.white.opacity(0.25)).frame(height: 1)
+            Text("hoặc").font(.system(size: 13)).foregroundStyle(.white.opacity(0.6))
+            Rectangle().fill(Color.white.opacity(0.25)).frame(height: 1)
+        }
+        .padding(.vertical, 2)
+    }
+
     private var authFooterLinks: some View {
         HStack(spacing: 8) {
             Button("Quên mật khẩu?") { showForgot = true }
@@ -128,6 +143,22 @@ struct LoginView: View {
             self.error = formatAuthError(error, fallback: "Đăng nhập thất bại")
         }
         loading = false
+    }
+
+    private func submitGoogle() async {
+        focusedField = nil
+        googleLoading = true
+        error = nil
+        do {
+            try await appState.signInWithGoogle()
+        } catch {
+            let nsError = error as NSError
+            // Người dùng tự đóng/huỷ phiên web — không hiện lỗi.
+            if !(nsError.domain == "com.apple.AuthenticationServices.WebAuthenticationSession") {
+                self.error = formatAuthError(error, fallback: "Đăng nhập Google thất bại")
+            }
+        }
+        googleLoading = false
     }
 }
 
@@ -407,5 +438,43 @@ struct AuthAccentButton: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .disabled(!enabled || loading)
+    }
+}
+
+struct GoogleSignInButton: View {
+    var loading = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                if loading {
+                    ProgressView().tint(Color(red: 0.26, green: 0.52, blue: 0.96))
+                } else {
+                    GoogleGlyph().frame(width: 18, height: 18)
+                    Text("Đăng nhập bằng Google")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .foregroundStyle(Color(red: 0.13, green: 0.13, blue: 0.13))
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .disabled(loading)
+    }
+}
+
+/// Minimal multi-color Google "G" rendered with SF Symbol fallback.
+private struct GoogleGlyph: View {
+    var body: some View {
+        Text("G")
+            .font(.system(size: 16, weight: .bold, design: .rounded))
+            .foregroundStyle(Color(red: 0.26, green: 0.52, blue: 0.96))
     }
 }

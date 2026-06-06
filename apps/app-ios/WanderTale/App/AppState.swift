@@ -73,6 +73,13 @@ final class AppState {
         isAuthenticated = true
     }
 
+    func signInWithGoogle() async throws {
+        try await SupabaseClient.signInWithGoogle()
+        await loadAccountInfo()
+        await preload()
+        isAuthenticated = true
+    }
+
     func signOut() {
         SupabaseClient.signOut()
         isAuthenticated = false

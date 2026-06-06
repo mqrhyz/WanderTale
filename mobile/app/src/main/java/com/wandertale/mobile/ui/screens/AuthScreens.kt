@@ -1,21 +1,32 @@
 package com.wandertale.mobile.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -31,6 +42,8 @@ import com.wandertale.mobile.ui.components.AuthSuccessText
 import com.wandertale.mobile.ui.components.AuthTextField
 import com.wandertale.mobile.ui.theme.PremiumColors
 import com.wandertale.mobile.util.formatAuthError
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.launch
 
 @Composable
@@ -44,8 +57,20 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var loading by remember { mutableStateOf(false) }
+    var googleLoading by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val auth = WanderTaleApp.instance.authRepository
+
+    // Khi OAuth (Google) hoàn tất qua deep link, session chuyển sang Authenticated.
+    LaunchedEffect(Unit) {
+        auth.supabase.auth.sessionStatus.collect { status ->
+            if (status is SessionStatus.Authenticated && googleLoading) {
+                googleLoading = false
+                auth.initSession()
+                onSuccess()
+            }
+        }
+    }
 
     LoginAuthLayout {
         AuthFormShell(
@@ -111,6 +136,58 @@ fun LoginScreen(
                     }
                 },
             )
+            Spacer(Modifier.height(14.dp))
+            AuthDivider()
+            Spacer(Modifier.height(14.dp))
+            GoogleSignInButton(loading = googleLoading) {
+                error = null
+                googleLoading = true
+                scope.launch {
+                    runCatching {
+                        auth.initSession()
+                        auth.signInWithGoogle()
+                    }.onFailure {
+                        error = formatAuthError(it, "Đăng nhập Google thất bại")
+                        googleLoading = false
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AuthDivider() {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.25f)))
+        Text("hoặc", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
+        Box(Modifier.weight(1f).height(1.dp).background(Color.White.copy(alpha = 0.25f)))
+    }
+}
+
+@Composable
+private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White)
+            .clickable(enabled = !loading, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loading) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color(0xFF4285F4))
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                Text("G", color = Color(0xFF4285F4), fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                Spacer(Modifier.width(10.dp))
+                Text("Đăng nhập bằng Google", color = Color(0xFF212121), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            }
         }
     }
 }
