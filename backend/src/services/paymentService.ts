@@ -60,13 +60,13 @@ export async function dispatchPayout(params: {
   currency: string;
   method?: string | null;
 }): Promise<PayoutDispatchResult> {
-  if (env.PAYMENT_SIMULATION_MODE) {
+  if (env.PAYOUT_SIMULATION_MODE) {
     return {
       provider_ref: `simpayout_${params.payoutId}_${Date.now()}`,
       status: "paid",
       simulated: true,
     };
   }
-  // TODO(payout-provider): call real disbursement API here.
+  // TODO(payout-provider): call real disbursement API here (PayOS không hỗ trợ chi trả).
   throw new Error("payout_provider_not_configured");
 }

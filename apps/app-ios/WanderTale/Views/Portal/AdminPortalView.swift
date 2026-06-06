@@ -140,7 +140,7 @@ struct AdminPortalView: View {
     private var adminBottomBar: some View {
         HStack(spacing: 0) {
             ForEach(sections.indices, id: \.self) { i in
-                Button { section = i } label: {
+                Button { section = i; actionMessage = nil } label: {
                     VStack(spacing: 3) {
                         Image(systemName: adminBottomIcon(i))
                             .font(.system(size: 19, weight: .semibold))

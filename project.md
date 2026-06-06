@@ -27,6 +27,15 @@
 
 ## Lịch sử thay đổi (Changelog)
 
+### 2026-06-07 — Thanh toán PayOS hiển thị trong app (QR + chuyển khoản), không mở web
+
+- **Yêu cầu:** Hiện thông tin thanh toán PayOS ngay trong app thay vì mở trang web ngoài.
+- **Backend:** `lib/payos.ts` lấy thêm `qrCode, accountNumber, accountName, bin, amount, description` từ response create; `bookingService.payBooking` (nhánh PayOS) trả thêm `account_number/account_name/bin/amount/transfer_content/currency`. Build + deploy Cloud Run SUCCESS.
+- **iOS:** `BookingView` render QR bằng CoreImage (`CIFilter.qrCodeGenerator`) + thẻ thông tin chuyển khoản (số tiền/STK/chủ TK/nội dung) + auto-poll trạng thái booking mỗi 4s → màn success khi `paid`. Còn nút "Mở trang PayOS" dự phòng.
+- **Android:** `BookingScreen` render QR bằng ZXing (`com.google.zxing:core:3.5.3`, `QRCodeWriter` → Bitmap) + thông tin chuyển khoản + auto-poll → màn success.
+- **Models:** `BookingPayResponse` (cả 2) thêm các field thanh toán.
+- **Ghi chú:** build OK cả ba (tsc, gradle, xcodebuild). Đã push `main` (`e923361..2805ef4`).
+
 ### 2026-06-07 — Đã deploy PayOS lên Cloud Run (production live)
 
 - Tạo secret: `wander-tale-payos-client-id/api-key/checksum-key` + cập nhật version `INTERNAL_WORKER_TOKEN`; cấp `secretAccessor` cho runtime SA; cấp role build/deploy cho compute SA.

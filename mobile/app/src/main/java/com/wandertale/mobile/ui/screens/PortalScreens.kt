@@ -1049,7 +1049,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                     }
                     item { Spacer(Modifier.height(16.dp)) }
                 }
-                    PortalBottomBar(sections = sections, selected = section, onSelect = { section = it })
+                    PortalBottomBar(sections = sections, selected = section, onSelect = { section = it; actionMessage = null })
                 }
             }
         }

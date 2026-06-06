@@ -102,6 +102,11 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((v) => v === "true" || v === "1"),
+  /** true = mô phỏng chi trả payout (PayOS không làm disbursement). Đặt false khi nối provider chi trả thật. */
+  PAYOUT_SIMULATION_MODE: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false" && v !== "0"),
   /** true = media business cần admin duyệt (pending) trước khi hiển thị. */
   BUSINESS_MEDIA_MODERATION_REQUIRED: z
     .string()
