@@ -16,6 +16,7 @@ final class AppState {
     var accountInfo: AccountInfo?
     var favoriteTripIds: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "favorite_trip_ids") ?? [])
     var dashboardError: String?
+    var roleError: String?
 
     func bootstrap() async {
         SupabaseClient.restoreSession()
@@ -26,8 +27,18 @@ final class AppState {
 
     func preload() async {
         dashboardError = nil
+        roleError = nil
         var statsError: String?
         var tripsError: String?
+
+        await loadAccountInfo()
+        guard let profile = accountInfo?.profile else {
+            roleError = "Không tải được quyền tài khoản. Vui lòng kiểm tra mạng rồi đăng nhập lại."
+            return
+        }
+        if profile.is_admin || profile.is_business {
+            return
+        }
 
         do {
             stats = try await ApiService.dashboard()
@@ -41,8 +52,6 @@ final class AppState {
         } catch {
             tripsError = formatApiError(error, fallback: "Không tải chuyến đi")
         }
-
-        await loadAccountInfo()
 
         if let statsError, let tripsError {
             dashboardError = "Không tải được dữ liệu từ \(AppConfig.apiURL). Thống kê: \(statsError). Chuyến đi: \(tripsError)"
@@ -71,6 +80,7 @@ final class AppState {
         trips = []
         displayName = "Xin chào"
         accountInfo = nil
+        roleError = nil
     }
 
     func toggleFavorite(_ tripId: String) {
@@ -111,7 +121,8 @@ final class AppState {
                 displayName = accountInfo?.displayName ?? displayName
             }
         } catch {
-            accountInfo = AccountInfo(displayName: "Khách du lịch", email: jwtEmail(from: token) ?? "", phone: "", profile: nil)
+            accountInfo = nil
+            roleError = formatApiError(error, fallback: "Không tải được quyền tài khoản")
         }
     }
 

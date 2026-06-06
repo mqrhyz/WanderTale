@@ -3,11 +3,18 @@ package com.wandertale.mobile.ui.navigation
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -109,12 +116,14 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             var isBusiness by remember { mutableStateOf(DashboardHomeCache.accountInfo?.profile?.is_business == true) }
             var roleReady by remember { mutableStateOf(false) }
             var dashboardError by remember { mutableStateOf<String?>(null) }
+            var roleError by remember { mutableStateOf<String?>(null) }
             var dashboardRefreshing by remember { mutableStateOf(false) }
             var dashboardMetricsAnimated by remember { mutableStateOf(false) }
 
             suspend fun reloadDashboard() {
                 roleReady = false
                 dashboardError = null
+                roleError = null
                 app.authRepository.initSession()
                 val result = DashboardHomeCache.preload(
                     app.dashboardRepository,
@@ -126,8 +135,9 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                 displayName = DashboardHomeCache.displayName
                 isAdmin = DashboardHomeCache.accountInfo?.profile?.is_admin == true
                 isBusiness = DashboardHomeCache.accountInfo?.profile?.is_business == true
+                roleError = result.profileError
                 dashboardError = result.summaryError
-                roleReady = true
+                roleReady = DashboardHomeCache.accountInfo?.profile != null
             }
 
             LaunchedEffect(Unit) {
@@ -142,6 +152,35 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             }
 
             when {
+                !roleReady && roleError != null -> Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = 28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Text(
+                            text = roleError ?: "Không tải được quyền tài khoản.",
+                            color = MaterialTheme.colorScheme.onBackground,
+                            textAlign = TextAlign.Center,
+                        )
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    app.authRepository.signOut()
+                                    DashboardHomeCache.clear()
+                                    navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                                }
+                            },
+                        ) {
+                            Text("Đăng xuất")
+                        }
+                    }
+                }
                 !roleReady -> Box(
                     modifier = Modifier
                         .fillMaxSize()

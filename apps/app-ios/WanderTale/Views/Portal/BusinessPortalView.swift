@@ -88,12 +88,12 @@ struct BusinessPortalView: View {
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessPortalStyle.stroke))
             }
             Spacer()
-            Text("Dashboard")
+            Text(topBarTitle)
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(BusinessPortalStyle.text)
             Spacer()
-            Button {} label: {
-                Image(systemName: "bell")
+            Button { handleTopBarAction() } label: {
+                Image(systemName: topBarIcon)
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(BusinessPortalStyle.text)
                     .frame(width: 48, height: 48)
@@ -106,6 +106,37 @@ struct BusinessPortalView: View {
         .padding(.top, 18)
         .padding(.bottom, 14)
         .background(BusinessPortalStyle.bg)
+    }
+
+    private var topBarTitle: String {
+        switch section {
+        case 1: return "Quảng cáo"
+        case 2: return "Voucher"
+        case 3: return "Hồ sơ"
+        default: return "Dashboard"
+        }
+    }
+
+    private var topBarIcon: String {
+        switch section {
+        case 1: return "plus"
+        case 2: return "plus"
+        case 3: return "plus"
+        default: return "bell"
+        }
+    }
+
+    private func handleTopBarAction() {
+        switch section {
+        case 1:
+            showingCampaignForm = true
+        case 2:
+            showingVoucherForm = true
+        case 3:
+            showingLocationForm = true
+        default:
+            purchaseMessage = reviews.first(where: { ($0.reply ?? "").isEmpty })?.comment ?? "Chưa có thông báo mới."
+        }
     }
 
     private var businessBottomBar: some View {
@@ -1084,15 +1115,14 @@ private struct BusinessCampaignForm: View {
     @State private var name = ""
     @State private var target = "Cặp đôi"
     @State private var region = "Miền Nam"
-    @State private var season = "Hè 2026"
-    @State private var budget = "1.000.000"
-    @State private var start = "01/06/2026"
-    @State private var end = "30/06/2026"
+    @State private var season = ""
+    @State private var budget = ""
+    @State private var start = Date.portalDateString()
+    @State private var end = Date.portalDateString(monthsFromNow: 1)
     @State private var error: String?
     let onSave: (BusinessCampaignCreate) async throws -> Void
     private let targets = ["Cặp đôi", "Gia đình", "Solo", "Nhóm bạn"]
     private let regions = ["Miền Nam", "Miền Bắc", "Miền Trung", "Toàn quốc"]
-    private let seasons = ["Hè 2026", "Lễ 30/4", "Cuối tuần"]
 
     var body: some View {
         VStack(spacing: 0) {
@@ -1122,18 +1152,18 @@ private struct BusinessCampaignForm: View {
                     darkField("Tên chiến dịch", text: $name, placeholder: "Nhập tên chiến dịch...")
                     darkChipGroup("Loại hình target", options: targets, selection: $target)
                     darkChipGroup("Vùng địa lý", options: regions, selection: $region)
-                    darkChipGroup("Mùa / dịp", options: seasons, selection: $season)
-                    darkField("Ngân sách (VNĐ)", text: $budget, placeholder: "1.000.000", keyboard: .numberPad)
+                    darkField("Mùa / dịp", text: $season, placeholder: "Ví dụ: Cuối tuần, hè, lễ...")
+                    darkField("Ngân sách (VNĐ)", text: $budget, placeholder: "Nhập ngân sách", keyboard: .numberPad)
                     VStack(alignment: .leading, spacing: 9) {
                         Text("Thời gian chạy")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(BusinessPortalStyle.muted)
                         HStack(spacing: 12) {
-                            darkPlainTextField(text: $start, placeholder: "01/06/2026")
+                            darkPlainTextField(text: $start, placeholder: "dd/mm/yyyy")
                             Text("—")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundStyle(BusinessPortalStyle.muted)
-                            darkPlainTextField(text: $end, placeholder: "30/06/2026")
+                            darkPlainTextField(text: $end, placeholder: "dd/mm/yyyy")
                         }
                     }
                     estimatedImpressions
@@ -1145,13 +1175,28 @@ private struct BusinessCampaignForm: View {
                     Button {
                         Task {
                             do {
+                                let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+                                let budgetValue = Double(budget.digitsOnly) ?? 0
+                                guard !trimmedName.isEmpty else {
+                                    self.error = "Nhập tên chiến dịch."
+                                    return
+                                }
+                                guard budgetValue > 0 else {
+                                    self.error = "Nhập ngân sách hợp lệ."
+                                    return
+                                }
+                                guard !start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                      !end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                                    self.error = "Nhập thời gian chạy."
+                                    return
+                                }
                                 try await onSave(
                                     BusinessCampaignCreate(
-                                        name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+                                        name: trimmedName,
                                         target_type: target,
                                         region: region,
                                         season: season,
-                                        budget_vnd: Double(budget.digitsOnly),
+                                        budget_vnd: budgetValue,
                                         starts_at: start.toIsoDate,
                                         ends_at: end.toIsoDate
                                     )
@@ -1207,15 +1252,15 @@ private struct BusinessCampaignForm: View {
 
 private struct BusinessVoucherForm: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var code = "SUMMER25"
+    @State private var code = ""
     @State private var title = ""
     @State private var discountType = "% phần trăm"
-    @State private var value = "20"
-    @State private var maxDiscount = "200.000"
+    @State private var value = ""
+    @State private var maxDiscount = ""
     @State private var audience = "User mới"
-    @State private var limit = "100"
-    @State private var start = "01/06/2026"
-    @State private var end = "30/06/2026"
+    @State private var limit = ""
+    @State private var start = Date.portalDateString()
+    @State private var end = Date.portalDateString(monthsFromNow: 1)
     @State private var error: String?
     let onSave: (BusinessVoucherCreate) async throws -> Void
     private let discountTypes = ["% phần trăm", "Số tiền cố định", "Miễn phí"]
@@ -1246,14 +1291,14 @@ private struct BusinessVoucherForm: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    darkField("Mã voucher", text: $code, placeholder: "SUMMER25")
+                    darkField("Mã voucher", text: $code, placeholder: "Nhập mã voucher")
                     darkChipGroup("Loại giảm giá", options: discountTypes, selection: $discountType)
                     VStack(alignment: .leading, spacing: 9) {
                         Text("Giá trị giảm")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(BusinessPortalStyle.muted)
                         HStack(spacing: 0) {
-                            darkPlainTextField(text: $value, placeholder: "20", keyboard: .numberPad)
+                            darkPlainTextField(text: $value, placeholder: "Nhập giá trị", keyboard: .numberPad)
                             if discountType == "% phần trăm" {
                                 Text("%")
                                     .font(.system(size: 17, weight: .bold))
@@ -1262,19 +1307,19 @@ private struct BusinessVoucherForm: View {
                             }
                         }
                     }
-                    darkField("Giảm tối đa", text: $maxDiscount, placeholder: "200.000 đ", keyboard: .numberPad)
+                    darkField("Giảm tối đa", text: $maxDiscount, placeholder: "Tuỳ chọn", keyboard: .numberPad)
                     darkChipGroup("Điều kiện áp dụng", options: audiences, selection: $audience)
-                    darkField("Số lượt tối đa", text: $limit, placeholder: "100 lượt", keyboard: .numberPad)
+                    darkField("Số lượt tối đa", text: $limit, placeholder: "Tuỳ chọn", keyboard: .numberPad)
                     VStack(alignment: .leading, spacing: 9) {
                         Text("Thời hạn")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(BusinessPortalStyle.muted)
                         HStack(spacing: 12) {
-                            darkPlainTextField(text: $start, placeholder: "01/06/2026")
+                            darkPlainTextField(text: $start, placeholder: "dd/mm/yyyy")
                             Text("—")
                                 .font(.system(size: 18, weight: .bold))
                                 .foregroundStyle(BusinessPortalStyle.muted)
-                            darkPlainTextField(text: $end, placeholder: "30/06/2026")
+                            darkPlainTextField(text: $end, placeholder: "dd/mm/yyyy")
                         }
                     }
                     if let error {
@@ -1285,14 +1330,29 @@ private struct BusinessVoucherForm: View {
                     Button {
                         Task {
                             do {
+                                let trimmedCode = code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+                                let discountValue = Double(value.digitsOnly) ?? 0
+                                guard !trimmedCode.isEmpty else {
+                                    self.error = "Nhập mã voucher."
+                                    return
+                                }
+                                guard discountType == "Miễn phí" || discountValue > 0 else {
+                                    self.error = "Nhập giá trị giảm hợp lệ."
+                                    return
+                                }
+                                guard !start.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                                      !end.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                                    self.error = "Nhập thời hạn voucher."
+                                    return
+                                }
                                 let resolvedTitle = title.isEmpty ? voucherTitle : title
                                 try await onSave(
                                     BusinessVoucherCreate(
-                                        code: code.trimmingCharacters(in: .whitespacesAndNewlines).uppercased(),
+                                        code: trimmedCode,
                                         title: resolvedTitle,
                                         description: nil,
                                         discount_type: apiDiscountType,
-                                        discount_value: Double(value.digitsOnly),
+                                        discount_value: discountValue,
                                         max_discount_vnd: Double(maxDiscount.digitsOnly),
                                         audience: apiAudience,
                                         usage_limit: Int(limit.digitsOnly),
@@ -1460,6 +1520,15 @@ private extension String {
         let parts = split(separator: "/")
         guard parts.count == 3 else { return self }
         return "\(parts[2])-\(parts[1])-\(parts[0])"
+    }
+}
+
+private extension Date {
+    static func portalDateString(monthsFromNow: Int = 0) -> String {
+        let base = Calendar.current.date(byAdding: .month, value: monthsFromNow, to: Date()) ?? Date()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "dd/MM/yyyy"
+        return formatter.string(from: base)
     }
 }
 

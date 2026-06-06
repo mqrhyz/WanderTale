@@ -87,6 +87,8 @@ const envSchema = z.object({
   OPENWEATHER_API_KEY: z.string().optional().default(""),
   /** Pexels — ảnh cover thành phố cho danh sách chuyến đi. */
   PEXELS_API_KEY: z.string().optional().default(""),
+  /** Optional token for Cloud Tasks/internal worker endpoint. */
+  INTERNAL_WORKER_TOKEN: z.string().optional().default(""),
   BACKEND_CORS_ORIGINS: z.string().default("http://localhost:3000,http://127.0.0.1:3000"),
 });
 

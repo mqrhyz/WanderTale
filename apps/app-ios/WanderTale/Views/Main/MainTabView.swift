@@ -44,8 +44,26 @@ struct MainTabView: View {
         if appState.accountInfo == nil {
             ZStack {
                 PremiumTheme.bg.ignoresSafeArea()
-                ProgressView()
-                    .tint(PremiumTheme.accent)
+                VStack(spacing: 14) {
+                    if let roleError = appState.roleError {
+                        Text(roleError)
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(PremiumTheme.muted)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 28)
+                        Button("Đăng xuất") {
+                            appState.signOut()
+                        }
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 12)
+                        .background(Capsule().fill(PremiumTheme.accent))
+                    } else {
+                        ProgressView()
+                            .tint(PremiumTheme.accent)
+                    }
+                }
             }
         } else if effectiveTab == .create {
             TripPlannerView(onCreated: { id in

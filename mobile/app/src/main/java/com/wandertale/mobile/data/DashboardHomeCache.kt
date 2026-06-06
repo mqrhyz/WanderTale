@@ -18,13 +18,14 @@ object DashboardHomeCache {
     var accountInfo: AccountInfo? = null
 
     data class PreloadResult(
+        val profileError: String? = null,
         val statsError: String? = null,
         val tripsError: String? = null,
     ) {
         val summaryError: String?
             get() {
-                if (statsError == null && tripsError == null) return null
-                val errors = listOfNotNull(statsError, tripsError).distinct()
+                if (profileError == null && statsError == null && tripsError == null) return null
+                val errors = listOfNotNull(profileError, statsError, tripsError).distinct()
                 return when {
                     errors.isEmpty() -> null
                     errors.size == 1 -> errors.first()
@@ -53,31 +54,41 @@ object DashboardHomeCache {
         tripsRepo: TripRepository,
         profile: ProfileRepository,
     ): PreloadResult = coroutineScope {
+        var profileError: String? = null
         var statsError: String? = null
         var tripsError: String? = null
 
-        val statsJob = async {
-            runCatching { dashboard.stats() }
-                .onSuccess { stats = it }
-                .onFailure { statsError = formatApiError(it, "Không tải thống kê") }
-        }
-        val tripsJob = async {
-            runCatching { tripsRepo.list() }
-                .onSuccess { trips = it }
-                .onFailure { tripsError = formatApiError(it, "Không tải chuyến đi") }
-        }
-        val profileJob = async {
-            runCatching { profile.getAccountInfo() }
-                .onSuccess { info ->
-                    accountInfo = info
-                    info.displayName.takeIf { it.isNotBlank() }?.let { displayName = it }
+        val profileResult = runCatching { profile.getAccountInfo() }
+        profileResult
+            .onSuccess { info ->
+                accountInfo = info
+                info.displayName.takeIf { it.isNotBlank() }?.let { displayName = it }
+                if (info.profile == null) {
+                    profileError = "Không tải được quyền tài khoản. Vui lòng kiểm tra mạng rồi đăng nhập lại."
                 }
+            }
+            .onFailure {
+                profileError = formatApiError(it, "Không tải được quyền tài khoản")
+            }
+
+        val role = accountInfo?.profile
+        if (role != null && !role.is_admin && !role.is_business) {
+            val statsJob = async {
+                runCatching { dashboard.stats() }
+                    .onSuccess { stats = it }
+                    .onFailure { statsError = formatApiError(it, "Không tải thống kê") }
+            }
+            val tripsJob = async {
+                runCatching { tripsRepo.list() }
+                    .onSuccess { trips = it }
+                    .onFailure { tripsError = formatApiError(it, "Không tải chuyến đi") }
+            }
+            statsJob.await()
+            tripsJob.await()
         }
-        statsJob.await()
-        tripsJob.await()
-        profileJob.await()
 
         PreloadResult(
+            profileError = profileError,
             statsError = statsError,
             tripsError = tripsError,
         )

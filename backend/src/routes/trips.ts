@@ -13,6 +13,9 @@ import {
 } from "../services/tripService.js";
 import { streamTripGeneration } from "../services/tripStream.js";
 import { previewTripDestination } from "../services/tripPreview.js";
+import { getTripProgressSnapshot } from "../services/tripEnrichmentJobService.js";
+import { processTripEnrichment } from "../services/tripGenerationPipeline.js";
+import { env } from "../lib/env.js";
 
 const previewQuery = z.object({
   destination: z.string().min(2).max(200),
@@ -130,7 +133,25 @@ export async function tripsRoutes(app: FastifyInstance) {
       reply.raw.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`);
     };
 
-    sendEvent("trip_update", { type: "trip_update", tripId, payload: trip });
+    let lastSnapshotKey = "";
+    const sendSnapshot = async () => {
+      const [freshTrip, progress] = await Promise.all([
+        getTrip(userId, tripId),
+        getTripProgressSnapshot(tripId),
+      ]);
+      const payload = { trip: freshTrip ?? trip, progress };
+      const key = JSON.stringify({
+        generation_status: (freshTrip as Record<string, unknown> | null)?.generation_status,
+        hotel_pricing_status: (freshTrip as Record<string, unknown> | null)?.hotel_pricing_status,
+        progress_updated_at: progress?.updated_at,
+        progress_event: progress?.last_event_type,
+      });
+      if (key === lastSnapshotKey) return;
+      lastSnapshotKey = key;
+      sendEvent("trip_update", { type: "trip_update", tripId, payload });
+    };
+
+    await sendSnapshot();
 
     const { tripEventEmitter } = await import("../lib/tripEvents.js");
     const handler = (update: { type: string; tripId: string; payload?: Record<string, unknown> }) => {
@@ -139,15 +160,26 @@ export async function tripsRoutes(app: FastifyInstance) {
     };
     tripEventEmitter.on(`trip:${tripId}`, handler);
 
-    const keepalive = setInterval(() => {
+    const poll = setInterval(() => {
+      void sendSnapshot().catch(() => undefined);
       if (!reply.raw.writableEnded) reply.raw.write(": keepalive\n\n");
-    }, 25_000);
+    }, 5_000);
 
     req.raw.on("close", () => {
       tripEventEmitter.off(`trip:${tripId}`, handler);
-      clearInterval(keepalive);
+      clearInterval(poll);
       if (!reply.raw.writableEnded) reply.raw.end();
     });
+  });
+
+  app.post("/internal/trips/:tripId/enrichment", async (req, reply) => {
+    if (!env.INTERNAL_WORKER_TOKEN) {
+      return reply.code(503).send({ error: "worker_token_not_configured" });
+    }
+    const token = req.headers["x-worker-token"];
+    if (token !== env.INTERNAL_WORKER_TOKEN) return reply.code(401).send({ error: "unauthorized" });
+    const { tripId } = req.params as { tripId: string };
+    return processTripEnrichment(tripId);
   });
 
   app.put("/trips/:tripId", { preHandler: requireAuth }, async (req, reply) => {

@@ -58,7 +58,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.wandertale.mobile.data.DashboardHomeCache
 import com.wandertale.mobile.data.api.ApiClient
+import com.wandertale.mobile.data.model.AccountInfo
 import com.wandertale.mobile.data.model.AdminBusinessRow
 import com.wandertale.mobile.data.model.AdminOverview
 import com.wandertale.mobile.data.model.AdminUserCreate
@@ -86,6 +88,8 @@ import com.wandertale.mobile.ui.theme.PremiumDesign
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonPrimitive
 import java.text.NumberFormat
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 private data class PortalPalette(
@@ -148,6 +152,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     var showLocationForm by remember { mutableStateOf(false) }
     var replyTarget by remember { mutableStateOf<BusinessReviewRow?>(null) }
     var showBusinessMenu by remember { mutableStateOf(false) }
+    var showBusinessAccountInfo by remember { mutableStateOf(false) }
     var voucherFilter by remember { mutableStateOf("active") }
     var reviewFilter by remember { mutableStateOf("all") }
     val scope = rememberCoroutineScope()
@@ -389,7 +394,13 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     if (showBusinessMenu) {
         PortalAccountMenuDialog(
             darkTheme = darkTheme,
+            accountInfo = DashboardHomeCache.accountInfo,
+            businessName = overview?.business?.name,
             onDismiss = { showBusinessMenu = false },
+            onAccountInfo = {
+                showBusinessMenu = false
+                showBusinessAccountInfo = true
+            },
             onToggleTheme = {
                 onToggleTheme?.invoke()
                 showBusinessMenu = false
@@ -398,6 +409,13 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                 showBusinessMenu = false
                 onLogout?.invoke()
             },
+        )
+    }
+    if (showBusinessAccountInfo) {
+        PortalAccountInfoDialog(
+            accountInfo = DashboardHomeCache.accountInfo,
+            businessName = overview?.business?.name,
+            onDismiss = { showBusinessAccountInfo = false },
         )
     }
     }
@@ -671,6 +689,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
     var logFilter by remember { mutableStateOf("Tất cả") }
     var showCreateUser by remember { mutableStateOf(false) }
     var showAdminMenu by remember { mutableStateOf(false) }
+    var showAdminAccountInfo by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
@@ -921,7 +940,12 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
     if (showAdminMenu) {
         PortalAccountMenuDialog(
             darkTheme = darkTheme,
+            accountInfo = DashboardHomeCache.accountInfo,
             onDismiss = { showAdminMenu = false },
+            onAccountInfo = {
+                showAdminMenu = false
+                showAdminAccountInfo = true
+            },
             onToggleTheme = {
                 onToggleTheme?.invoke()
                 showAdminMenu = false
@@ -930,6 +954,12 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                 showAdminMenu = false
                 onLogout?.invoke()
             },
+        )
+    }
+    if (showAdminAccountInfo) {
+        PortalAccountInfoDialog(
+            accountInfo = DashboardHomeCache.accountInfo,
+            onDismiss = { showAdminAccountInfo = false },
         )
     }
     }
@@ -1420,9 +1450,13 @@ private fun ddmmyyyyToIso(raw: String): String {
     return if (parts.size == 3 && parts[2].length == 4) {
         "${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}"
     } else {
-        trimmed.ifBlank { "2026-06-01" }
+        trimmed
     }
 }
+
+private fun todayPortalDate(): String = LocalDate.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
+
+private fun nextMonthPortalDate(): String = LocalDate.now().plusMonths(1).format(DateTimeFormatter.ofPattern("dd/MM/yyyy"))
 
 private fun moneyDigits(raw: String): String = raw.filter { it.isDigit() }
 
@@ -1471,10 +1505,11 @@ private fun BusinessCampaignDialog(onDismiss: () -> Unit, onSave: (BusinessCampa
     var name by remember { mutableStateOf("") }
     var target by remember { mutableStateOf("Cặp đôi") }
     var region by remember { mutableStateOf("Miền Nam") }
-    var season by remember { mutableStateOf("Hè 2026") }
-    var budget by remember { mutableStateOf("1.000.000") }
-    var start by remember { mutableStateOf("01/06/2026") }
-    var end by remember { mutableStateOf("30/06/2026") }
+    var season by remember { mutableStateOf("") }
+    var budget by remember { mutableStateOf("") }
+    var start by remember { mutableStateOf(todayPortalDate()) }
+    var end by remember { mutableStateOf(nextMonthPortalDate()) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val budgetValue = moneyDigits(budget).toDoubleOrNull() ?: 0.0
     val estimateLow = (budgetValue / 240).toInt()
     val estimateHigh = (budgetValue / 145).toInt().coerceAtLeast(estimateLow)
@@ -1482,6 +1517,13 @@ private fun BusinessCampaignDialog(onDismiss: () -> Unit, onSave: (BusinessCampa
         title = "Tạo chiến dịch",
         onDismiss = onDismiss,
         onSave = {
+            validationError = when {
+                name.trim().isBlank() -> "Nhập tên chiến dịch."
+                budgetValue <= 0 -> "Nhập ngân sách hợp lệ."
+                start.trim().isBlank() || end.trim().isBlank() -> "Nhập thời gian chạy."
+                else -> null
+            }
+            if (validationError != null) return@PortalInputDialog
             onSave(
                 BusinessCampaignCreate(
                     name = name.trim(),
@@ -1495,14 +1537,15 @@ private fun BusinessCampaignDialog(onDismiss: () -> Unit, onSave: (BusinessCampa
             )
         },
     ) {
+        validationError?.let { Text(it, color = PremiumColors.LogoutRed, fontSize = 12.sp) }
         PortalTextField("Tên chiến dịch", name, "Nhập tên chiến dịch...") { name = it }
         PortalChoiceGroup("Loại hình target", listOf("Cặp đôi", "Gia đình", "Solo", "Nhóm bạn"), target) { target = it }
         PortalChoiceGroup("Vùng địa lý", listOf("Miền Nam", "Miền Bắc", "Miền Trung", "Toàn quốc"), region) { region = it }
-        PortalChoiceGroup("Mùa / dịp", listOf("Hè 2026", "Lễ 30/4", "Cuối tuần"), season) { season = it }
-        PortalTextField("Ngân sách (VNĐ)", budget, "1.000.000", KeyboardType.Number) { budget = it }
+        PortalTextField("Mùa / dịp", season, "Ví dụ: Cuối tuần, hè, lễ...") { season = it }
+        PortalTextField("Ngân sách (VNĐ)", budget, "Nhập ngân sách", KeyboardType.Number) { budget = it }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PortalTextField("Bắt đầu", start, "01/06/2026", modifier = Modifier.weight(1f)) { start = it }
-            PortalTextField("Kết thúc", end, "30/06/2026", modifier = Modifier.weight(1f)) { end = it }
+            PortalTextField("Bắt đầu", start, "dd/mm/yyyy", modifier = Modifier.weight(1f)) { start = it }
+            PortalTextField("Kết thúc", end, "dd/mm/yyyy", modifier = Modifier.weight(1f)) { end = it }
         }
         DarkPortalCard {
             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1516,14 +1559,15 @@ private fun BusinessCampaignDialog(onDismiss: () -> Unit, onSave: (BusinessCampa
 
 @Composable
 private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVoucherCreate) -> Unit) {
-    var code by remember { mutableStateOf("SUMMER25") }
+    var code by remember { mutableStateOf("") }
     var discountType by remember { mutableStateOf("% phần trăm") }
-    var discount by remember { mutableStateOf("20") }
-    var maxDiscount by remember { mutableStateOf("200.000") }
+    var discount by remember { mutableStateOf("") }
+    var maxDiscount by remember { mutableStateOf("") }
     var audience by remember { mutableStateOf("User mới") }
-    var limit by remember { mutableStateOf("100") }
-    var start by remember { mutableStateOf("01/06/2026") }
-    var end by remember { mutableStateOf("30/06/2026") }
+    var limit by remember { mutableStateOf("") }
+    var start by remember { mutableStateOf(todayPortalDate()) }
+    var end by remember { mutableStateOf(nextMonthPortalDate()) }
+    var validationError by remember { mutableStateOf<String?>(null) }
     val apiDiscountType = when (discountType) {
         "Số tiền cố định" -> "fixed"
         "Miễn phí" -> "free_shipping"
@@ -1538,11 +1582,19 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
         title = "Tạo voucher",
         onDismiss = onDismiss,
         onSave = {
+            val discountValue = moneyDigits(discount).toDoubleOrNull() ?: 0.0
+            validationError = when {
+                code.trim().isBlank() -> "Nhập mã voucher."
+                discountValue <= 0.0 && apiDiscountType != "free_shipping" -> "Nhập giá trị giảm hợp lệ."
+                start.trim().isBlank() || end.trim().isBlank() -> "Nhập thời hạn voucher."
+                else -> null
+            }
+            if (validationError != null) return@PortalInputDialog
             onSave(
                 BusinessVoucherCreate(
                     code = code.trim().uppercase(Locale.ROOT),
                     discount_type = apiDiscountType,
-                    discount_value = moneyDigits(discount).toDoubleOrNull() ?: 0.0,
+                    discount_value = discountValue,
                     max_discount_vnd = moneyDigits(maxDiscount).toDoubleOrNull(),
                     condition_label = condition,
                     usage_limit = limit.toIntOrNull(),
@@ -1552,15 +1604,16 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
             )
         },
     ) {
-        PortalTextField("Mã voucher", code, "SUMMER25") { code = it }
+        validationError?.let { Text(it, color = PremiumColors.LogoutRed, fontSize = 12.sp) }
+        PortalTextField("Mã voucher", code, "Nhập mã voucher") { code = it }
         PortalChoiceGroup("Loại giảm giá", listOf("% phần trăm", "Số tiền cố định", "Miễn phí"), discountType) { discountType = it }
-        PortalTextField("Giá trị giảm", discount, "20", KeyboardType.Number) { discount = it }
-        PortalTextField("Giảm tối đa", maxDiscount, "200.000", KeyboardType.Number) { maxDiscount = it }
+        PortalTextField("Giá trị giảm", discount, "Nhập giá trị", KeyboardType.Number) { discount = it }
+        PortalTextField("Giảm tối đa", maxDiscount, "Tuỳ chọn", KeyboardType.Number) { maxDiscount = it }
         PortalChoiceGroup("Điều kiện áp dụng", listOf("User mới", "Tất cả user", "User premium"), audience) { audience = it }
-        PortalTextField("Số lượt tối đa", limit, "100", KeyboardType.Number) { limit = it }
+        PortalTextField("Số lượt tối đa", limit, "Tuỳ chọn", KeyboardType.Number) { limit = it }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            PortalTextField("Bắt đầu", start, "01/06/2026", modifier = Modifier.weight(1f)) { start = it }
-            PortalTextField("Kết thúc", end, "30/06/2026", modifier = Modifier.weight(1f)) { end = it }
+            PortalTextField("Bắt đầu", start, "dd/mm/yyyy", modifier = Modifier.weight(1f)) { start = it }
+            PortalTextField("Kết thúc", end, "dd/mm/yyyy", modifier = Modifier.weight(1f)) { end = it }
         }
     }
 }
@@ -1596,7 +1649,10 @@ private fun ReviewReplyDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 @Composable
 private fun PortalAccountMenuDialog(
     darkTheme: Boolean,
+    accountInfo: AccountInfo?,
+    businessName: String? = null,
     onDismiss: () -> Unit,
+    onAccountInfo: () -> Unit,
     onToggleTheme: () -> Unit,
     onLogout: () -> Unit,
 ) {
@@ -1606,12 +1662,54 @@ private fun PortalAccountMenuDialog(
         title = { Text("Tài khoản") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                TextButton(onClick = onDismiss) { Text("Thông tin cá nhân") }
+                Text(
+                    accountInfo?.displayName?.takeIf { it.isNotBlank() } ?: businessName ?: "Tài khoản",
+                    fontWeight = FontWeight.Bold,
+                )
+                accountInfo?.email?.takeIf { it.isNotBlank() }?.let {
+                    Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+                }
+                TextButton(onClick = onAccountInfo) { Text("Thông tin cá nhân") }
                 TextButton(onClick = onToggleTheme) { Text(if (darkTheme) "Chuyển sang Light mode" else "Chuyển sang Dark mode") }
                 TextButton(onClick = onLogout) { Text("Đăng xuất", color = PremiumColors.LogoutRed) }
             }
         },
     )
+}
+
+@Composable
+private fun PortalAccountInfoDialog(
+    accountInfo: AccountInfo?,
+    businessName: String? = null,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Đóng") } },
+        title = { Text("Thông tin cá nhân") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PortalInfoLine("Tên", accountInfo?.displayName?.takeIf { it.isNotBlank() } ?: "—")
+                PortalInfoLine("Email", accountInfo?.email?.takeIf { it.isNotBlank() } ?: "—")
+                PortalInfoLine("Số điện thoại", accountInfo?.phone?.takeIf { it.isNotBlank() } ?: "—")
+                businessName?.takeIf { it.isNotBlank() }?.let { PortalInfoLine("Doanh nghiệp", it) }
+                val role = when {
+                    accountInfo?.profile?.is_admin == true -> "Admin"
+                    accountInfo?.profile?.is_business == true -> "Business"
+                    else -> "User"
+                }
+                PortalInfoLine("Role", role)
+            }
+        },
+    )
+}
+
+@Composable
+private fun PortalInfoLine(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
+        Text(value, fontWeight = FontWeight.Bold, textAlign = TextAlign.End, modifier = Modifier.weight(1f))
+    }
 }
 
 @Composable

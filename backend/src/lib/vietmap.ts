@@ -1,7 +1,9 @@
 import { env } from "./env.js";
 import { OTA_CITY_LABELS, resolveCityFocus, resolveCityKey } from "@wander-tale/hotel-booking-agent";
+import { getCachedValue, setCachedValue } from "../services/externalApiCache.js";
 
 const VIETMAP_BASE = "https://maps.vietmap.vn/api";
+const VIETMAP_CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 /** Trung tâm VN — bias khi chưa có focus GPS. */
 export const VIETMAP_DEFAULT_FOCUS = { lat: 16.047079, lng: 108.20623 };
 
@@ -91,17 +93,29 @@ async function vietmapGet<T>(path: string, params: Record<string, string>): Prom
   return r.json() as Promise<T>;
 }
 
+function stableVietmapCacheKey(kind: string, params: Record<string, string>): string {
+  const entries = Object.entries(params)
+    .map(([k, v]) => [k, v.trim().toLowerCase()] as const)
+    .sort(([a], [b]) => a.localeCompare(b));
+  return `vietmap:${kind}:${entries.map(([k, v]) => `${k}=${v}`).join("&")}`;
+}
+
 export async function autocompleteV4(
   text: string,
   focus?: { lat: number; lng: number } | null
 ): Promise<VietmapSearchHit[]> {
   const q = text.trim();
   if (q.length < 2) return [];
-  const data = await vietmapGet<VietmapSearchHit[]>("/autocomplete/v4", {
+  const params = {
     text: q,
     focus: focusParam(focus),
     display_type: "6",
-  });
+  };
+  const key = stableVietmapCacheKey("autocomplete", params);
+  const cached = await getCachedValue<VietmapSearchHit[]>(key);
+  if (cached) return cached;
+  const data = await vietmapGet<VietmapSearchHit[]>("/autocomplete/v4", params);
+  if (Array.isArray(data)) await setCachedValue(key, data, VIETMAP_CACHE_TTL_SECONDS, "vietmap_autocomplete");
   return Array.isArray(data) ? data : [];
 }
 
@@ -195,21 +209,30 @@ export async function searchV4(
 ): Promise<VietmapSearchHit[]> {
   const q = text.trim();
   if (!q) return [];
-  const data = await vietmapGet<VietmapSearchHit[]>("/search/v4", {
+  const params = {
     text: q,
     focus: focusParam(focus),
     display_type: "6",
-  });
+  };
+  const key = stableVietmapCacheKey("search", params);
+  const cached = await getCachedValue<VietmapSearchHit[]>(key);
+  if (cached) return cached;
+  const data = await vietmapGet<VietmapSearchHit[]>("/search/v4", params);
+  if (Array.isArray(data)) await setCachedValue(key, data, VIETMAP_CACHE_TTL_SECONDS, "vietmap_search");
   return Array.isArray(data) ? data : [];
 }
 
 export async function placeV4(refId: string): Promise<VietmapPlace> {
+  const key = `vietmap:place:${refId.trim().toLowerCase()}`;
+  const cached = await getCachedValue<VietmapPlace>(key);
+  if (cached) return cached;
   const data = await vietmapGet<VietmapPlace & { ref_id?: string }>("/place/v4", {
     refid: refId,
   });
   if (!Number.isFinite(data.lat) || !Number.isFinite(data.lng)) {
     throw new Error("VietMap Place v4: missing coordinates");
   }
+  await setCachedValue(key, data, VIETMAP_CACHE_TTL_SECONDS, "vietmap_place");
   return data;
 }
 

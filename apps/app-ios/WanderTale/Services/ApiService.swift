@@ -3,6 +3,13 @@ import Foundation
 enum ApiService {
     private static let decoder = JSONDecoder()
     private static let encoder = JSONEncoder()
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 300
+        config.timeoutIntervalForResource = 300
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        return URLSession(configuration: config)
+    }()
 
     private static func token() async throws -> String {
         guard let t = SupabaseClient.accessToken else { throw ApiError(message: "Chưa đăng nhập") }
@@ -44,11 +51,6 @@ enum ApiService {
             req.httpBody = body
         }
 
-        let config = URLSessionConfiguration.default
-        config.timeoutIntervalForRequest = 300
-        config.timeoutIntervalForResource = 300
-        let session = URLSession(configuration: config)
-
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ApiError(message: "Phản hồi không hợp lệ") }
         if http.statusCode >= 400 {
@@ -75,7 +77,7 @@ enum ApiService {
         var req = URLRequest(url: url)
         req.httpMethod = "DELETE"
         req.setValue("Bearer \(try await token())", forHTTPHeaderField: "Authorization")
-        let (data, response) = try await URLSession.shared.data(for: req)
+        let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ApiError(message: "Phản hồi không hợp lệ") }
         if http.statusCode >= 400 {
             let msg = (try? decoder.decode(ApiErrorBody.self, from: data))?.message
@@ -114,7 +116,7 @@ enum ApiService {
         req.setValue("Bearer \(try await token())", forHTTPHeaderField: "Authorization")
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
 
-        let (bytes, response) = try await URLSession.shared.bytes(for: req)
+        let (bytes, response) = try await session.bytes(for: req)
         guard let http = response as? HTTPURLResponse, http.statusCode < 400 else {
             throw ApiError(message: "SSE lỗi")
         }

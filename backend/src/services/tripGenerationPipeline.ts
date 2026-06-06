@@ -23,7 +23,15 @@ import { suggestPlacesForTrip, type SuggestedPlacesPlan, type SuggestedPlace } f
 import type { TripGenerationStatus, TripHotelPricingStatus } from "./tripGenerationStatus.js";
 import { getDayActivities } from "./tripAgendaActivities.js";
 import { env } from "../lib/env.js";
-import { emitTripEvent } from "../lib/tripEvents.js";
+import { emitTripEvent, type TripEventType } from "../lib/tripEvents.js";
+import { getSupabase } from "../lib/supabase.js";
+import {
+  enqueueTripEnrichment,
+  markTripEnrichmentJobComplete,
+  markTripEnrichmentJobFailed,
+  recordTripProgress,
+  tryStartTripEnrichmentJob,
+} from "./tripEnrichmentJobService.js";
 
 function countAgendaImageSlots(itinerary: GeneratedItinerary): number {
   let n = 0;
@@ -81,6 +89,15 @@ async function loadSuggestedPlacesWithRetry(
   }
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function publishTripProgress(tripId: string, type: TripEventType, payload: Record<string, unknown>): Promise<void> {
+  await recordTripProgress(tripId, type, payload);
+  emitTripEvent(tripId, type, payload);
+}
+
 /** Quét OTA + ảnh agenda + ảnh KS — jobs tách, emit SSE events. */
 export async function enrichTripWithOtaInBackground(params: {
   tripId: string;
@@ -114,11 +131,11 @@ export async function enrichTripWithOtaInBackground(params: {
       hotelPricingStatus: "pending",
       generationStatus: "pricing_pending",
     });
-    emitTripEvent(tripId, "skeleton_ready", { generation_status: "pricing_pending" });
+    await publishTripProgress(tripId, "skeleton_ready", { generation_status: "pricing_pending" });
     console.info(`[trip-ota] skeleton maps saved ${Date.now() - t0}ms`);
 
     const imageSlotTotal = countAgendaImageSlots(itinerary);
-    emitTripEvent(tripId, "images_progress", { filled: 0, total: imageSlotTotal });
+    await publishTripProgress(tripId, "images_progress", { filled: 0, total: imageSlotTotal });
 
     const agendaImagesPromise = enrichItineraryWithAgendaImages(itinerary, destination, {
       onProgress: ({ title, urls, filled, total }) => {
@@ -129,6 +146,7 @@ export async function enrichTripWithOtaInBackground(params: {
           filled,
           total,
         });
+        void recordTripProgress(tripId, "images_progress", { filled, total });
         emitTripEvent(tripId, "images_progress", { filled, total });
       },
     }).then(async (withImages) => {
@@ -139,7 +157,7 @@ export async function enrichTripWithOtaInBackground(params: {
         hotelPricingStatus: "pending",
         generationStatus: "pricing_pending",
       });
-      emitTripEvent(tripId, "images_ready", { generation_status: "pricing_pending" });
+      await publishTripProgress(tripId, "images_ready", { generation_status: "pricing_pending" });
       console.info(`[trip-media] agenda images ${Date.now() - t0}ms`);
       return withImages;
     });
@@ -190,7 +208,7 @@ export async function enrichTripWithOtaInBackground(params: {
       generationStatus: "pricing_pending",
     });
 
-    void Promise.all([
+    const [hotelImagesResult, coordsResult] = await Promise.allSettled([
       enrichHotelImagesJob({
         tripId,
         userId,
@@ -200,27 +218,54 @@ export async function enrichTripWithOtaInBackground(params: {
         destination,
       }),
       enrichItineraryWithCoordinates(merged, destination, hotelPricing.route_optimization),
-    ])
-      .then(async ([withHotelImages, withCoords]) => {
-        const coordMerged = {
-          ...withHotelImages,
-          days: withCoords.days,
-          hotel_suggestions: withCoords.hotel_suggestions,
-          pricing_meta: withCoords.pricing_meta ?? withHotelImages.pricing_meta,
-        };
-        const finalItinerary = mergeItineraryPreserveMedia(withCoords, coordMerged);
-        await updateTripAfterOtaPricing({
-          userId,
-          tripId,
-          itinerary: finalItinerary,
-          hotelPricingStatus: hotelPricing.status,
-          generationStatus: "ready",
-        });
-        emitTripEvent(tripId, "coords_ready", {});
-        emitTripEvent(tripId, "complete", { status: "ready" });
-        console.info(`[trip-ota] complete ${Date.now() - t0}ms`);
-      })
-      .catch((e) => console.warn("[trip-ota] background jobs failed:", e));
+    ]);
+
+    const partialErrors: Array<{ phase: string; message: string }> = [];
+    const withHotelImages =
+      hotelImagesResult.status === "fulfilled"
+        ? hotelImagesResult.value
+        : merged;
+    if (hotelImagesResult.status === "rejected") {
+      partialErrors.push({ phase: "hotel_images", message: errorMessage(hotelImagesResult.reason) });
+    }
+
+    const withFinalCoords =
+      coordsResult.status === "fulfilled"
+        ? coordsResult.value
+        : merged;
+    if (coordsResult.status === "rejected") {
+      partialErrors.push({ phase: "coordinates", message: errorMessage(coordsResult.reason) });
+    }
+
+    const coordMerged = {
+      ...withHotelImages,
+      days: withFinalCoords.days,
+      hotel_suggestions: withFinalCoords.hotel_suggestions,
+      pricing_meta: {
+        ...(withHotelImages.pricing_meta as Record<string, unknown> | undefined),
+        ...(withFinalCoords.pricing_meta as Record<string, unknown> | undefined),
+        enrichment_errors: partialErrors.length > 0 ? partialErrors : undefined,
+        enrichment_status: partialErrors.length > 0 ? "partial_ready" : "ready",
+      },
+    };
+    const finalItinerary = mergeItineraryPreserveMedia(withFinalCoords, coordMerged as GeneratedItinerary);
+    await updateTripAfterOtaPricing({
+      userId,
+      tripId,
+      itinerary: finalItinerary,
+      hotelPricingStatus: hotelPricing.status,
+      generationStatus: "ready",
+    });
+    await publishTripProgress(tripId, "coords_ready", { partial_errors: partialErrors });
+    await markTripEnrichmentJobComplete(tripId, {
+      status: partialErrors.length > 0 ? "partial_ready" : "ready",
+      partial_errors: partialErrors,
+    });
+    emitTripEvent(tripId, "complete", {
+      status: partialErrors.length > 0 ? "partial_ready" : "ready",
+      partial_errors: partialErrors,
+    });
+    console.info(`[trip-ota] complete ${Date.now() - t0}ms partialErrors=${partialErrors.length}`);
   } catch (e) {
     const message = e instanceof Error ? e.message : "OTA background failed";
     const fallback = enrichItineraryWithSearchMaps(
@@ -241,8 +286,37 @@ export async function enrichTripWithOtaInBackground(params: {
       hotelPricingStatus: "error",
       generationStatus: "ready",
     }).catch(() => markTripGenerationFailed(userId, tripId, message));
+    await markTripEnrichmentJobFailed(tripId, message);
     emitTripEvent(tripId, "complete", { status: "ready", error: message });
   }
+}
+
+export async function processTripEnrichment(tripId: string): Promise<{ status: string }> {
+  const job = await tryStartTripEnrichmentJob(tripId);
+  if (!job) return { status: "skipped" };
+
+  const { data: trip, error } = await getSupabase()
+    .from("trips")
+    .select("id,user_id,generation_status,hotel_pricing_status")
+    .eq("id", tripId)
+    .eq("user_id", job.user_id)
+    .maybeSingle();
+  if (error || !trip) {
+    const message = error?.message ?? "trip_not_found";
+    await markTripEnrichmentJobFailed(tripId, message);
+    return { status: "failed" };
+  }
+
+  await enrichTripWithOtaInBackground({
+    tripId,
+    userId: job.payload.userId,
+    body: job.payload.body,
+    context: job.payload.context,
+    suggestedPlaces: job.payload.suggestedPlaces ?? [],
+    baseItinerary: job.payload.baseItinerary,
+    loadSuggestedPlaces: job.payload.loadSuggestedPlaces ?? true,
+  });
+  return { status: "processed" };
 }
 
 /**
@@ -296,15 +370,22 @@ export async function runTripGenerationStaged(
   const tripId = trip.id as string;
 
   if (enrichPricing) {
-    void enrichTripWithOtaInBackground({
-      tripId,
+    await enqueueTripEnrichment(tripId, {
       userId,
       body,
       context,
-      suggestedPlaces: [],
       baseItinerary: itinerary,
+      suggestedPlaces: [],
       loadSuggestedPlaces: true,
     });
+    // TODO: attach a Cloud Tasks HTTP target to call processTripEnrichment(tripId).
+    // Until Cloud Tasks is configured, this starts a best-effort local worker while
+    // the durable DB row keeps the job retryable after redeploy/instance death.
+    setTimeout(() => {
+      void processTripEnrichment(tripId).catch((error) => {
+        console.warn("[trip-job] local worker failed:", error);
+      });
+    }, 0);
   }
 
   console.info(

@@ -1,4 +1,5 @@
 import { fuzzyPlaceNameScore } from "../lib/placeNameMatch.js";
+import { getCachedValue, setCachedValue } from "./externalApiCache.js";
 
 const DDG_SEARCH_URL = "https://duckduckgo.com/";
 const DDG_IMAGES_URL = "https://duckduckgo.com/i.js";
@@ -6,6 +7,8 @@ const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/122 Safari/537.36";
 const REQUEST_TIMEOUT_MS = 6_000;
 const CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
+const CACHE_TTL_SECONDS = 14 * 24 * 60 * 60;
+const VQD_CACHE_TTL_MS = 30 * 60 * 1000;
 
 type DuckDuckGoImageResult = {
   title?: string;
@@ -24,6 +27,7 @@ type CacheEntry = {
 };
 
 const cache = new Map<string, CacheEntry>();
+const vqdCache = new Map<string, { token: string; fetchedAt: number }>();
 
 function cacheKey(query: string): string {
   return query.trim().toLowerCase();
@@ -31,6 +35,25 @@ function cacheKey(query: string): string {
 
 function extractVqd(html: string): string | null {
   return html.match(/vqd=['"]?([\d-]+)['"]?/i)?.[1] ?? null;
+}
+
+async function getVqdToken(query: string): Promise<string> {
+  const key = cacheKey(query);
+  const cached = vqdCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < VQD_CACHE_TTL_MS) return cached.token;
+
+  const search = new URL(DDG_SEARCH_URL);
+  search.searchParams.set("q", query);
+  const htmlResponse = await fetch(search, {
+    headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!htmlResponse.ok) throw new Error(`token HTTP ${htmlResponse.status}`);
+
+  const token = extractVqd(await htmlResponse.text());
+  if (!token) throw new Error("missing vqd token");
+  vqdCache.set(key, { token, fetchedAt: Date.now() });
+  return token;
 }
 
 function uniqueUrls(results: DuckDuckGoImageResult[], title: string, maxPhotos: number): string[] {
@@ -71,18 +94,14 @@ export async function searchDuckDuckGoImages(
   if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
     return cached.urls.slice(0, maxPhotos);
   }
+  const durable = await getCachedValue<{ urls: string[] }>(`ddg-images:${key}`);
+  if (durable?.urls?.length) {
+    cache.set(key, { urls: durable.urls, fetchedAt: Date.now() });
+    return durable.urls.slice(0, maxPhotos);
+  }
 
   try {
-    const search = new URL(DDG_SEARCH_URL);
-    search.searchParams.set("q", query);
-    const htmlResponse = await fetch(search, {
-      headers: { "User-Agent": USER_AGENT, Accept: "text/html" },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (!htmlResponse.ok) throw new Error(`token HTTP ${htmlResponse.status}`);
-
-    const token = extractVqd(await htmlResponse.text());
-    if (!token) throw new Error("missing vqd token");
+    const token = await getVqdToken(query);
 
     const images = new URL(DDG_IMAGES_URL);
     images.searchParams.set("l", "vn-vi");
@@ -104,6 +123,9 @@ export async function searchDuckDuckGoImages(
     const data = (await imageResponse.json()) as DuckDuckGoImagesResponse;
     const urls = uniqueUrls(data.results ?? [], title, Math.max(1, maxPhotos));
     cache.set(key, { urls, fetchedAt: Date.now() });
+    if (urls.length > 0) {
+      await setCachedValue(`ddg-images:${key}`, { urls }, CACHE_TTL_SECONDS, "duckduckgo_images");
+    }
     return urls;
   } catch (error) {
     console.warn(`[ddg-images] failed query="${query}":`, error);
