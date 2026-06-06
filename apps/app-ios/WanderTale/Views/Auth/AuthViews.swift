@@ -70,11 +70,13 @@ struct LoginView: View {
                             }
 
                             authDivider
-                            GoogleSignInButton(loading: googleLoading) {
-                                Task { await submitGoogle() }
-                            }
-                            FacebookSignInButton(loading: facebookLoading) {
-                                Task { await submitFacebook() }
+                            HStack(spacing: 12) {
+                                GoogleSignInButton(loading: googleLoading) {
+                                    Task { await submitGoogle() }
+                                }
+                                FacebookSignInButton(loading: facebookLoading) {
+                                    Task { await submitFacebook() }
+                                }
                             }
                         }
                         authFooterLinks
@@ -474,7 +476,7 @@ struct GoogleSignInButton: View {
                         .resizable()
                         .scaledToFit()
                         .frame(width: 18, height: 18)
-                    Text("Đăng nhập bằng Google")
+                    Text("Google")
                         .font(.system(size: 15, weight: .semibold))
                 }
             }
@@ -505,7 +507,7 @@ struct FacebookSignInButton: View {
                     Text("f")
                         .font(.system(size: 20, weight: .bold, design: .serif))
                         .foregroundStyle(.white)
-                    Text("Đăng nhập bằng Facebook")
+                    Text("Facebook")
                         .font(.system(size: 15, weight: .semibold))
                 }
             }

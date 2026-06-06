@@ -144,30 +144,40 @@ fun LoginScreen(
             Spacer(Modifier.height(14.dp))
             AuthDivider()
             Spacer(Modifier.height(14.dp))
-            GoogleSignInButton(loading = googleLoading) {
-                error = null
-                googleLoading = true
-                scope.launch {
-                    runCatching {
-                        auth.initSession()
-                        auth.signInWithGoogle()
-                    }.onFailure {
-                        error = formatAuthError(it, "Đăng nhập Google thất bại")
-                        googleLoading = false
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                GoogleSignInButton(
+                    loading = googleLoading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    error = null
+                    googleLoading = true
+                    scope.launch {
+                        runCatching {
+                            auth.initSession()
+                            auth.signInWithGoogle()
+                        }.onFailure {
+                            error = formatAuthError(it, "Đăng nhập Google thất bại")
+                            googleLoading = false
+                        }
                     }
                 }
-            }
-            Spacer(Modifier.height(12.dp))
-            FacebookSignInButton(loading = facebookLoading) {
-                error = null
-                facebookLoading = true
-                scope.launch {
-                    runCatching {
-                        auth.initSession()
-                        auth.signInWithFacebook()
-                    }.onFailure {
-                        error = formatAuthError(it, "Đăng nhập Facebook thất bại")
-                        facebookLoading = false
+                FacebookSignInButton(
+                    loading = facebookLoading,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    error = null
+                    facebookLoading = true
+                    scope.launch {
+                        runCatching {
+                            auth.initSession()
+                            auth.signInWithFacebook()
+                        }.onFailure {
+                            error = formatAuthError(it, "Đăng nhập Facebook thất bại")
+                            facebookLoading = false
+                        }
                     }
                 }
             }
@@ -189,9 +199,9 @@ private fun AuthDivider() {
 }
 
 @Composable
-private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
+private fun GoogleSignInButton(loading: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
@@ -208,17 +218,17 @@ private fun GoogleSignInButton(loading: Boolean, onClick: () -> Unit) {
                     contentDescription = null,
                     modifier = Modifier.size(20.dp),
                 )
-                Spacer(Modifier.width(10.dp))
-                Text("Đăng nhập bằng Google", color = Color(0xFF212121), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("Google", color = Color(0xFF212121), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
         }
     }
 }
 
 @Composable
-private fun FacebookSignInButton(loading: Boolean, onClick: () -> Unit) {
+private fun FacebookSignInButton(loading: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
             .clip(RoundedCornerShape(12.dp))
@@ -231,8 +241,8 @@ private fun FacebookSignInButton(loading: Boolean, onClick: () -> Unit) {
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
                 Text("f", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Spacer(Modifier.width(10.dp))
-                Text("Đăng nhập bằng Facebook", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                Spacer(Modifier.width(8.dp))
+                Text("Facebook", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }
         }
     }
