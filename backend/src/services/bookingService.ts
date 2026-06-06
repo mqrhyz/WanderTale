@@ -243,6 +243,12 @@ export async function payBooking(bookingId: string, actorUserId: string) {
         order_code: orderCode,
         checkout_url: link.checkoutUrl,
         qr_code: link.qrCode ?? null,
+        account_number: link.accountNumber ?? null,
+        account_name: link.accountName ?? null,
+        bin: link.bin ?? null,
+        amount: link.amount ?? total,
+        transfer_content: link.description ?? null,
+        currency,
       };
     } catch (e) {
       await getSupabaseAdmin().from("platform_transactions").update({ status: "failed" }).eq("id", paymentTx.id);

@@ -346,6 +346,12 @@ struct BookingPayResponse: Codable {
     var order_code: Int?
     var checkout_url: String?
     var qr_code: String?
+    var account_number: String?
+    var account_name: String?
+    var bin: String?
+    var amount: Double?
+    var transfer_content: String?
+    var currency: String?
     var commission: Double?
     var net: Double?
     var payment_transaction: PlatformTransaction?

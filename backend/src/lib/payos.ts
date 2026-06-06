@@ -54,6 +54,12 @@ export type PayosPaymentLink = {
   paymentLinkId: string;
   qrCode?: string;
   orderCode: number;
+  amount?: number;
+  accountNumber?: string;
+  accountName?: string;
+  bin?: string;
+  description?: string;
+  currency?: string;
 };
 
 export async function createPaymentLink(params: {
@@ -98,16 +104,34 @@ export async function createPaymentLink(params: {
   const json = (await res.json()) as {
     code?: string;
     desc?: string;
-    data?: { checkoutUrl?: string; paymentLinkId?: string; qrCode?: string; orderCode?: number };
+    data?: {
+      checkoutUrl?: string;
+      paymentLinkId?: string;
+      qrCode?: string;
+      orderCode?: number;
+      amount?: number;
+      accountNumber?: string;
+      accountName?: string;
+      bin?: string;
+      description?: string;
+      currency?: string;
+    };
   };
   if (json.code !== "00" || !json.data?.checkoutUrl) {
     throw new Error(`payos_create_failed: ${json.desc ?? json.code ?? "unknown"}`);
   }
+  const d = json.data;
   return {
-    checkoutUrl: json.data.checkoutUrl,
-    paymentLinkId: json.data.paymentLinkId ?? "",
-    qrCode: json.data.qrCode,
-    orderCode: json.data.orderCode ?? params.orderCode,
+    checkoutUrl: d.checkoutUrl!,
+    paymentLinkId: d.paymentLinkId ?? "",
+    qrCode: d.qrCode,
+    orderCode: d.orderCode ?? params.orderCode,
+    amount: d.amount ?? amount,
+    accountNumber: d.accountNumber,
+    accountName: d.accountName,
+    bin: d.bin,
+    description: d.description ?? description,
+    currency: d.currency ?? "VND",
   };
 }
 
