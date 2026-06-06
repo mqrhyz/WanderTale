@@ -18,6 +18,7 @@ data class BusinessOverview(
     val ctr: Double = 0.0,
     val suggested_count: Int = 0,
     val remaining_budget_vnd: Double = 0.0,
+    val ad_package_expiry: String? = null,
 )
 
 @Serializable
@@ -306,3 +307,179 @@ data class SystemLogRow(
 
 @Serializable
 data class SystemLogList(val items: List<SystemLogRow> = emptyList())
+
+// --- Marketplace: bookings, payouts, media, ad-package admin, AI rules ---
+
+@Serializable
+data class BookingRecord(
+    val id: String,
+    val user_id: String? = null,
+    val business_id: String? = null,
+    val trip_id: String? = null,
+    val location_id: String? = null,
+    val type: String? = null,
+    val status: String? = null,
+    val currency: String? = null,
+    val total_amount: Double? = null,
+    val gross_amount: Double? = null,
+    val commission_amount: Double? = null,
+    val net_amount: Double? = null,
+    val confirmed_at: String? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class BookingCreate(
+    val business_id: String,
+    val total_amount: Double,
+    val type: String? = null,
+    val trip_id: String? = null,
+    val location_id: String? = null,
+    val currency: String? = null,
+)
+
+@Serializable
+data class BookingPayResponse(
+    val booking_id: String,
+    val status: String,
+    val provider: String? = null,
+    val order_code: Long? = null,
+    val checkout_url: String? = null,
+    val qr_code: String? = null,
+    val commission: Double? = null,
+    val net: Double? = null,
+    val payout: PayoutRecord? = null,
+)
+
+@Serializable
+data class PublicBusinessRow(
+    val id: String,
+    val name: String? = null,
+    val business_type: String? = null,
+    val region: String? = null,
+    val hotline: String? = null,
+    val description: String? = null,
+    val rating_avg: Double? = null,
+    val rating_count: Int? = null,
+)
+
+@Serializable
+data class PublicBusinessList(val items: List<PublicBusinessRow> = emptyList())
+
+@Serializable
+data class PublicBusinessDetail(
+    val business: PublicBusinessRow,
+    val locations: List<BusinessLocationRow> = emptyList(),
+    val media: List<BusinessMediaRow> = emptyList(),
+)
+
+@Serializable
+data class PayoutRecord(
+    val id: String,
+    val business_id: String? = null,
+    val payment_transaction_id: String? = null,
+    val amount: Double? = null,
+    val currency: String? = null,
+    val status: String? = null,
+    val payout_method: String? = null,
+    val provider_ref: String? = null,
+    val paid_at: String? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class PayoutList(val items: List<PayoutRecord> = emptyList())
+
+@Serializable
+data class BusinessMediaRow(
+    val id: String,
+    val business_id: String? = null,
+    val location_id: String? = null,
+    val type: String? = null,
+    val url: String,
+    val thumbnail_url: String? = null,
+    val status: String? = null,
+    val rejection_reason: String? = null,
+    val reviewed_at: String? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class BusinessMediaList(val items: List<BusinessMediaRow> = emptyList())
+
+@Serializable
+data class BusinessMediaCreate(
+    val url: String,
+    val type: String? = null,
+    val location_id: String? = null,
+    val thumbnail_url: String? = null,
+)
+
+@Serializable
+data class MediaStatusPatch(
+    val status: String,
+    val rejection_reason: String? = null,
+)
+
+@Serializable
+data class AdPackageAdminRow(
+    val id: String,
+    val name: String,
+    val description: String? = null,
+    val price_vnd: Double? = null,
+    val duration_days: Int? = null,
+    val boost_level: Int? = null,
+    val active: Boolean? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class AdPackageAdminList(val items: List<AdPackageAdminRow> = emptyList())
+
+@Serializable
+data class AdPackageCreate(
+    val name: String,
+    val description: String? = null,
+    val price_vnd: Double,
+    val duration_days: Int? = null,
+    val boost_level: Int? = null,
+    val active: Boolean? = null,
+)
+
+@Serializable
+data class AiRecommendationRule(
+    val id: String,
+    val name: String,
+    val status: String? = null,
+    val created_at: String? = null,
+    val updated_at: String? = null,
+)
+
+@Serializable
+data class AiRecommendationRuleList(val items: List<AiRecommendationRule> = emptyList())
+
+@Serializable
+data class AiRecommendationRuleCreate(
+    val name: String,
+    val status: String? = null,
+)
+
+@Serializable
+data class AiRecommendationRulePatch(
+    val name: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class BusinessProfilePatch(
+    val name: String? = null,
+    val contact_email: String? = null,
+    val business_type: String? = null,
+    val region: String? = null,
+    val hotline: String? = null,
+    val description: String? = null,
+    val license_no: String? = null,
+)
+
+@Serializable
+data class PackagePurchaseRequest(val package_id: String)

@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.Place
+import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.material.icons.outlined.WbSunny
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -85,6 +87,7 @@ import com.wandertale.mobile.util.hotelImages
 import com.wandertale.mobile.util.parseHotelRating
 import com.wandertale.mobile.util.siteLabel
 import com.wandertale.mobile.util.slotFirstImage
+import com.wandertale.mobile.util.slotMapsQueryUrl
 import com.wandertale.mobile.util.tripNeedsOtaPolling
 import com.wandertale.mobile.util.tripNeedsPolling
 import com.wandertale.mobile.util.withSlotImage
@@ -228,6 +231,7 @@ private fun TripDetailContent(
     val it = trip.itinerary_json
     val days = it?.days.orEmpty()
     var selectedDayIndex by remember(days) { mutableStateOf(0) }
+    var selectedTab by remember { mutableStateOf(TripDetailTab.Itinerary) }
     val activeDayIndex = selectedDayIndex.coerceIn(0, (days.size - 1).coerceAtLeast(0))
     val activeDay = days.getOrNull(activeDayIndex)
     val pending = tripNeedsPolling(trip)
@@ -276,41 +280,62 @@ private fun TripDetailContent(
         }
 
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Agenda theo ngày", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
-                Text(
-                    "Chọn ngày để xem lịch trình chi tiết theo khung giờ.",
-                    fontSize = 14.sp,
-                    color = PremiumColors.Muted,
-                )
-            }
+            DetailTabSelector(selectedTab = selectedTab, onSelect = { selectedTab = it })
         }
-        if (days.isNotEmpty()) {
+
+        if (selectedTab == TripDetailTab.Itinerary) {
             item {
-                DaySchedulePicker(
-                    days = days,
-                    selectedIndex = activeDayIndex,
-                    onSelect = { selectedDayIndex = it },
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Agenda theo ngày", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+                    Text(
+                        "Chọn ngày để xem lịch trình chi tiết theo khung giờ.",
+                        fontSize = 14.sp,
+                        color = PremiumColors.Muted,
+                    )
+                }
             }
-        }
-        activeDay?.let { day ->
-            item(key = "agenda-${day.day}-${day.date}") {
-                DayBlock(day, onMaps)
+            if (days.isNotEmpty()) {
+                item {
+                    DaySchedulePicker(
+                        days = days,
+                        selectedIndex = activeDayIndex,
+                        onSelect = { selectedDayIndex = it },
+                    )
+                }
             }
-        }
+            activeDay?.let { day ->
+                item(key = "agenda-${day.day}-${day.date}") {
+                    DayBlock(day, trip.destination, onMaps)
+                }
+            }
+        } else {
+            item {
+                Text("Khách sạn", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+            }
+            val hotels = it?.hotel_suggestions.orEmpty()
+            if (hotels.isEmpty()) {
+                item {
+                    if (otaPending) {
+                        HotelLoadingProgress()
+                    } else {
+                        Text(
+                            "Chưa có khách sạn đề xuất.",
+                            fontSize = 14.sp,
+                            color = PremiumColors.Muted,
+                        )
+                    }
+                }
+            } else {
+                items(hotels, key = { "${it.name}-${it.site}" }) { hotel ->
+                    HotelCard(hotel, onMaps)
+                }
+            }
 
-        item {
-            Text("Khách sạn (OTA)", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
-        }
-        items(it?.hotel_suggestions.orEmpty(), key = { "${it.name}-${it.site}" }) { hotel ->
-            HotelCard(hotel, onMaps)
-        }
-
-        it?.voucher_suggestions?.takeIf { it.isNotEmpty() }?.let { vouchers ->
-            item { Text("Voucher gợi ý", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink) }
-            items(vouchers, key = { it.voucher_id }) { v ->
-                InfoCard("${v.code} — ${v.title}", v.partner_name)
+            it?.voucher_suggestions?.takeIf { it.isNotEmpty() }?.let { vouchers ->
+                item { Text("Voucher gợi ý", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink) }
+                items(vouchers, key = { it.voucher_id }) { v ->
+                    InfoCard("${v.code} — ${v.title}", v.partner_name)
+                }
             }
         }
 
@@ -320,6 +345,54 @@ private fun TripDetailContent(
                 PremiumGhostButton("Xóa", onDelete, modifier = Modifier.weight(1f))
             }
         }
+    }
+}
+
+private enum class TripDetailTab { Itinerary, Suggestions }
+
+@Composable
+private fun DetailTabSelector(
+    selectedTab: TripDetailTab,
+    onSelect: (TripDetailTab) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(PremiumColors.InputBg)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        DetailTabButton("Lịch trình", selectedTab == TripDetailTab.Itinerary, Modifier.weight(1f)) {
+            onSelect(TripDetailTab.Itinerary)
+        }
+        DetailTabButton("Đề xuất", selectedTab == TripDetailTab.Suggestions, Modifier.weight(1f)) {
+            onSelect(TripDetailTab.Suggestions)
+        }
+    }
+}
+
+@Composable
+private fun DetailTabButton(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier = modifier
+            .height(38.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (selected) PremiumColors.Accent else Color.Transparent)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = if (selected) Color.White else PremiumColors.Muted,
+        )
     }
 }
 
@@ -370,7 +443,7 @@ private fun DaySchedulePicker(
 }
 
 @Composable
-private fun DayBlock(day: ItineraryDayPlan, onMaps: (String) -> Unit) {
+private fun DayBlock(day: ItineraryDayPlan, destination: String, onMaps: (String) -> Unit) {
     val activities = getDayActivities(day)
 
     Column(
@@ -393,6 +466,7 @@ private fun DayBlock(day: ItineraryDayPlan, onMaps: (String) -> Unit) {
                 TimelineAgendaRow(
                     slot = slot,
                     isLast = index == activities.lastIndex,
+                    destination = destination,
                     onMaps = onMaps,
                 )
             }
@@ -404,6 +478,7 @@ private fun DayBlock(day: ItineraryDayPlan, onMaps: (String) -> Unit) {
 private fun TimelineAgendaRow(
     slot: ItinerarySlot,
     isLast: Boolean,
+    destination: String,
     onMaps: (String) -> Unit,
 ) {
     val start = slot.start_time?.trim()?.takeIf { it.isNotEmpty() } ?: "—"
@@ -431,21 +506,13 @@ private fun TimelineAgendaRow(
                     color = Color.White,
                 )
             }
-            if (!isLast) {
-                Box(
-                    modifier = Modifier
-                        .padding(top = 4.dp)
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .background(PremiumColors.Accent.copy(alpha = 0.35f)),
-                )
-            }
         }
 
         AgendaPlaceCard(
             slot = slot,
             start = start,
             end = end,
+            destination = destination,
             modifier = Modifier
                 .weight(1f)
                 .padding(start = 10.dp, bottom = if (isLast) 0.dp else 16.dp),
@@ -459,6 +526,7 @@ private fun AgendaPlaceCard(
     slot: ItinerarySlot,
     start: String,
     end: String,
+    destination: String,
     modifier: Modifier = Modifier,
     onMaps: (String) -> Unit,
 ) {
@@ -510,9 +578,38 @@ private fun AgendaPlaceCard(
                 )
             }
 
-            if (slot.maps_url != null || slot.notes?.isNotBlank() == true) {
+            slot.weather_note?.trim()?.takeIf { it.isNotEmpty() }?.let { weather ->
+                val isWarning = weather.contains("⚠️")
+                val cleaned = weather.replace("⚠️", "").trim()
+                val tint = if (isWarning) Color(0xFFE08A00) else MaterialTheme.colorScheme.onSurfaceVariant
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(tint.copy(alpha = 0.12f))
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Icon(
+                        if (isWarning) Icons.Outlined.WarningAmber else Icons.Outlined.WbSunny,
+                        contentDescription = null,
+                        modifier = Modifier.height(16.dp),
+                        tint = tint,
+                    )
+                    Text(
+                        cleaned,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = if (isWarning) FontWeight.SemiBold else FontWeight.Normal,
+                        color = tint,
+                    )
+                }
+            }
+
+            val mapsQueryUrl = slotMapsQueryUrl(slot, destination)
+            if (mapsQueryUrl != null || slot.notes?.isNotBlank() == true) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-                slot.maps_url?.let { url ->
+                mapsQueryUrl?.let { url ->
                     OutlinedButton(
                         onClick = { onMaps(url) },
                         modifier = Modifier.fillMaxWidth(),
@@ -692,4 +789,41 @@ private fun HotelCard(hotel: BookingSuggestion, onMaps: (String) -> Unit) {
 @Composable
 private fun InfoCardSimple(title: String, subtitle: String) {
     InfoCard(title, subtitle)
+}
+
+/** Lazy-load text xoay vòng cho biết AI đang làm gì khi quét khách sạn/đề xuất. */
+@Composable
+private fun HotelLoadingProgress() {
+    val messages = listOf(
+        "Đang quét khách sạn từ các trang đặt phòng…",
+        "So sánh giá phòng theo ngân sách của bạn…",
+        "Lấy ảnh & vị trí từng khách sạn…",
+        "Chọn lọc gợi ý phù hợp nhất…",
+        "Sắp hoàn tất, chuẩn bị hiển thị…",
+    )
+    var step by remember { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1800)
+            step += 1
+        }
+    }
+    PremiumSurfaceCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(PremiumDesign.CardPadding), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OrangeLoadingSpinner()
+                Text(
+                    messages[step % messages.size],
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = PremiumColors.Ink,
+                )
+            }
+            Text(
+                "AI đang tổng hợp đề xuất, thường mất 10–20 giây…",
+                fontSize = 12.sp,
+                color = PremiumColors.Muted,
+            )
+        }
+    }
 }

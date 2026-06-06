@@ -143,7 +143,10 @@ final class AppState {
     private func jwtPayload(_ token: String) -> [String: Any]? {
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
+        // JWT segments are Base64URL ("-" "_") — convert to standard Base64 before decoding.
         var b64 = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
         while b64.count % 4 != 0 { b64.append("=") }
         guard let data = Data(base64Encoded: b64) else { return nil }
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]

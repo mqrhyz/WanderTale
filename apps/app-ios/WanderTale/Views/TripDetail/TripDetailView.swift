@@ -11,6 +11,15 @@ struct TripDetailView: View {
     @State private var selectedDayIndex = 0
     @State private var imageProgress: (Int, Int)?
     @State private var pollTask: Task<Void, Never>?
+    @State private var showDeleteConfirm = false
+    @State private var actionError: String?
+    @State private var actionInProgress = false
+    @State private var selectedSection: DetailSection = .itinerary
+
+    private enum DetailSection: String, CaseIterable {
+        case itinerary = "Lịch trình"
+        case suggestions = "Đề xuất"
+    }
 
     var body: some View {
         ScrollView {
@@ -37,6 +46,14 @@ struct TripDetailView: View {
         }
         .task { await load() }
         .onDisappear { pollTask?.cancel() }
+        .alert("Xóa chuyến đi?", isPresented: $showDeleteConfirm) {
+            Button("Hủy", role: .cancel) { }
+            Button("Xóa", role: .destructive) {
+                Task { await deleteTrip() }
+            }
+        } message: {
+            Text("Hành động này không thể hoàn tác.")
+        }
     }
 
     @ViewBuilder
@@ -67,6 +84,66 @@ struct TripDetailView: View {
                 }
             }
 
+            sectionTabs
+
+            if selectedSection == .itinerary {
+                itinerarySection(trip, days: days, activeIndex: activeIndex, activeDay: activeDay)
+            } else {
+                suggestionsSection(trip)
+            }
+
+            HStack(spacing: 10) {
+                PremiumAccentButton(title: "Nhân bản") {
+                    Task { await duplicateTrip() }
+                }
+                .disabled(actionInProgress)
+                Button("Xóa") {
+                    showDeleteConfirm = true
+                }
+                .foregroundStyle(PremiumTheme.logoutRed)
+                .frame(maxWidth: .infinity, minHeight: 48)
+                .overlay(RoundedRectangle(cornerRadius: PremiumTheme.buttonRadius).stroke(PremiumTheme.border))
+                .disabled(actionInProgress)
+            }
+
+            if let actionError {
+                Text(actionError)
+                    .font(.system(size: 13))
+                    .foregroundStyle(PremiumTheme.logoutRed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(.horizontal, PremiumTheme.screenPadding)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var sectionTabs: some View {
+        HStack(spacing: 0) {
+            ForEach(DetailSection.allCases, id: \.self) { section in
+                let selected = selectedSection == section
+                Button {
+                    selectedSection = section
+                } label: {
+                    Text(section.rawValue)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(selected ? .white : PremiumTheme.muted)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 38)
+                        .background(selected ? PremiumTheme.accent : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background(PremiumTheme.inputBg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    @ViewBuilder
+    private func itinerarySection(_ trip: TripRecord, days: [ItineraryDayPlan], activeIndex: Int, activeDay: ItineraryDayPlan?) -> some View {
+        VStack(alignment: .leading, spacing: PremiumTheme.sectionGap) {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Agenda theo ngày")
                     .font(.system(size: 18, weight: .semibold))
@@ -89,7 +166,12 @@ struct TripDetailView: View {
             if let activeDay {
                 dayBlock(activeDay)
             }
+        }
+    }
 
+    @ViewBuilder
+    private func suggestionsSection(_ trip: TripRecord) -> some View {
+        VStack(alignment: .leading, spacing: PremiumTheme.sectionGap) {
             HotelSectionView(
                 hotels: trip.itinerary_json?.hotel_suggestions ?? [],
                 destination: trip.destination,
@@ -111,31 +193,7 @@ struct TripDetailView: View {
                     }
                 }
             }
-
-            HStack(spacing: 10) {
-                PremiumAccentButton(title: "Nhân bản") {
-                    Task {
-                        if let dup = try? await ApiService.duplicateTrip(id: tripId) {
-                            await appState.preload()
-                            dismiss()
-                        }
-                    }
-                }
-                Button("Xóa") {
-                    Task {
-                        try? await ApiService.deleteTrip(id: tripId)
-                        await appState.preload()
-                        dismiss()
-                    }
-                }
-                .foregroundStyle(PremiumTheme.logoutRed)
-                .frame(maxWidth: .infinity, minHeight: 48)
-                .overlay(RoundedRectangle(cornerRadius: PremiumTheme.buttonRadius).stroke(PremiumTheme.border))
-            }
         }
-        .padding(.horizontal, PremiumTheme.screenPadding)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func dayChip(day: ItineraryDayPlan, index: Int, selected: Bool) -> some View {
@@ -197,7 +255,22 @@ struct TripDetailView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(PremiumTheme.textMuted)
                 }
-                if let url = slot.maps_url, let link = URL(string: url) {
+                if let weather = slot.weather_note?.trimmingCharacters(in: .whitespaces), !weather.isEmpty {
+                    let isWarning = weather.contains("⚠️")
+                    HStack(alignment: .top, spacing: 4) {
+                        Image(systemName: isWarning ? "exclamationmark.triangle.fill" : "cloud.sun")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(weather.replacingOccurrences(of: "⚠️", with: "").trimmingCharacters(in: .whitespaces))
+                            .font(.system(size: 11, weight: isWarning ? .semibold : .regular))
+                            .lineLimit(2)
+                    }
+                    .foregroundStyle(isWarning ? Color.orange : PremiumTheme.textMuted)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background((isWarning ? Color.orange : PremiumTheme.textMuted).opacity(0.12))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                }
+                if let url = TripUtils.slotMapsUrl(slot, destination: trip?.destination), let link = URL(string: url) {
                     Link("Maps", destination: link)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(PremiumTheme.accent)
@@ -219,6 +292,32 @@ struct TripDetailView: View {
         if TripUtils.tripNeedsOtaPolling(trip) { return "Đang cập nhật giá OTA & ảnh Maps…" }
         if TripUtils.tripNeedsPolling(trip) { return "Đang cập nhật ảnh Maps…" }
         return nil
+    }
+
+    private func duplicateTrip() async {
+        actionError = nil
+        actionInProgress = true
+        defer { actionInProgress = false }
+        do {
+            _ = try await ApiService.duplicateTrip(id: tripId)
+            await appState.preload()
+            dismiss()
+        } catch {
+            actionError = formatApiError(error, fallback: "Không nhân bản được chuyến đi")
+        }
+    }
+
+    private func deleteTrip() async {
+        actionError = nil
+        actionInProgress = true
+        defer { actionInProgress = false }
+        do {
+            try await ApiService.deleteTrip(id: tripId)
+            await appState.preload()
+            dismiss()
+        } catch {
+            actionError = formatApiError(error, fallback: "Không xóa được chuyến đi")
+        }
     }
 
     private func load() async {

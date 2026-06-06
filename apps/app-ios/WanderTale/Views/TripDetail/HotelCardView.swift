@@ -21,7 +21,7 @@ struct HotelSectionView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
             if otaPending && orderedHotels.isEmpty {
-                pendingCard
+                HotelLoadingProgress()
             } else {
                 ForEach(orderedHotels) { hotel in
                     HotelCardView(hotel: hotel, destination: destination)
@@ -33,7 +33,7 @@ struct HotelSectionView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                Text("Khách sạn (qua OTA)")
+                Text("Khách sạn")
                     .font(.system(size: 18, weight: .semibold))
                 if !orderedHotels.isEmpty {
                     Text("\(orderedHotels.count) lựa chọn")
@@ -62,10 +62,33 @@ struct HotelSectionView: View {
     }
 
     private var pendingCard: some View {
-        HStack(spacing: 10) {
-            ProgressView().tint(PremiumTheme.accent)
-            Text("Giá phòng sẽ hiện sau vài giây…")
-                .font(.system(size: 14))
+        HotelLoadingProgress()
+    }
+}
+
+/// Lazy-load text xoay vòng cho biết AI đang làm gì khi quét khách sạn/đề xuất.
+private struct HotelLoadingProgress: View {
+    @State private var step = 0
+
+    private let messages = [
+        "Đang quét khách sạn từ các trang đặt phòng…",
+        "So sánh giá phòng theo ngân sách của bạn…",
+        "Lấy ảnh & vị trí từng khách sạn…",
+        "Chọn lọc gợi ý phù hợp nhất…",
+        "Sắp hoàn tất, chuẩn bị hiển thị…",
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ProgressView().tint(PremiumTheme.accent)
+                Text(messages[step % messages.count])
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(PremiumTheme.ink)
+                    .animation(.easeInOut(duration: 0.25), value: step)
+            }
+            Text("AI đang tổng hợp đề xuất, thường mất 10–20 giây…")
+                .font(.system(size: 12))
                 .foregroundStyle(PremiumTheme.muted)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -76,6 +99,13 @@ struct HotelSectionView: View {
             RoundedRectangle(cornerRadius: PremiumTheme.cardRadius)
                 .stroke(PremiumTheme.border, style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
         )
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1.8))
+                guard !Task.isCancelled else { return }
+                step += 1
+            }
+        }
     }
 }
 

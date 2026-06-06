@@ -34,6 +34,8 @@ struct MainTabView: View {
                         AdminPortalView()
                     case .business:
                         BusinessPortalView()
+                    case .booking:
+                        BookingView()
                     }
                 }
         }
@@ -73,16 +75,14 @@ struct MainTabView: View {
                 selectedTab = tabBeforeCreate
             })
             .id("create")
+        } else if homeRole == .business {
+            BusinessPortalView()
+        } else if homeRole == .admin {
+            AdminPortalView()
         } else {
             ZStack {
                 DashboardView(path: $path, onCreateTrip: openCreateTrip)
-                    .visibleTab(effectiveTab == .dashboard && homeRole == .user)
-
-                BusinessPortalView()
-                    .visibleTab(effectiveTab == .dashboard && homeRole == .business)
-
-                AdminPortalView()
-                    .visibleTab(effectiveTab == .dashboard && homeRole == .admin)
+                    .visibleTab(effectiveTab == .dashboard)
 
                 TripsListView(path: $path)
                     .visibleTab(effectiveTab == .trips)
@@ -123,6 +123,7 @@ enum Route: Hashable {
     case settings
     case admin
     case business
+    case booking
 }
 
 private extension View {

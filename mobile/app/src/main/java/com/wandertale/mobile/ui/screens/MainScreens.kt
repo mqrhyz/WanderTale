@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.MonetizationOn
@@ -581,6 +582,8 @@ fun ProfileScreen(
         PremiumSurfaceCard {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 ProfileSettingsRow("Cài đặt", Icons.Filled.Settings) { onNavigate("settings") }
+                SettingsDivider()
+                ProfileSettingsRow("Đặt chỗ & thanh toán", Icons.Filled.ShoppingCart) { onNavigate("booking") }
                 SettingsDivider()
                 ProfileSettingsRow("Thông báo", Icons.Filled.Notifications) { }
                 SettingsDivider()

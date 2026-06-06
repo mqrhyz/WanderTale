@@ -30,6 +30,7 @@ enum FormatUtils {
 
     static func formatDateRange(start: String, end: String) -> String {
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "yyyy-MM-dd"
         guard let s = fmt.date(from: start), let e = fmt.date(from: end) else { return "\(start) – \(end)" }
         fmt.locale = Locale(identifier: "vi_VN")
@@ -39,6 +40,7 @@ enum FormatUtils {
 
     static func formatDayShort(_ date: String) -> String {
         let inFmt = DateFormatter()
+        inFmt.locale = Locale(identifier: "en_US_POSIX")
         inFmt.dateFormat = "yyyy-MM-dd"
         guard let d = inFmt.date(from: date) else { return date }
         let out = DateFormatter()
@@ -53,6 +55,7 @@ enum TripUtils {
 
     static func getTripPhase(start: String, end: String) -> TripPhase {
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "yyyy-MM-dd"
         guard let s = fmt.date(from: start), let e = fmt.date(from: end) else { return .upcoming }
         let today = Calendar.current.startOfDay(for: Date())
@@ -122,7 +125,7 @@ enum TripUtils {
     }
 
     static func hotelImages(_ hotel: BookingSuggestion) -> [String] {
-        if let urls = hotel.image_preview_urls?.filter({ !$0.isEmpty }), !urls.isEmpty { return urls }
+        if let urls = hotel.image_preview_urls?.filter({ !$0.isEmpty }), let first = urls.first { return [first] }
         if let url = hotel.image_preview_url, !url.isEmpty { return [url] }
         return []
     }
@@ -194,6 +197,18 @@ enum TripUtils {
         let query = destination.map { "\(hotel.name) \($0)" } ?? hotel.name
         let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
         return "https://www.google.com/maps/search/?api=1&query=\(encoded)"
+    }
+
+    /// Maps URL cho địa điểm trong lịch trình: ưu tiên tìm theo TÊN (không dùng toạ độ).
+    static func slotMapsUrl(_ slot: ItinerarySlot, destination: String? = nil) -> String? {
+        let title = slot.title?.trimmingCharacters(in: .whitespaces) ?? ""
+        if !title.isEmpty {
+            let query = destination.map { "\(title) \($0)" } ?? title
+            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+            return "https://www.google.com/maps/search/?api=1&query=\(encoded)"
+        }
+        if let maps = slot.maps_url?.trimmingCharacters(in: .whitespaces), !maps.isEmpty { return maps }
+        return nil
     }
 
     static func tripCoverImageUrl(_ trip: TripRecord) -> String? {
@@ -288,6 +303,7 @@ enum TripUtils {
     private static func iso(daysFromNow: Int) -> String {
         let d = Calendar.current.date(byAdding: .day, value: daysFromNow, to: Date()) ?? Date()
         let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
         fmt.dateFormat = "yyyy-MM-dd"
         return fmt.string(from: d)
     }

@@ -15,10 +15,17 @@ import com.wandertale.mobile.data.model.AdminUserDetail
 import com.wandertale.mobile.data.model.AdminUserList
 import com.wandertale.mobile.data.model.AdminUserRow
 import com.wandertale.mobile.data.model.AdPackageList
+import com.wandertale.mobile.data.model.AdPackageAdminList
+import com.wandertale.mobile.data.model.AdPackageAdminRow
+import com.wandertale.mobile.data.model.AdPackageCreate
 import com.wandertale.mobile.data.model.AdPurchaseResponse
 import com.wandertale.mobile.data.model.AiConfigList
 import com.wandertale.mobile.data.model.AiConfigPatch
 import com.wandertale.mobile.data.model.AiConfigRow
+import com.wandertale.mobile.data.model.AiRecommendationRule
+import com.wandertale.mobile.data.model.AiRecommendationRuleCreate
+import com.wandertale.mobile.data.model.AiRecommendationRuleList
+import com.wandertale.mobile.data.model.AiRecommendationRulePatch
 import com.wandertale.mobile.data.model.BusinessOverview
 import com.wandertale.mobile.data.model.BusinessCampaignCreate
 import com.wandertale.mobile.data.model.BusinessCampaignList
@@ -32,6 +39,18 @@ import com.wandertale.mobile.data.model.BusinessStatusPatch
 import com.wandertale.mobile.data.model.BusinessVoucherCreate
 import com.wandertale.mobile.data.model.BusinessVoucherList
 import com.wandertale.mobile.data.model.BusinessVoucherRow
+import com.wandertale.mobile.data.model.BookingCreate
+import com.wandertale.mobile.data.model.BookingPayResponse
+import com.wandertale.mobile.data.model.BookingRecord
+import com.wandertale.mobile.data.model.BusinessMediaCreate
+import com.wandertale.mobile.data.model.BusinessMediaList
+import com.wandertale.mobile.data.model.BusinessMediaRow
+import com.wandertale.mobile.data.model.BusinessProfilePatch
+import com.wandertale.mobile.data.model.BusinessProfileRow
+import com.wandertale.mobile.data.model.MediaStatusPatch
+import com.wandertale.mobile.data.model.PackagePurchaseRequest
+import com.wandertale.mobile.data.model.PayoutList
+import com.wandertale.mobile.data.model.PayoutRecord
 import com.wandertale.mobile.data.model.PlatformTransactionList
 import com.wandertale.mobile.data.model.ReviewReplyPatch
 import com.wandertale.mobile.data.model.SystemLogList
@@ -41,8 +60,8 @@ import com.wandertale.mobile.data.model.UserStatusPatch
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.ClientRequestException
 import io.ktor.client.plugins.HttpTimeout
+import io.ktor.client.plugins.ResponseException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -81,6 +100,7 @@ object ApiClient {
     }
 
     val http = HttpClient(OkHttp) {
+        expectSuccess = true
         install(ContentNegotiation) { json(json) }
         install(HttpTimeout) {
             requestTimeoutMillis = 300_000
@@ -105,7 +125,7 @@ object ApiClient {
         return block(token)
     }
 
-    private suspend fun parseError(e: ClientRequestException): ApiException {
+    private suspend fun parseError(e: ResponseException): ApiException {
         val text = runCatching { e.response.bodyAsText() }.getOrDefault("")
         val msg = runCatching {
             json.decodeFromString<ApiErrorBody>(text).message
@@ -115,15 +135,23 @@ object ApiClient {
     }
 
     suspend fun listTrips(): List<TripRecord> = authorized { token ->
-        http.get("${baseUrl()}/api/trips") {
-            header("Authorization", "Bearer $token")
-        }.body()
+        try {
+            http.get("${baseUrl()}/api/trips") {
+                header("Authorization", "Bearer $token")
+            }.body()
+        } catch (e: ResponseException) {
+            throw parseError(e)
+        }
     }
 
     suspend fun getTrip(id: String): TripRecord = authorized { token ->
-        http.get("${baseUrl()}/api/trips/$id") {
-            header("Authorization", "Bearer $token")
-        }.body()
+        try {
+            http.get("${baseUrl()}/api/trips/$id") {
+                header("Authorization", "Bearer $token")
+            }.body()
+        } catch (e: ResponseException) {
+            throw parseError(e)
+        }
     }
 
     /** SSE trip updates — calls [onEvent] for each server event; returns when stream closes. */
@@ -160,22 +188,34 @@ object ApiClient {
     }
 
     suspend fun deleteTrip(id: String) = authorized { token ->
-        http.delete("${baseUrl()}/api/trips/$id") {
-            header("Authorization", "Bearer $token")
+        try {
+            http.delete("${baseUrl()}/api/trips/$id") {
+                header("Authorization", "Bearer $token")
+            }
+        } catch (e: ResponseException) {
+            throw parseError(e)
         }
     }
 
     suspend fun duplicateTrip(id: String): TripRecord = authorized { token ->
-        http.post("${baseUrl()}/api/trips/$id/duplicate") {
-            header("Authorization", "Bearer $token")
-        }.body()
+        try {
+            http.post("${baseUrl()}/api/trips/$id/duplicate") {
+                header("Authorization", "Bearer $token")
+            }.body()
+        } catch (e: ResponseException) {
+            throw parseError(e)
+        }
     }
 
     suspend fun previewTrip(destination: String): TripPreviewResponse = authorized { token ->
-        http.get("${baseUrl()}/api/trips/preview") {
-            header("Authorization", "Bearer $token")
-            parameter("destination", destination)
-        }.body()
+        try {
+            http.get("${baseUrl()}/api/trips/preview") {
+                header("Authorization", "Bearer $token")
+                parameter("destination", destination)
+            }.body()
+        } catch (e: ResponseException) {
+            throw parseError(e)
+        }
     }
 
     suspend fun geocodeAutocomplete(text: String): GeocodeAutocompleteResponse = authorized { token ->
@@ -184,7 +224,7 @@ object ApiClient {
                 header("Authorization", "Bearer $token")
                 parameter("text", text.trim())
             }.body()
-        } catch (e: ClientRequestException) {
+        } catch (e: ResponseException) {
             throw parseError(e)
         }
     }
@@ -200,15 +240,19 @@ object ApiClient {
                 HttpStatusCode.Accepted, HttpStatusCode.OK -> response.body()
                 else -> throw ApiException(response.bodyAsText(), response.status.value)
             }
-        } catch (e: ClientRequestException) {
+        } catch (e: ResponseException) {
             throw parseError(e)
         }
     }
 
     suspend fun dashboard(): DashboardStats = authorized { token ->
-        http.get("${baseUrl()}/api/dashboard") {
-            header("Authorization", "Bearer $token")
-        }.body()
+        try {
+            http.get("${baseUrl()}/api/dashboard") {
+                header("Authorization", "Bearer $token")
+            }.body()
+        } catch (e: ResponseException) {
+            throw parseError(e)
+        }
     }
 
     suspend fun businessOverview(): BusinessOverview = portalGet("/api/business/overview")
@@ -252,10 +296,47 @@ object ApiClient {
     suspend fun adminToggleAiEnabled(key: String, enabled: Boolean): AiConfigRow =
         portalPatch("/api/admin/ai-config/$key", AiConfigPatch(mapOf("enabled" to JsonPrimitive(enabled))))
 
+    // --- Marketplace: bookings / payments / payouts / media / ad-package admin / AI rules ---
+
+    suspend fun listBusinesses(): com.wandertale.mobile.data.model.PublicBusinessList = portalGet("/api/businesses")
+    suspend fun businessDetail(id: String): com.wandertale.mobile.data.model.PublicBusinessDetail = portalGet("/api/businesses/$id")
+    suspend fun createBooking(body: BookingCreate): BookingRecord = portalPost("/api/bookings", body)
+    suspend fun getBooking(id: String): BookingRecord = portalGet("/api/bookings/$id")
+    suspend fun payBooking(id: String): BookingPayResponse = portalPost("/api/bookings/$id/pay")
+    suspend fun confirmBooking(id: String): BookingRecord = portalPost("/api/bookings/$id/confirm")
+    suspend fun cancelBooking(id: String): BookingRecord = portalPost("/api/bookings/$id/cancel")
+
+    suspend fun businessProfile(): BusinessProfileRow = portalGet("/api/business/profile")
+    suspend fun updateBusinessProfile(body: BusinessProfilePatch): BusinessProfileRow =
+        portalPatch("/api/business/profile", body)
+    suspend fun businessMedia(): BusinessMediaList = portalGet("/api/business/media")
+    suspend fun uploadBusinessMedia(body: BusinessMediaCreate): BusinessMediaRow =
+        portalPost("/api/business/media", body)
+    suspend fun businessPayouts(): PayoutList = portalGet("/api/business/payouts")
+    suspend fun purchasePackage(packageId: String): AdPurchaseResponse =
+        portalPost("/api/business/packages/purchase", PackagePurchaseRequest(packageId))
+
+    suspend fun adminMedia(status: String? = null): BusinessMediaList =
+        portalGet("/api/admin/media" + if (status != null && status != "all") "?status=$status" else "")
+    suspend fun adminUpdateMediaStatus(id: String, status: String, rejectionReason: String? = null): BusinessMediaRow =
+        portalPatch("/api/admin/media/$id/status", MediaStatusPatch(status, rejectionReason))
+    suspend fun adminAdPackages(): AdPackageAdminList = portalGet("/api/admin/ad-packages")
+    suspend fun adminCreateAdPackage(body: AdPackageCreate): AdPackageAdminRow =
+        portalPost("/api/admin/ad-packages", body)
+    suspend fun adminAiRecommendationRules(): AiRecommendationRuleList =
+        portalGet("/api/admin/ai-recommendation-rules")
+    suspend fun adminCreateAiRule(body: AiRecommendationRuleCreate): AiRecommendationRule =
+        portalPost("/api/admin/ai-recommendation-rules", body)
+    suspend fun adminUpdateAiRule(id: String, body: AiRecommendationRulePatch): AiRecommendationRule =
+        portalPatch("/api/admin/ai-recommendation-rules/$id", body)
+    suspend fun adminPayouts(status: String? = null): PayoutList =
+        portalGet("/api/admin/payouts" + if (status != null && status != "all") "?status=$status" else "")
+    suspend fun adminProcessPayout(id: String): PayoutRecord = portalPost("/api/payouts/$id/process")
+
     private suspend inline fun <reified T> portalGet(path: String): T = authorized { token ->
         try {
             http.get("${baseUrl()}$path") { header("Authorization", "Bearer $token") }.body()
-        } catch (e: ClientRequestException) {
+        } catch (e: ResponseException) {
             throw parseError(e)
         }
     }
@@ -263,7 +344,7 @@ object ApiClient {
     private suspend inline fun <reified T> portalPost(path: String): T = authorized { token ->
         try {
             http.post("${baseUrl()}$path") { header("Authorization", "Bearer $token") }.body()
-        } catch (e: ClientRequestException) {
+        } catch (e: ResponseException) {
             throw parseError(e)
         }
     }
@@ -275,7 +356,7 @@ object ApiClient {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }.body()
-        } catch (e: ClientRequestException) {
+        } catch (e: ResponseException) {
             throw parseError(e)
         }
     }
@@ -287,7 +368,7 @@ object ApiClient {
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }.body()
-        } catch (e: ClientRequestException) {
+        } catch (e: ResponseException) {
             throw parseError(e)
         }
     }

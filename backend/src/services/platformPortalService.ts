@@ -1,4 +1,5 @@
 import { getSupabaseAdmin } from "../lib/auth.js";
+import { logSystemEvent } from "../lib/auditLog.js";
 
 function n(v: unknown): number {
   const x = typeof v === "number" ? v : Number(v);
@@ -16,6 +17,41 @@ export async function getBusinessIdForOwner(ownerId: string): Promise<string | n
     .eq("owner_id", ownerId)
     .maybeSingle();
   return data?.id ?? null;
+}
+
+/** Public catalog: active businesses a user can book. */
+export async function listActiveBusinesses(limit = 100) {
+  const { data } = await getSupabaseAdmin()
+    .from("businesses")
+    .select("id,name,business_type,region,hotline,description,rating_avg,rating_count")
+    .eq("status", "active")
+    .order("rating_avg", { ascending: false })
+    .limit(limit);
+  return data ?? [];
+}
+
+export async function getActiveBusinessDetail(businessId: string) {
+  const { data: business } = await getSupabaseAdmin()
+    .from("businesses")
+    .select("id,name,business_type,region,hotline,description,rating_avg,rating_count,status")
+    .eq("id", businessId)
+    .eq("status", "active")
+    .maybeSingle();
+  if (!business) throw new Error("business_not_found");
+  const { data: locations } = await getSupabaseAdmin()
+    .from("business_locations")
+    .select("id,name,address,category,status")
+    .eq("business_id", businessId)
+    .eq("status", "live")
+    .order("created_at", { ascending: false });
+  const { data: mediaRows } = await getSupabaseAdmin()
+    .from("business_media")
+    .select("id,type,url,thumbnail_url")
+    .eq("business_id", businessId)
+    .eq("status", "approved")
+    .order("created_at", { ascending: false })
+    .limit(12);
+  return { business, locations: locations ?? [], media: mediaRows ?? [] };
 }
 
 export async function businessOverview(businessId: string) {
@@ -54,6 +90,8 @@ export async function businessOverview(businessId: string) {
   const budget = activeCampaigns.reduce((s, c) => s + n(c.budget_vnd), 0);
   const spent = activeCampaigns.reduce((s, c) => s + n(c.spent_vnd), 0);
 
+  const adPackageExpiry = await businessAdExpiry(businessId);
+
   return {
     business,
     booking_count: bookingCount,
@@ -66,6 +104,7 @@ export async function businessOverview(businessId: string) {
     ctr: impressions > 0 ? clicks / impressions : 0,
     suggested_count: suggested,
     remaining_budget_vnd: Math.max(0, budget - spent),
+    ad_package_expiry: adPackageExpiry,
   };
 }
 
@@ -242,6 +281,25 @@ export async function purchaseAdPackage(businessId: string, packageId: string) {
   const now = new Date();
   const ends = new Date(now.getTime() + Number(pkg.duration_days) * 86400000);
 
+  // Ledger first: business pays the platform for advertising (captured).
+  const { data: tx, error: txErr } = await getSupabaseAdmin()
+    .from("platform_transactions")
+    .insert({
+      kind: "ad_purchase",
+      source: "advertising",
+      business_id: businessId,
+      gross_amount: pkg.price_vnd,
+      commission_amount: 0,
+      net_amount: pkg.price_vnd,
+      currency: "VND",
+      status: "captured",
+      description: `Mua gói quảng cáo: ${pkg.name}`,
+      metadata: { package_id: packageId, duration_days: pkg.duration_days },
+    })
+    .select("id")
+    .single();
+  if (txErr) throw txErr;
+
   const { data: order, error: orderErr } = await getSupabaseAdmin()
     .from("business_ad_orders")
     .insert({
@@ -251,20 +309,18 @@ export async function purchaseAdPackage(businessId: string, packageId: string) {
       status: "active",
       starts_at: now.toISOString(),
       ends_at: ends.toISOString(),
+      payment_transaction_id: tx.id,
     })
     .select("*")
     .single();
   if (orderErr) throw orderErr;
 
-  await getSupabaseAdmin().from("platform_transactions").insert({
-    kind: "ad_purchase",
-    business_id: businessId,
-    ad_order_id: order.id,
-    gross_amount: pkg.price_vnd,
-    commission_amount: 0,
-    net_amount: pkg.price_vnd,
-    status: "completed",
-    description: `Mua gói quảng cáo: ${pkg.name}`,
+  await logSystemEvent({
+    level: "success",
+    title: "Ad package purchased",
+    source: "advertising",
+    detail: `${pkg.name} — ${pkg.price_vnd} VND`,
+    metadata: { business_id: businessId, package_id: packageId, order_id: order.id, payment_tx: tx.id },
   });
 
   return order;
@@ -498,6 +554,154 @@ export async function adminUpdateAiConfig(key: string, value: Record<string, unk
   const { data, error } = await getSupabaseAdmin()
     .from("ai_platform_config")
     .upsert({ key, value, updated_at: new Date().toISOString() })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+// --- Marketplace extensions: business profile/locations, ad-package admin CRUD ---
+
+export async function getBusinessProfile(businessId: string) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("businesses")
+    .select(
+      "id,owner_id,name,contact_email,status,commission_rate,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at",
+    )
+    .eq("id", businessId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("business_not_found");
+  return data;
+}
+
+export async function updateBusinessProfile(
+  businessId: string,
+  body: {
+    name?: string;
+    contact_email?: string;
+    business_type?: string;
+    region?: string;
+    hotline?: string;
+    description?: string;
+    license_no?: string;
+  },
+) {
+  const patch: Record<string, unknown> = {};
+  for (const key of ["name", "contact_email", "business_type", "region", "hotline", "description", "license_no"] as const) {
+    if (typeof body[key] === "string") patch[key] = body[key];
+  }
+  if (Object.keys(patch).length === 0) throw new Error("nothing_to_update");
+  const { data, error } = await getSupabaseAdmin()
+    .from("businesses")
+    .update(patch)
+    .eq("id", businessId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateBusinessLocation(
+  businessId: string,
+  locationId: string,
+  body: { name?: string; address?: string; category?: string; status?: string; lat?: number; lng?: number },
+) {
+  const patch: Record<string, unknown> = {};
+  if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body.address === "string") patch.address = body.address;
+  if (typeof body.category === "string") patch.category = body.category;
+  if (body.status === "live" || body.status === "hidden") patch.status = body.status;
+  if (typeof body.lat === "number") patch.lat = body.lat;
+  if (typeof body.lng === "number") patch.lng = body.lng;
+  if (Object.keys(patch).length === 0) throw new Error("nothing_to_update");
+  const { data, error } = await getSupabaseAdmin()
+    .from("business_locations")
+    .update(patch)
+    .eq("id", locationId)
+    .eq("business_id", businessId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+/** Active ad order expiry (ends_at of the latest active order) for dashboard. */
+export async function businessAdExpiry(businessId: string): Promise<string | null> {
+  const { data } = await getSupabaseAdmin()
+    .from("business_ad_orders")
+    .select("ends_at")
+    .eq("business_id", businessId)
+    .eq("status", "active")
+    .order("ends_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.ends_at ?? null;
+}
+
+export async function adminListAdPackages() {
+  const { data } = await getSupabaseAdmin()
+    .from("ad_packages")
+    .select("id,name,description,price_vnd,duration_days,boost_level,benefits,active,created_at")
+    .order("price_vnd", { ascending: true });
+  return data ?? [];
+}
+
+export async function adminCreateAdPackage(body: {
+  name?: string;
+  description?: string;
+  price_vnd?: number;
+  duration_days?: number;
+  boost_level?: number;
+  benefits?: Record<string, unknown>;
+  active?: boolean;
+}) {
+  if (!body.name?.trim()) throw new Error("package_name_required");
+  const price = n(body.price_vnd);
+  if (price <= 0) throw new Error("package_price_invalid");
+  const { data, error } = await getSupabaseAdmin()
+    .from("ad_packages")
+    .insert({
+      name: body.name.trim(),
+      description: body.description ?? null,
+      price_vnd: price,
+      duration_days: body.duration_days ?? 7,
+      boost_level: body.boost_level ?? 1,
+      benefits: body.benefits ?? {},
+      active: body.active ?? true,
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  await logSystemEvent({ title: "Ad package created", source: "advertising", metadata: { package_id: data.id } });
+  return data;
+}
+
+export async function adminUpdateAdPackage(
+  packageId: string,
+  body: {
+    name?: string;
+    description?: string;
+    price_vnd?: number;
+    duration_days?: number;
+    boost_level?: number;
+    benefits?: Record<string, unknown>;
+    active?: boolean;
+  },
+) {
+  const patch: Record<string, unknown> = {};
+  if (typeof body.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body.description === "string") patch.description = body.description;
+  if (typeof body.price_vnd === "number") patch.price_vnd = body.price_vnd;
+  if (typeof body.duration_days === "number") patch.duration_days = body.duration_days;
+  if (typeof body.boost_level === "number") patch.boost_level = body.boost_level;
+  if (body.benefits && typeof body.benefits === "object") patch.benefits = body.benefits;
+  if (typeof body.active === "boolean") patch.active = body.active;
+  if (Object.keys(patch).length === 0) throw new Error("nothing_to_update");
+  const { data, error } = await getSupabaseAdmin()
+    .from("ad_packages")
+    .update(patch)
+    .eq("id", packageId)
     .select("*")
     .single();
   if (error) throw error;

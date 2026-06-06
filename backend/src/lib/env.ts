@@ -89,6 +89,33 @@ const envSchema = z.object({
   PEXELS_API_KEY: z.string().optional().default(""),
   /** Optional token for Cloud Tasks/internal worker endpoint. */
   INTERNAL_WORKER_TOKEN: z.string().optional().default(""),
+  // --- Marketplace payments / payout / media moderation ---
+  /** true = mô phỏng capture thanh toán (chưa nối cổng thật). Đặt false khi tích hợp gateway. */
+  PAYMENT_SIMULATION_MODE: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false" && v !== "0"),
+  /** Tỷ lệ hoa hồng mặc định của platform (%) khi business chưa có commission_rate riêng. */
+  DEFAULT_PLATFORM_COMMISSION_RATE: z.coerce.number().min(0).max(100).default(10),
+  /** true = tự động chuyển payout sang 'paid' ngay (simulation). false = admin/worker xử lý thủ công. */
+  PAYOUT_AUTO_PROCESS: z
+    .string()
+    .optional()
+    .transform((v) => v === "true" || v === "1"),
+  /** true = media business cần admin duyệt (pending) trước khi hiển thị. */
+  BUSINESS_MEDIA_MODERATION_REQUIRED: z
+    .string()
+    .optional()
+    .transform((v) => v !== "false" && v !== "0"),
+  // --- PayOS payment gateway (dùng khi PAYMENT_SIMULATION_MODE=false) ---
+  PAYOS_CLIENT_ID: z.string().optional().default(""),
+  PAYOS_API_KEY: z.string().optional().default(""),
+  PAYOS_CHECKSUM_KEY: z.string().optional().default(""),
+  /** PayOS API base. */
+  PAYOS_API_BASE: z.string().default("https://api-merchant.payos.vn"),
+  /** URL PayOS redirect khi thanh toán xong/huỷ (deep link app hoặc web). */
+  PAYOS_RETURN_URL: z.string().default("https://wandertale.app/payment/success"),
+  PAYOS_CANCEL_URL: z.string().default("https://wandertale.app/payment/cancel"),
   BACKEND_CORS_ORIGINS: z.string().default("http://localhost:3000,http://127.0.0.1:3000"),
 });
 

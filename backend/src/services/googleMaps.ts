@@ -65,7 +65,7 @@ export async function placesTextSearch(
       "X-Goog-Api-Key": env.GOOGLE_MAPS_API_KEY,
       "X-Goog-FieldMask":
         options?.fieldMask ??
-        "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.priceLevel",
+        "places.id,places.displayName,places.formattedAddress,places.location,places.types,places.priceLevel,places.businessStatus",
     },
     body: JSON.stringify(body),
   });
@@ -73,7 +73,14 @@ export async function placesTextSearch(
     const t = await r.text();
     throw new Error(`Places search failed: ${r.status} ${t}`);
   }
-  return r.json();
+  const data = (await r.json()) as { places?: Array<{ businessStatus?: string }> };
+  // Loại địa điểm đã đóng cửa vĩnh viễn/tạm thời — AI không nên đề xuất.
+  if (Array.isArray(data.places)) {
+    data.places = data.places.filter(
+      (p) => p?.businessStatus !== "CLOSED_PERMANENTLY" && p?.businessStatus !== "CLOSED_TEMPORARILY"
+    );
+  }
+  return data;
 }
 
 export type GooglePlacePhotoCandidate = {

@@ -1,5 +1,5 @@
 import type { FastifyInstance } from "fastify";
-import { requireBusiness } from "../lib/auth.js";
+import { requireBusiness, requireBusinessOwner } from "../lib/auth.js";
 import {
   businessCampaigns,
   businessLocations,
@@ -11,10 +11,15 @@ import {
   createBusinessLocation,
   createBusinessVoucher,
   getBusinessIdForOwner,
+  getBusinessProfile,
   listAdPackages,
   purchaseAdPackage,
   replyBusinessReview,
+  updateBusinessLocation,
+  updateBusinessProfile,
 } from "../services/platformPortalService.js";
+import { createBusinessMedia, listBusinessMedia } from "../services/businessMediaService.js";
+import { listBusinessPayouts } from "../services/payoutService.js";
 
 export async function businessPortalRoutes(app: FastifyInstance) {
   app.get("/business/overview", { preHandler: requireBusiness }, async (req, reply) => {
@@ -155,4 +160,96 @@ export async function businessPortalRoutes(app: FastifyInstance) {
       }
     },
   );
+
+  // --- Marketplace: packages alias, locations patch, media, profile, payouts ---
+
+  app.get("/business/packages", { preHandler: requireBusiness }, async (_req, reply) => {
+    try {
+      return { items: await listAdPackages() };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(500).send({ error: msg });
+    }
+  });
+
+  app.post<{ Body: { package_id?: string } }>(
+    "/business/packages/purchase",
+    { preHandler: requireBusinessOwner },
+    async (req, reply) => {
+      try {
+        const packageId = req.body?.package_id;
+        if (!packageId) return reply.code(400).send({ error: "package_id_required" });
+        return { order: await purchaseAdPackage(req.businessId!, packageId) };
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        return reply.code(400).send({ error: msg });
+      }
+    },
+  );
+
+  app.patch<{ Params: { id: string }; Body: Record<string, unknown> }>(
+    "/business/locations/:id",
+    { preHandler: requireBusinessOwner },
+    async (req, reply) => {
+      try {
+        return await updateBusinessLocation(req.businessId!, req.params.id, req.body as never);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        return reply.code(400).send({ error: msg });
+      }
+    },
+  );
+
+  app.get("/business/media", { preHandler: requireBusinessOwner }, async (req, reply) => {
+    try {
+      return { items: await listBusinessMedia(req.businessId!) };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(500).send({ error: msg });
+    }
+  });
+
+  app.post<{ Body: { url?: string; type?: string; location_id?: string | null; thumbnail_url?: string | null } }>(
+    "/business/media",
+    { preHandler: requireBusinessOwner },
+    async (req, reply) => {
+      try {
+        return await createBusinessMedia(req.businessId!, req.userId!, req.body ?? {});
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        return reply.code(400).send({ error: msg });
+      }
+    },
+  );
+
+  app.get("/business/profile", { preHandler: requireBusinessOwner }, async (req, reply) => {
+    try {
+      return await getBusinessProfile(req.businessId!);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(500).send({ error: msg });
+    }
+  });
+
+  app.patch<{ Body: Record<string, unknown> }>(
+    "/business/profile",
+    { preHandler: requireBusinessOwner },
+    async (req, reply) => {
+      try {
+        return await updateBusinessProfile(req.businessId!, req.body as never);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        return reply.code(400).send({ error: msg });
+      }
+    },
+  );
+
+  app.get("/business/payouts", { preHandler: requireBusinessOwner }, async (req, reply) => {
+    try {
+      return { items: await listBusinessPayouts(req.businessId!) };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(500).send({ error: msg });
+    }
+  });
 }

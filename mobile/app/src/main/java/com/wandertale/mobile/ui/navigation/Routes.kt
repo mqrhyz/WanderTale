@@ -16,6 +16,7 @@ object Routes {
     const val SETTINGS = "settings"
     const val ADMIN = "admin"
     const val BUSINESS = "business"
+    const val BOOKING = "booking"
 
     /** Routes where bottom nav should be hidden (prefix match). */
     val hideNavRoutePrefixes = setOf(
@@ -28,6 +29,7 @@ object Routes {
         SETTINGS,
         ADMIN,
         BUSINESS,
+        BOOKING,
         "trip/",
     )
 

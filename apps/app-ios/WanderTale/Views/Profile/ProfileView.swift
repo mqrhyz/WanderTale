@@ -41,6 +41,8 @@ struct ProfileView: View {
                 VStack(spacing: 0) {
                     settingsRow("Cài đặt", icon: "gearshape.fill") { path.append(Route.settings) }
                     divider
+                    settingsRow("Đặt chỗ & thanh toán", icon: "cart.fill") { path.append(Route.booking) }
+                    divider
                     settingsRow("Thông báo", icon: "bell.fill") { }
                     divider
                     settingsRow("Trợ giúp & FAQ", icon: "questionmark.circle.fill") { }
@@ -277,7 +279,10 @@ struct AdminView: View {
         guard let token = SupabaseClient.accessToken else { return nil }
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
+        // JWT segments are Base64URL ("-" "_") — convert to standard Base64 before decoding.
         var b64 = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
         while b64.count % 4 != 0 { b64.append("=") }
         guard let data = Data(base64Encoded: b64),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }

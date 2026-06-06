@@ -12,6 +12,7 @@ struct BusinessOverview: Codable {
     var ctr: Double = 0
     var suggested_count: Int = 0
     var remaining_budget_vnd: Double = 0
+    var ad_package_expiry: String?
 }
 
 struct AdminOverview: Codable {
@@ -309,3 +310,164 @@ struct SystemLogRow: Codable, Identifiable {
 }
 
 struct SystemLogList: Codable { var items: [SystemLogRow] = [] }
+
+// MARK: - Marketplace: bookings, payouts, media, ad-package admin, AI rules
+
+struct BookingRecord: Codable, Identifiable {
+    let id: String
+    var user_id: String?
+    var business_id: String?
+    var trip_id: String?
+    var location_id: String?
+    var type: String?
+    var status: String?
+    var currency: String?
+    var total_amount: Double?
+    var gross_amount: Double?
+    var commission_amount: Double?
+    var net_amount: Double?
+    var confirmed_at: String?
+    var created_at: String?
+}
+
+struct BookingCreate: Codable {
+    var business_id: String
+    var total_amount: Double
+    var type: String?
+    var trip_id: String?
+    var location_id: String?
+    var currency: String?
+}
+
+struct BookingPayResponse: Codable {
+    var booking_id: String
+    var status: String
+    var provider: String?
+    var order_code: Int?
+    var checkout_url: String?
+    var qr_code: String?
+    var commission: Double?
+    var net: Double?
+    var payment_transaction: PlatformTransaction?
+    var payout: PayoutRecord?
+}
+
+struct PublicBusinessRow: Codable, Identifiable {
+    let id: String
+    var name: String?
+    var business_type: String?
+    var region: String?
+    var hotline: String?
+    var description: String?
+    var rating_avg: Double?
+    var rating_count: Int?
+}
+
+struct PublicBusinessList: Codable { var items: [PublicBusinessRow] = [] }
+
+struct PublicBusinessDetail: Codable {
+    var business: PublicBusinessRow
+    var locations: [BusinessLocationRow] = []
+    var media: [BusinessMediaRow] = []
+}
+
+struct PayoutRecord: Codable, Identifiable {
+    let id: String
+    var business_id: String?
+    var payment_transaction_id: String?
+    var amount: Double?
+    var currency: String?
+    var status: String?
+    var payout_method: String?
+    var provider_ref: String?
+    var paid_at: String?
+    var created_at: String?
+}
+
+struct PayoutList: Codable { var items: [PayoutRecord] = [] }
+
+struct BusinessMediaRow: Codable, Identifiable {
+    let id: String
+    var business_id: String?
+    var location_id: String?
+    var type: String?
+    var url: String
+    var thumbnail_url: String?
+    var status: String?
+    var rejection_reason: String?
+    var reviewed_at: String?
+    var created_at: String?
+}
+
+struct BusinessMediaList: Codable { var items: [BusinessMediaRow] = [] }
+
+struct BusinessMediaCreate: Codable {
+    var url: String
+    var type: String?
+    var location_id: String?
+    var thumbnail_url: String?
+}
+
+struct MediaStatusPatch: Codable {
+    var status: String
+    var rejection_reason: String?
+}
+
+struct AdPackageAdminRow: Codable, Identifiable {
+    let id: String
+    var name: String
+    var description: String?
+    var price_vnd: Double?
+    var duration_days: Int?
+    var boost_level: Int?
+    var active: Bool?
+    var created_at: String?
+}
+
+struct AdPackageAdminList: Codable { var items: [AdPackageAdminRow] = [] }
+
+struct AdPackageCreate: Codable {
+    var name: String
+    var description: String?
+    var price_vnd: Double
+    var duration_days: Int?
+    var boost_level: Int?
+    var active: Bool?
+}
+
+struct AiRecommendationRule: Codable, Identifiable {
+    let id: String
+    var name: String
+    var status: String?
+    var created_at: String?
+    var updated_at: String?
+}
+
+struct AiRecommendationRuleList: Codable { var items: [AiRecommendationRule] = [] }
+
+struct AiRecommendationRuleCreate: Codable {
+    var name: String
+    var status: String?
+}
+
+struct AiRecommendationRulePatch: Codable {
+    var name: String?
+    var status: String?
+}
+
+struct BusinessProfilePatch: Codable {
+    var name: String?
+    var contact_email: String?
+    var business_type: String?
+    var region: String?
+    var hotline: String?
+    var description: String?
+    var license_no: String?
+}
+
+struct BusinessLocationPatch: Codable {
+    var name: String?
+    var address: String?
+    var category: String?
+    var status: String?
+}

@@ -553,12 +553,14 @@ struct TripPlannerView: View {
 
     private func isoDate(_ s: String) -> Date? {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f.date(from: s)
     }
 
     private func isoString(_ d: Date) -> String {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
         return f.string(from: d)
     }
@@ -566,6 +568,7 @@ struct TripPlannerView: View {
     private func formatDisplayDate(_ s: String) -> String {
         guard let date = isoDate(s) else { return s }
         let f = DateFormatter()
+        f.locale = Locale(identifier: "vi_VN")
         f.dateFormat = "dd/MM/yyyy"
         return f.string(from: date)
     }

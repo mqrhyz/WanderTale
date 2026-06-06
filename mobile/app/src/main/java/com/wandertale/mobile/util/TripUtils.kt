@@ -46,7 +46,9 @@ object FormatUtils {
 
     fun formatDateRange(start: String, end: String): String {
         val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy", Locale("vi"))
-        return "${LocalDate.parse(start).format(fmt)} - ${LocalDate.parse(end).format(fmt)}"
+        return runCatching {
+            "${LocalDate.parse(start).format(fmt)} - ${LocalDate.parse(end).format(fmt)}"
+        }.getOrElse { "$start - $end" }
     }
 
     fun formatDayShort(date: String): String =
@@ -59,8 +61,9 @@ enum class TripPhase { UPCOMING, ONGOING, COMPLETED }
 
 fun getTripPhase(startDate: String, endDate: String): TripPhase {
     val today = LocalDate.now()
-    val start = LocalDate.parse(startDate)
-    val end = LocalDate.parse(endDate)
+    val start = runCatching { LocalDate.parse(startDate) }.getOrNull()
+    val end = runCatching { LocalDate.parse(endDate) }.getOrNull()
+    if (start == null || end == null) return TripPhase.UPCOMING
     return when {
         today.isBefore(start) -> TripPhase.UPCOMING
         today.isAfter(end) -> TripPhase.COMPLETED
@@ -164,7 +167,7 @@ fun formatSlotClock(time: String): String {
 fun formatTimeRange(start: String, end: String): String = "$start – $end"
 
 fun hotelImages(hotel: com.wandertale.mobile.data.model.BookingSuggestion): List<String> {
-    hotel.image_preview_urls?.filter { it.isNotBlank() }?.takeIf { it.isNotEmpty() }?.let { return it }
+    hotel.image_preview_urls?.filter { it.isNotBlank() }?.firstOrNull()?.let { return listOf(it) }
     hotel.image_preview_url?.takeIf { it.isNotBlank() }?.let { return listOf(it) }
     return emptyList()
 }
@@ -172,6 +175,16 @@ fun hotelImages(hotel: com.wandertale.mobile.data.model.BookingSuggestion): List
 /** Ảnh cover thành phố từ Pexels (backend), không dùng ảnh khách sạn/lịch trình. */
 fun tripCoverImageUrl(trip: TripRecord): String? {
     return trip.cover_image_url?.takeIf { it.isNotBlank() }
+}
+
+/** Google Maps URL tìm theo TÊN địa điểm (không dùng toạ độ). */
+fun slotMapsQueryUrl(slot: ItinerarySlot, destination: String? = null): String? {
+    val title = slot.title?.trim()?.takeIf { it.isNotEmpty() }
+    if (title != null) {
+        val query = if (!destination.isNullOrBlank()) "$title $destination" else title
+        return "https://www.google.com/maps/search/?api=1&query=${android.net.Uri.encode(query)}"
+    }
+    return slot.maps_url?.trim()?.takeIf { it.isNotEmpty() }
 }
 
 fun parseHotelRating(reason: String?, priceLevel: Int? = null): Int {

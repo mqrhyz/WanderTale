@@ -10,6 +10,9 @@ struct AdminPortalView: View {
     @State private var businesses: [AdminBusinessRow] = []
     @State private var aiConfigs: [AiConfigRow] = []
     @State private var logs: [SystemLogRow] = []
+    @State private var media: [BusinessMediaRow] = []
+    @State private var payouts: [PayoutRecord] = []
+    @State private var aiRules: [AiRecommendationRule] = []
     @State private var selectedUserDetail: AdminUserDetail?
     @State private var userSearch = ""
     @State private var userFilter = "Tất cả"
@@ -191,7 +194,7 @@ struct AdminPortalView: View {
                     metricCard("Trips tạo hôm nay", "\(o.trips_today)", subtitle: trendSubtitle(o.trips_today, label: "so hôm qua"))
                 }
                 HStack(spacing: 12) {
-                    metricCard("Doanh thu tháng", formatCompactVnd(o.total_revenue_vnd), subtitle: trendSubtitle(Int(o.total_revenue_vnd / 1_000_000), label: "vs tháng trước"))
+                    metricCard("Doanh thu tháng", formatCompactVnd(o.total_revenue_vnd), subtitle: trendSubtitle(o.total_revenue_vnd.isFinite ? Int(o.total_revenue_vnd / 1_000_000) : 0, label: "vs tháng trước"))
                     metricCard("Business hoạt động", "\(o.business_count)", subtitle: "\(o.pending_business_count) chờ duyệt")
                 }
                 adminSectionTitle("DOANH THU 7 NGÀY")
@@ -347,7 +350,141 @@ struct AdminPortalView: View {
 
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
+            adminMediaSection
+            adminPayoutsSection
+            adminAiRulesSection
             logsSection
+        }
+    }
+
+    private var adminMediaSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            adminSectionTitle("DUYỆT MEDIA")
+            if media.isEmpty {
+                adminEmpty("Chưa có media chờ duyệt.")
+            } else {
+                VStack(spacing: 10) {
+                    ForEach(media) { item in
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text((item.type == "video" ? "🎬 " : "🖼 ") + item.url)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(AdminPortalStyle.text)
+                                .lineLimit(2)
+                            HStack {
+                                statusPill(item.status ?? "pending", bad: item.status == "rejected")
+                                Spacer()
+                                if item.status == "pending" {
+                                    Button("Từ chối") { Task { await updateMedia(item.id, "rejected") } }
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(Color(red: 0.48, green: 0.08, blue: 0.08))
+                                    Button("Duyệt") { Task { await updateMedia(item.id, "approved") } }
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundStyle(AdminPortalStyle.green)
+                                        .padding(.leading, 14)
+                                }
+                            }
+                        }
+                        .padding(14)
+                        .background(AdminPortalStyle.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+            }
+        }
+    }
+
+    private var adminPayoutsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            adminSectionTitle("PAYOUT")
+            if payouts.isEmpty {
+                adminEmpty("Chưa có khoản payout nào.")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(payouts.enumerated()), id: \.element.id) { index, payout in
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(formatPlatformVnd(payout.amount))
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(AdminPortalStyle.text)
+                                Text(payout.created_at.map { String($0.prefix(10)) } ?? "")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(AdminPortalStyle.muted)
+                            }
+                            Spacer()
+                            if ["pending", "scheduled", "failed"].contains(payout.status ?? "") {
+                                Button("Chi trả") { Task { await processPayout(payout.id) } }
+                                    .font(.system(size: 13, weight: .bold))
+                                    .foregroundStyle(AdminPortalStyle.green)
+                            } else {
+                                statusPill(payout.status ?? "pending")
+                            }
+                        }
+                        .padding(.vertical, 12)
+                        if index < payouts.count - 1 { adminDivider }
+                    }
+                }
+            }
+        }
+    }
+
+    private var adminAiRulesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            adminSectionTitle("AI RECOMMENDATION RULES")
+            if aiRules.isEmpty {
+                adminEmpty("Chưa có rule nào.")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(aiRules.enumerated()), id: \.element.id) { index, rule in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text(rule.name).font(.system(size: 14, weight: .bold)).foregroundStyle(AdminPortalStyle.text)
+                                Text(rule.status == "active" ? "Đang bật" : "Đang tắt")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(AdminPortalStyle.muted)
+                            }
+                            Spacer()
+                            Button(rule.status == "active" ? "Tắt" : "Bật") {
+                                Task { await toggleRule(rule.id, current: rule.status) }
+                            }
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundStyle(rule.status == "active" ? Color(red: 0.48, green: 0.08, blue: 0.08) : AdminPortalStyle.green)
+                        }
+                        .padding(.vertical, 12)
+                        if index < aiRules.count - 1 { adminDivider }
+                    }
+                }
+            }
+        }
+    }
+
+    private func updateMedia(_ id: String, _ status: String) async {
+        do {
+            _ = try await ApiService.adminUpdateMediaStatus(id: id, status: status, rejectionReason: status == "rejected" ? "Không đạt yêu cầu" : nil)
+            actionMessage = status == "approved" ? "Đã duyệt media." : "Đã từ chối media."
+            await load()
+        } catch {
+            actionMessage = formatApiError(error, fallback: "Lỗi cập nhật media")
+        }
+    }
+
+    private func processPayout(_ id: String) async {
+        do {
+            _ = try await ApiService.adminProcessPayout(id: id)
+            actionMessage = "Đã xử lý payout."
+            await load()
+        } catch {
+            actionMessage = formatApiError(error, fallback: "Lỗi xử lý payout")
+        }
+    }
+
+    private func toggleRule(_ id: String, current: String?) async {
+        do {
+            let next = current == "active" ? "inactive" : "active"
+            _ = try await ApiService.adminUpdateAiRule(id: id, patch: AiRecommendationRulePatch(name: nil, status: next))
+            actionMessage = "Đã cập nhật rule."
+            await load()
+        } catch {
+            actionMessage = formatApiError(error, fallback: "Lỗi cập nhật rule")
         }
     }
 
@@ -859,6 +996,7 @@ struct AdminPortalView: View {
     }
 
     private func formatCompactVnd(_ value: Double) -> String {
+        guard value.isFinite else { return "₫0" }
         if value >= 1_000_000 {
             return String(format: "₫%.1fM", value / 1_000_000)
         }
@@ -893,12 +1031,24 @@ struct AdminPortalView: View {
         loading = true
         error = nil
         do {
-            overview = try await ApiService.adminOverview()
-            transactions = try await ApiService.adminTransactions().items
-            users = try await ApiService.adminUsers().items
-            businesses = try await ApiService.adminBusinesses().items
-            aiConfigs = try await ApiService.adminAiConfig().items
-            logs = try await ApiService.adminSystemLogs().items
+            async let o = ApiService.adminOverview()
+            async let t = ApiService.adminTransactions()
+            async let u = ApiService.adminUsers()
+            async let b = ApiService.adminBusinesses()
+            async let a = ApiService.adminAiConfig()
+            async let l = ApiService.adminSystemLogs()
+            async let m = ApiService.adminMedia()
+            async let pay = ApiService.adminPayouts()
+            async let rules = ApiService.adminAiRecommendationRules()
+            overview = try await o
+            transactions = try await t.items
+            users = try await u.items
+            businesses = try await b.items
+            aiConfigs = try await a.items
+            logs = try await l.items
+            media = try await m.items
+            payouts = try await pay.items
+            aiRules = try await rules.items
         } catch {
             self.error = formatApiError(error, fallback: "Không tải được dữ liệu admin")
         }

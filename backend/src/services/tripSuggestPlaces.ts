@@ -85,6 +85,8 @@ export async function suggestPlacesForTrip(
 ): Promise<SuggestedPlacesPlan> {
   const numDays = context.dates.length;
   const ctx = llmContextCharLimit();
+  const now = new Date();
+  const monthYear = `tháng ${now.getMonth() + 1}/${now.getFullYear()}`;
   const prompt = [
     `Bạn là chuyên gia du lịch Việt Nam. Gợi ý danh sách địa điểm CỤ THỂ (tên thật) cho chuyến đi.`,
     `Trả về JSON: { "places": [ { "name", "type": "attraction"|"restaurant"|"activity", "day"?: 1..${numDays}, "estimated_cost_vnd"?: number, "duration_minutes"?: number, "note"?: string } ] }`,
@@ -93,6 +95,8 @@ export async function suggestPlacesForTrip(
     `Budget tổng (ước tính VND hoặc đơn vị user nhập): ${body.budget}`,
     `Travelers: ${body.travelers}, pace: ${body.pace}, accommodation: ${body.accommodation_style ?? "standard"}`,
     `Preferences: ${body.preferences.tags.join(", ") || "general"}`,
+    `Thời điểm hiện tại: ${monthYear}. ƯU TIÊN địa điểm đang HOT / được ưa chuộng & phù hợp mùa này (${monthYear}); tránh nơi đã lỗi thời hoặc vắng khách.`,
+    `TUYỆT ĐỐI KHÔNG gợi ý địa điểm đã ĐÓNG CỬA VĨNH VIỄN, ngừng hoạt động, hoặc đang đóng cửa dài hạn.`,
     `Gợi ý đúng ${numDays * 3} địa điểm — ${numDays} ngày × 3 buổi (sáng/chiều/tối), mỗi buổi 1 địa điểm riêng.`,
     `Mỗi place BẮT BUỘC có "day" (1..${numDays}) và "name" là tên riêng cụ thể (không chung chung).`,
     `Không trùng tên địa điểm trong cùng chuyến đi.`,

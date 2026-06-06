@@ -36,7 +36,9 @@ enum ApiService {
         body: Data? = nil,
         query: [String: String] = [:]
     ) async throws -> T {
-        var components = URLComponents(string: "\(AppConfig.apiURL)\(path)")!
+        guard var components = URLComponents(string: "\(AppConfig.apiURL)\(path)") else {
+            throw ApiError(message: "URL API không hợp lệ")
+        }
         if !query.isEmpty {
             components.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
         }

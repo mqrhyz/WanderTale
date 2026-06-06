@@ -95,3 +95,63 @@ export async function requireBusiness(req: FastifyRequest, reply: FastifyReply):
     await reply.status(500).send({ error: msg });
   }
 }
+
+/**
+ * Strict owner guard for business owner-actions (create/update own resources).
+ * Resolves the caller's own business and attaches `req.businessId`.
+ * Admins are allowed through but only get `req.businessId` if they also own one
+ * — admin-acting-on-arbitrary-business must use admin endpoints, not these.
+ */
+export async function requireBusinessOwner(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  await requireAuth(req, reply);
+  if (reply.sent || !req.userId) return;
+  try {
+    const flags = await loadProfileFlags(req.userId);
+    req.isAdmin = flags.is_admin;
+    if (!flags.is_business && !flags.is_admin) {
+      await reply.status(403).send({ error: "business_required" });
+      return;
+    }
+    const { data } = await supabaseAdmin()
+      .from("businesses")
+      .select("id,status")
+      .eq("owner_id", req.userId)
+      .maybeSingle();
+    if (!data?.id) {
+      await reply.status(404).send({ error: "business_not_found" });
+      return;
+    }
+    if (data.status === "suspended") {
+      await reply.status(403).send({ error: "business_suspended" });
+      return;
+    }
+    req.businessId = data.id;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    await reply.status(500).send({ error: msg });
+  }
+}
+
+/** Read access for admin OR any business owner (least-privilege read endpoints). */
+export async function requireAdminOrBusinessRead(req: FastifyRequest, reply: FastifyReply): Promise<void> {
+  await requireAuth(req, reply);
+  if (reply.sent || !req.userId) return;
+  try {
+    const flags = await loadProfileFlags(req.userId);
+    req.isAdmin = flags.is_admin;
+    if (flags.is_admin) return;
+    if (!flags.is_business) {
+      await reply.status(403).send({ error: "business_required" });
+      return;
+    }
+    const { data } = await supabaseAdmin()
+      .from("businesses")
+      .select("id")
+      .eq("owner_id", req.userId)
+      .maybeSingle();
+    if (data?.id) req.businessId = data.id;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    await reply.status(500).send({ error: msg });
+  }
+}

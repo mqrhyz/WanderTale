@@ -28,6 +28,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.wandertale.mobile.ui.screens.AdminPortalScreen
+import com.wandertale.mobile.ui.screens.BookingScreen
 import com.wandertale.mobile.ui.screens.BusinessPortalScreen
 import com.wandertale.mobile.ui.screens.DashboardScreen
 import com.wandertale.mobile.ui.screens.FavoritesScreen
@@ -324,6 +325,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             )
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.BOOKING) { BookingScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.ADMIN) {
             AdminPortalScreen(
                 onBack = { navController.popBackStack() },

@@ -11,12 +11,15 @@ struct BusinessPortalView: View {
     @State private var vouchers: [BusinessVoucherRow] = []
     @State private var locations: [BusinessLocationRow] = []
     @State private var reviews: [BusinessReviewRow] = []
+    @State private var media: [BusinessMediaRow] = []
+    @State private var payouts: [PayoutRecord] = []
     @State private var loading = true
     @State private var error: String?
     @State private var purchaseMessage: String?
     @State private var showingCampaignForm = false
     @State private var showingVoucherForm = false
     @State private var showingLocationForm = false
+    @State private var showingMediaForm = false
     @State private var voucherFilter = "active"
     @State private var reviewFilter = "all"
 
@@ -67,6 +70,13 @@ struct BusinessPortalView: View {
         .sheet(isPresented: $showingLocationForm) {
             BusinessLocationForm { input in
                 try await ApiService.createBusinessLocation(input)
+                await load()
+            }
+        }
+        .sheet(isPresented: $showingMediaForm) {
+            BusinessMediaForm { input in
+                _ = try await ApiService.uploadBusinessMedia(input)
+                purchaseMessage = "Đã gửi media. Chờ admin duyệt."
                 await load()
             }
         }
@@ -184,6 +194,16 @@ struct BusinessPortalView: View {
         if let o = overview {
             VStack(alignment: .leading, spacing: 18) {
                 businessIdentity(o.business)
+                sectionTitle("DOANH THU BOOKING")
+                HStack(spacing: 12) {
+                    metricCard("Doanh thu (net)", formatPlatformVnd(o.net_revenue_vnd), subtitle: "sau hoa hồng")
+                    metricCard("Tổng booking", "\(o.booking_count)", subtitle: "đã xác nhận")
+                }
+                if let expiry = o.ad_package_expiry {
+                    Text("Hạn gói quảng bá: \(String(expiry.prefix(10)))")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(BusinessPortalStyle.muted)
+                }
                 sectionTitle("HIỆU QUẢ HÔM NAY")
                 HStack(spacing: 12) {
                     metricCard("Lượt hiển thị", "\(o.impressions)", subtitle: "campaign")
@@ -734,9 +754,121 @@ struct BusinessPortalView: View {
             }
             .buttonStyle(.plain)
 
+            sectionTitle("MEDIA (ẢNH/VIDEO)")
+            Button {
+                showingMediaForm = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "plus")
+                    Text("Thêm media (URL)")
+                }
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(BusinessPortalStyle.accent.opacity(0.78))
+                .clipShape(RoundedRectangle(cornerRadius: 13))
+            }
+            .buttonStyle(.plain)
+            if media.isEmpty {
+                darkEmptyState("Chưa có media. Thêm ảnh/video cho địa điểm — admin sẽ duyệt.")
+            } else {
+                ForEach(media) { item in
+                    mediaRow(item)
+                }
+            }
+
+            sectionTitle("GIAO DỊCH GẦN ĐÂY")
+            if transactions.isEmpty {
+                darkEmptyState("Chưa có giao dịch.")
+            } else {
+                ForEach(transactions.prefix(20)) { tx in
+                    transactionRow(tx)
+                }
+            }
+
+            sectionTitle("PAYOUT (THỰC NHẬN)")
+            if payouts.isEmpty {
+                darkEmptyState("Chưa có khoản payout nào.")
+            } else {
+                ForEach(payouts) { p in
+                    payoutRow(p)
+                }
+            }
+
             sectionTitle("ĐÁNH GIÁ")
             reviewsManagementSection
         }
+    }
+
+    private func mediaRow(_ item: BusinessMediaRow) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: item.type == "video" ? "video" : "photo")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(BusinessPortalStyle.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.url)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(BusinessPortalStyle.text)
+                    .lineLimit(1)
+                if let reason = item.rejection_reason, !reason.isEmpty {
+                    Text("Lý do: \(reason)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(BusinessPortalStyle.muted)
+                }
+            }
+            Spacer()
+            statusChip(item.status ?? "pending")
+        }
+        .padding(14)
+        .background(BusinessPortalStyle.bg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessPortalStyle.stroke))
+    }
+
+    private func transactionRow(_ tx: PlatformTransaction) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(tx.description ?? tx.kind ?? "Giao dịch")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(BusinessPortalStyle.text)
+                Text([tx.kind, tx.created_at.map { String($0.prefix(10)) }].compactMap { $0 }.joined(separator: " · "))
+                    .font(.system(size: 11))
+                    .foregroundStyle(BusinessPortalStyle.muted)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 3) {
+                Text(formatPlatformVnd(tx.net_amount ?? tx.gross_amount))
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(BusinessPortalStyle.accent)
+                Text(tx.status ?? "")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BusinessPortalStyle.muted)
+            }
+        }
+        .padding(14)
+        .background(BusinessPortalStyle.bg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessPortalStyle.stroke))
+    }
+
+    private func payoutRow(_ payout: PayoutRecord) -> some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(formatPlatformVnd(payout.amount))
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(BusinessPortalStyle.text)
+                Text(payout.created_at.map { String($0.prefix(10)) } ?? "")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BusinessPortalStyle.muted)
+            }
+            Spacer()
+            statusChip(payout.status ?? "pending")
+        }
+        .padding(14)
+        .background(BusinessPortalStyle.bg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessPortalStyle.stroke))
     }
 
     private func businessInfoRow(_ label: String, _ value: String, valueColor: Color = BusinessPortalStyle.text) -> some View {
@@ -967,6 +1099,8 @@ struct BusinessPortalView: View {
             async let v = ApiService.businessVouchers()
             async let l = ApiService.businessLocations()
             async let r = ApiService.businessReviews()
+            async let m = ApiService.businessMedia()
+            async let pay = ApiService.businessPayouts()
             overview = try await o
             transactions = try await t.items
             packages = try await p.items
@@ -974,6 +1108,8 @@ struct BusinessPortalView: View {
             vouchers = try await v.items
             locations = try await l.items
             reviews = try await r.items
+            media = try await m.items
+            payouts = try await pay.items
         } catch {
             self.error = formatApiError(error, fallback: "Không tải được dữ liệu doanh nghiệp")
         }
@@ -1425,6 +1561,29 @@ private struct BusinessLocationForm: View {
             field("Loại hình", text: $category)
             saveButton("Thêm địa điểm") {
                 try await onSave(BusinessLocationCreate(name: name, address: address, category: category))
+                dismiss()
+            }
+        }
+    }
+}
+
+private struct BusinessMediaForm: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var url = ""
+    @State private var type = "Ảnh"
+    @State private var error: String?
+    let onSave: (BusinessMediaCreate) async throws -> Void
+
+    var body: some View {
+        PortalFormShell(title: "Thêm media", error: error) {
+            field("URL ảnh/video", text: $url)
+            darkChipGroup("Loại", options: ["Ảnh", "Video"], selection: $type)
+            saveButton("Gửi media") {
+                guard !url.trimmingCharacters(in: .whitespaces).isEmpty else {
+                    error = "Nhập URL ảnh/video."
+                    return
+                }
+                try await onSave(BusinessMediaCreate(url: url, type: type == "Video" ? "video" : "image", location_id: nil, thumbnail_url: nil))
                 dismiss()
             }
         }

@@ -593,6 +593,8 @@ function buildItineraryPrompt(params: ItineraryGenerateParams): string {
     `Pace: ${params.pace}`,
     `Accommodation style: ${params.accommodation_style ?? "standard"} (budget=hostel/homestay, standard=3-star hotel, premium=resort/boutique). Match hotel_suggestions to this tier within total budget.`,
     `Preferences (tags): ${params.preferences.tags.join(", ") || "general"}.`,
+    `Thời điểm hiện tại: tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}. Ưu tiên địa điểm đang HOT/được ưa chuộng & hợp mùa hiện tại; KHÔNG đề xuất nơi đã ĐÓNG CỬA VĨNH VIỄN hoặc ngừng hoạt động.`,
+    `weather_note BẮT BUỘC là CẢNH BÁO khi thời tiết khung giờ đó có biến động (mưa, dông, nắng gắt, lạnh sâu, gió mạnh) — mở đầu bằng "⚠️" và nêu cách ứng phó (mang ô, đổi sang indoor...). Nếu thời tiết ổn định thì ghi ngắn gọn không cần "⚠️".`,
     ollama
       ? `Dùng thời tiết gợi ý indoor/outdoor. Mỗi ngày có activities[] (${minActs}–${maxActs} mục), mỗi mục là object có title, category, start_time, end_time, summary, estimated_cost.`
       : `Use WEATHER_JSON for each calendar date: schedule outdoor/indoor by hour. Each day has activities[] (${minActs}–${maxActs} timed stops), NOT just 3 generic sessions.`,

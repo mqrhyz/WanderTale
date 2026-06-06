@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00779EAB8CF135D2DBAD4D25 /* WanderTaleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B49F5FAC839D2C2FDA66B28B /* WanderTaleApp.swift */; };
 		069250DD7F0998CA259D760F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F6C74731810FA7B4350BBC5A /* Assets.xcassets */; };
+		11D3F3EBE81802A5ECFD4843 /* BookingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6A024902E4D65344584582 /* BookingView.swift */; };
 		14676EB51B7B0D959110D5B1 /* DashboardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28178AAB0569FF9E6FE9E574 /* DashboardComponents.swift */; };
 		1A8809714CA59CDD487C4993 /* AppAssetPreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D7AA053D15DCD21926CE504 /* AppAssetPreloader.swift */; };
 		1AE8C8875C3A91D09D767E98 /* TripPlannerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6F0EEE36F269826447AA02 /* TripPlannerView.swift */; };
@@ -45,6 +46,7 @@
 		0D7AA053D15DCD21926CE504 /* AppAssetPreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAssetPreloader.swift; sourceTree = "<group>"; };
 		19E2C80A8F090162674C44F5 /* AuthViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViews.swift; sourceTree = "<group>"; };
 		1C535F9A404D9DBE1ACA2600 /* BottomNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BottomNavBar.swift; sourceTree = "<group>"; };
+		1D6A024902E4D65344584582 /* BookingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookingView.swift; sourceTree = "<group>"; };
 		21C5A26A9E9A39254CEA42EC /* BusinessPortalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessPortalView.swift; sourceTree = "<group>"; };
 		24844058E42B137035199C7E /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
 		28178AAB0569FF9E6FE9E574 /* DashboardComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardComponents.swift; sourceTree = "<group>"; };
@@ -74,7 +76,7 @@
 		E2DF251E5B37DE171E015F16 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		F2E766258697CEEC465F0D9E /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
 		F6C74731810FA7B4350BBC5A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		"TEMP_83FF4B89-6F2E-4EDD-8C68-6B791151B223" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_7FBC2FA0-157B-4511-88C4-70D8F01599C7" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -85,6 +87,14 @@
 				21C5A26A9E9A39254CEA42EC /* BusinessPortalView.swift */,
 			);
 			path = Portal;
+			sourceTree = "<group>";
+		};
+		0D4F0E06C4760B9FDDB071B5 /* Booking */ = {
+			isa = PBXGroup;
+			children = (
+				1D6A024902E4D65344584582 /* BookingView.swift */,
+			);
+			path = Booking;
 			sourceTree = "<group>";
 		};
 		1911846ADBA389D0DD53C501 /* Auth */ = {
@@ -133,6 +143,7 @@
 			isa = PBXGroup;
 			children = (
 				1911846ADBA389D0DD53C501 /* Auth */,
+				0D4F0E06C4760B9FDDB071B5 /* Booking */,
 				B79273B70F2C1BC3CD973825 /* Components */,
 				AB46FC0B53F5543D72818472 /* Dashboard */,
 				46D74A43CB968E5F8408F965 /* Main */,
@@ -269,10 +280,10 @@
 			path = TripDetail;
 			sourceTree = "<group>";
 		};
-		"TEMP_F21E0FC5-10EE-41E9-9FC3-30E455982F52" /* app-ios */ = {
+		"TEMP_8F811E49-462D-4509-BFCB-2593773F7D52" /* app-ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_83FF4B89-6F2E-4EDD-8C68-6B791151B223" /* Config.xcconfig */,
+				"TEMP_7FBC2FA0-157B-4511-88C4-70D8F01599C7" /* Config.xcconfig */,
 			);
 			path = "app-ios";
 			sourceTree = "<group>";
@@ -354,6 +365,7 @@
 				E45887DED473EC7BB1061B88 /* AppScreenLayout.swift in Sources */,
 				35E0C78CA7DCA904F53CF421 /* AppState.swift in Sources */,
 				9E163E8D2E56A1284340509B /* AuthViews.swift in Sources */,
+				11D3F3EBE81802A5ECFD4843 /* BookingView.swift in Sources */,
 				CDF76B0868418DD7702C3053 /* BottomNavBar.swift in Sources */,
 				E15AC24BE0B84E23E2A253A6 /* BusinessPortalView.swift in Sources */,
 				14676EB51B7B0D959110D5B1 /* DashboardComponents.swift in Sources */,
@@ -385,7 +397,7 @@
 /* Begin XCBuildConfiguration section */
 		0C962A4F98F27E7DFAC38638 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_83FF4B89-6F2E-4EDD-8C68-6B791151B223" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_7FBC2FA0-157B-4511-88C4-70D8F01599C7" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -488,7 +500,7 @@
 		};
 		9D8A83515E9D4D85A737A4CC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_83FF4B89-6F2E-4EDD-8C68-6B791151B223" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_7FBC2FA0-157B-4511-88C4-70D8F01599C7" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
