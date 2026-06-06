@@ -56,7 +56,8 @@ struct AdPackageList: Codable {
     var items: [AdPackage] = []
 }
 
-struct AdPurchaseResponse: Codable {
+struct AdPurchaseResponse: Codable, Identifiable {
+    var id: String { checkout_url ?? order?.id ?? UUID().uuidString }
     var order: AdOrder?
     var payment_status: String?
     var checkout_url: String?

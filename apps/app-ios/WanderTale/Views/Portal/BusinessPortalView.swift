@@ -1,4 +1,6 @@
 import SwiftUI
+import CoreImage.CIFilterBuiltins
+import UIKit
 
 struct BusinessPortalView: View {
     @Environment(\.dismiss) private var dismiss
@@ -20,6 +22,7 @@ struct BusinessPortalView: View {
     @State private var showingVoucherForm = false
     @State private var showingLocationForm = false
     @State private var showingMediaForm = false
+    @State private var adPayResponse: AdPurchaseResponse?
     @State private var voucherFilter = "active"
     @State private var reviewFilter = "all"
 
@@ -78,6 +81,12 @@ struct BusinessPortalView: View {
                 _ = try await ApiService.uploadBusinessMedia(input)
                 purchaseMessage = "Đã gửi media. Chờ admin duyệt."
                 await load()
+            }
+        }
+        .sheet(item: $adPayResponse) { response in
+            AdPackagePaymentSheet(response: response) {
+                adPayResponse = nil
+                Task { await load() }
             }
         }
     }
@@ -1118,9 +1127,16 @@ struct BusinessPortalView: View {
 
     private func purchase(_ id: String) async {
         do {
-            _ = try await ApiService.purchaseAdPackage(id: id)
-            purchaseMessage = "Đã kích hoạt gói quảng cáo."
-            await load()
+            let res = try await ApiService.purchaseAdPackage(id: id)
+            if let url = res.checkout_url, !url.isEmpty {
+                // PayOS mode: show payment QR/details.
+                adPayResponse = res
+                purchaseMessage = "Thanh toán để kích hoạt gói."
+            } else {
+                // Simulation mode: already activated.
+                purchaseMessage = "Đã kích hoạt gói quảng cáo."
+                await load()
+            }
         } catch {
             purchaseMessage = formatApiError(error, fallback: "Không mua được gói")
         }
@@ -1587,6 +1603,83 @@ private struct BusinessMediaForm: View {
                 dismiss()
             }
         }
+    }
+}
+
+private struct AdPackagePaymentSheet: View {
+    let response: AdPurchaseResponse
+    let onDone: () -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 16) {
+                    Text("Thanh toán gói quảng cáo")
+                        .font(.system(size: 18, weight: .bold))
+
+                    if let qr = response.qr_code, let img = qrImage(from: qr) {
+                        Image(uiImage: img)
+                            .interpolation(.none)
+                            .resizable()
+                            .frame(width: 200, height: 200)
+                            .background(.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        if let acc = response.account_number { infoRow("Số tài khoản", acc) }
+                        if let name = response.account_name { infoRow("Chủ tài khoản", name) }
+                        infoRow("Số tiền", FormatUtils.formatVnd(response.amount))
+                        if let content = response.transfer_content { infoRow("Nội dung CK", content) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(14)
+                    .background(PremiumTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.border))
+
+                    Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt sau khi nhận tiền.")
+                        .font(.system(size: 13))
+                        .foregroundStyle(PremiumTheme.muted)
+                        .multilineTextAlignment(.center)
+
+                    if let urlStr = response.checkout_url, let url = URL(string: urlStr) {
+                        Button("Mở trang PayOS") { openURL(url) }
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(PremiumTheme.accent)
+                    }
+                }
+                .padding(PremiumTheme.screenPadding)
+            }
+            .background(PremiumTheme.bg)
+            .navigationTitle("Thanh toán")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Xong") { dismiss(); onDone() }
+                }
+            }
+        }
+    }
+
+    private func infoRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).font(.system(size: 13)).foregroundStyle(PremiumTheme.textMuted)
+            Spacer()
+            Text(value).font(.system(size: 14, weight: .semibold)).foregroundStyle(PremiumTheme.ink).textSelection(.enabled)
+        }
+    }
+
+    private func qrImage(from string: String) -> UIImage? {
+        let context = CIContext()
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 10, y: 10)),
+              let cg = context.createCGImage(output, from: output.extent) else { return nil }
+        return UIImage(cgImage: cg)
     }
 }
 
