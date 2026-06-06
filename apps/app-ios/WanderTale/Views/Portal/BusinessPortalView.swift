@@ -1624,7 +1624,7 @@ private struct AdPackagePaymentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
     @State private var activated = false
-    @State private var pollTask: Task<Void, Never>?
+    @State private var checking = false
 
     var body: some View {
         NavigationStack {
@@ -1637,12 +1637,6 @@ private struct AdPackagePaymentSheet: View {
                                 .foregroundStyle(PremiumTheme.statDestIcon)
                             Text("Gói đã kích hoạt thành công!")
                                 .font(.system(size: 18, weight: .bold))
-                            Button("Xong") { dismiss(); onDone() }
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity).frame(height: 44)
-                                .background(PremiumTheme.accent)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
                         .padding(.top, 20)
                     } else {
@@ -1670,17 +1664,25 @@ private struct AdPackagePaymentSheet: View {
                         .clipShape(RoundedRectangle(cornerRadius: 12))
                         .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.border))
 
-                        HStack(spacing: 8) {
-                            ProgressView().tint(PremiumTheme.accent)
-                            Text("Đang chờ thanh toán… tự cập nhật khi hoàn tất.")
-                                .font(.system(size: 13))
-                                .foregroundStyle(PremiumTheme.muted)
-                        }
-
                         Text("Quét QR hoặc chuyển khoản. Gói sẽ kích hoạt khi thanh toán thành công.")
                             .font(.system(size: 13))
                             .foregroundStyle(PremiumTheme.muted)
                             .multilineTextAlignment(.center)
+
+                        Button {
+                            Task { await checkActivation() }
+                        } label: {
+                            HStack(spacing: 8) {
+                                if checking { ProgressView().tint(PremiumTheme.accent).scaleEffect(0.8) }
+                                Text(checking ? "Đang kiểm tra…" : "Đã thanh toán, kiểm tra")
+                            }
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(PremiumTheme.accent)
+                            .frame(maxWidth: .infinity).frame(height: 44)
+                            .background(PremiumTheme.accentLight)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
+                        .disabled(checking)
 
                         if let urlStr = response.checkout_url, let url = URL(string: urlStr) {
                             Button("Mở trang PayOS") { openURL(url) }
@@ -1699,25 +1701,26 @@ private struct AdPackagePaymentSheet: View {
                     Button("Xong") { dismiss(); onDone() }
                 }
             }
-            .task { startPolling() }
-            .onDisappear { pollTask?.cancel() }
         }
     }
 
-    private func startPolling() {
-        pollTask = Task {
-            // Poll ad_orders status via overview reload (lightweight check)
-            for _ in 0..<90 { // ~6 phút
-                try? await Task.sleep(for: .seconds(4))
-                if Task.isCancelled { return }
-                // Check if order is now active by re-fetching the package orders
-                if let overview = try? await ApiService.businessOverview(),
-                   overview.active_ad_campaigns > 0 || (overview.ad_package_expiry != nil) {
-                    withAnimation { activated = true }
-                    return
-                }
+    private func checkActivation() async {
+        checking = true
+        defer { checking = false }
+        do {
+            let overview = try await ApiService.businessOverview()
+            // So sánh ad_package_expiry với order.ends_at — nếu gói mới active thì expiry >= order.ends_at.
+            if let expiry = overview.ad_package_expiry,
+               let orderEnd = response.order?.ends_at,
+               expiry >= orderEnd {
+                withAnimation { activated = true }
             }
-        }
+            // Fallback: nếu overview ko có expiry cũ nhưng giờ có → gói mới kích hoạt.
+            else if overview.ad_package_expiry != nil && response.order?.status == "pending" {
+                // Nếu ban đầu gói pending mà giờ expiry có giá trị → đã active.
+                withAnimation { activated = true }
+            }
+        } catch {}
     }
 
     private func infoRow(_ label: String, _ value: String) -> some View {
