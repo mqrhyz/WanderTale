@@ -78,7 +78,7 @@
 		E2DF251E5B37DE171E015F16 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		F2E766258697CEEC465F0D9E /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
 		F6C74731810FA7B4350BBC5A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		"TEMP_1741BF7B-3D38-4303-973B-9159667813E2" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_ACA64334-4801-49F8-97F2-83F8CD7EB9A4" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -283,10 +283,10 @@
 			path = TripDetail;
 			sourceTree = "<group>";
 		};
-		"TEMP_715EEC17-9EDE-4E63-B49B-7BBECAC6A5B9" /* app-ios */ = {
+		"TEMP_8D0ECDC2-0709-4760-9677-5596D5251AE8" /* app-ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_1741BF7B-3D38-4303-973B-9159667813E2" /* Config.xcconfig */,
+				"TEMP_ACA64334-4801-49F8-97F2-83F8CD7EB9A4" /* Config.xcconfig */,
 			);
 			path = "app-ios";
 			sourceTree = "<group>";
@@ -401,7 +401,7 @@
 /* Begin XCBuildConfiguration section */
 		0C962A4F98F27E7DFAC38638 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_1741BF7B-3D38-4303-973B-9159667813E2" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_ACA64334-4801-49F8-97F2-83F8CD7EB9A4" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -504,7 +504,7 @@
 		};
 		9D8A83515E9D4D85A737A4CC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_1741BF7B-3D38-4303-973B-9159667813E2" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_ACA64334-4801-49F8-97F2-83F8CD7EB9A4" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

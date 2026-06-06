@@ -240,7 +240,11 @@ private fun FacebookSignInButton(loading: Boolean, modifier: Modifier = Modifier
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
         } else {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-                Text("f", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Image(
+                    painter = painterResource(R.drawable.ic_facebook_logo),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
                 Spacer(Modifier.width(8.dp))
                 Text("Facebook", color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
             }

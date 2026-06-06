@@ -504,9 +504,10 @@ struct FacebookSignInButton: View {
                 if loading {
                     ProgressView().tint(.white)
                 } else {
-                    Text("f")
-                        .font(.system(size: 20, weight: .bold, design: .serif))
-                        .foregroundStyle(.white)
+                    Image("FacebookLogo")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 20, height: 20)
                     Text("Facebook")
                         .font(.system(size: 15, weight: .semibold))
                 }
@@ -514,7 +515,7 @@ struct FacebookSignInButton: View {
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .foregroundStyle(.white)
-            .background(Color(red: 0.10, green: 0.34, blue: 0.65))
+            .background(Color(red: 24/255, green: 119/255, blue: 242/255))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
         .disabled(loading)
