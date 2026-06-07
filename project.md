@@ -288,3 +288,8 @@
 - **iOS** (`TripUtils.swift`): thêm `mergingSlotImages` merge `image_preview_url` từ trip cũ vào trip mới khi trip mới thiếu.
 - **iOS** (`TripDetailView.swift`): đổi text pending từ "Đang cập nhật giá OTA & ảnh Maps…" → "AI đang tìm khách sạn phù hợp ngân sách…" / "AI đang hoàn thiện lịch trình cho bạn…".
 - **Test:** backend `tsc` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `2ecc7083`).
+
+## [2026-06-07] Fix: "Thành Phố Đà Lạt" vẫn hiện gợi ý rác sau khi chọn
+- **Nguyên nhân**: logic `isSimpleCityQuery` đếm token query "Thành Phố Đà Lạt" = 4, label "Đà Lạt" = 2 → `4 <= 2+1` false → không coi là city query → trả POI rác (Đại Lý..., ở Đà Nẵng). Prefix "Thành Phố" làm lệch đếm token.
+- **Sửa** (`lib/vietmap.ts`): bỏ từ hành chính (thanh pho/tinh/thi xa/tp/quan/huyen/phuong/xa) khỏi query + label trước khi đếm token lõi. "Thành Phố Đà Lạt" → lõi "da lat" (2 token) ≤ label lõi "da lat" + 1 → là city query → chỉ trả city-level hoặc rỗng.
+- **Test:** backend `tsc` exit 0. Deploy Cloud Run thành công (build `dbacd9ce`).

@@ -194,14 +194,17 @@ export async function autocompleteTripDestination(
     const labelNorm = normalizeLoc(cityFocus.label);
     const keyNorm = normalizeLoc(resolveCityKey(q));
 
-    // Nếu user chỉ nhập tên thành phố đơn giản (ít token ≈ tên thành phố),
-    // chỉ trả city-level hits hoặc rỗng — không đề xuất POI con.
-    const queryTokens = q.split(/[\s,]+/).filter(Boolean).length;
-    const labelTokens = cityFocus.label.split(/[\s,]+/).filter(Boolean).length;
+    // Bỏ từ hành chính trước khi đếm token (tránh "Thành Phố Đà Lạt" bị tính 4 token).
+    const adminWords = /\b(thanh pho|tinh|thi xa|tp|quan|huyen|phuong|xa)\b/g;
+    const qCore = qNorm.replace(adminWords, "").replace(/\s+/g, " ").trim();
+    const labelCore = labelNorm.replace(adminWords, "").replace(/\s+/g, " ").trim();
+    const qCoreTokens = qCore ? qCore.split(" ").length : 0;
+    const labelCoreTokens = labelCore ? labelCore.split(" ").length : 1;
+
+    // Nếu user chỉ nhập tên thành phố (phần lõi ≈ tên thành phố) → chỉ trả city-level (hoặc rỗng).
     const isSimpleCityQuery =
-      queryTokens <= labelTokens + 1 &&
-      (qNorm.includes(labelNorm) || qNorm.includes(keyNorm) ||
-       qNorm.includes("thanh pho") || qNorm.startsWith("tp ") || qNorm.startsWith("tp."));
+      qCoreTokens <= labelCoreTokens + 1 &&
+      (qCore.includes(labelCore) || qNorm.includes(keyNorm) || labelCore.includes(qCore));
 
     if (isSimpleCityQuery) {
       const cityHits = hits.filter((h) => isCityLevelHit(h, cityFocus.label));
