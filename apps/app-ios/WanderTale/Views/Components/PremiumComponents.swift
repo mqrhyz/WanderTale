@@ -137,6 +137,7 @@ struct MetricCard: View {
         }
         .frame(height: 100)
         .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke((labelColor ?? PremiumTheme.border).opacity(0.35), lineWidth: 1))
     }
 
     private var iconCard: some View {
