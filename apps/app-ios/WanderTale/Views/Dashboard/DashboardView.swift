@@ -25,10 +25,10 @@ struct DashboardView: View {
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    MetricCard(label: "Chuyến đi", value: "\(appState.stats?.total_trips ?? 0)", icon: "calendar", iconBg: PremiumTheme.statTripBg, iconTint: PremiumTheme.statTripIcon)
-                    MetricCard(label: "Điểm đến", value: "\(appState.stats?.unique_destinations ?? 0)", icon: "map", iconBg: PremiumTheme.statDestBg, iconTint: PremiumTheme.statDestIcon)
-                    MetricCard(label: "Ngân sách", value: FormatUtils.formatCompactVnd(appState.stats?.total_budget_planned), icon: "creditcard", iconBg: PremiumTheme.statBudgetBg, iconTint: PremiumTheme.statBudgetIcon)
-                    MetricCard(label: "Hoạt động", value: "\(appState.stats?.places_in_itineraries ?? 0)", icon: "figure.walk", iconBg: PremiumTheme.statActivityBg, iconTint: PremiumTheme.statActivityIcon)
+                    MetricCard(label: "Chuyến đi", value: "\(appState.stats?.total_trips ?? 0)", backgroundImage: "MetricH1")
+                    MetricCard(label: "Điểm đến", value: "\(appState.stats?.unique_destinations ?? 0)", backgroundImage: "MetricH2")
+                    MetricCard(label: "Ngân sách", value: FormatUtils.formatCompactVnd(appState.stats?.total_budget_planned), backgroundImage: "MetricH3")
+                    MetricCard(label: "Hoạt động", value: "\(appState.stats?.places_in_itineraries ?? 0)", backgroundImage: "MetricH4")
                 }
 
                 TripGallerySection(

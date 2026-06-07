@@ -98,30 +98,47 @@ struct PageHeader: View {
 struct MetricCard: View {
     let label: String
     let value: String
-    let icon: String
-    let iconBg: Color
-    let iconTint: Color
+    var icon: String = ""
+    var iconBg: Color = .clear
+    var iconTint: Color = .clear
+    var backgroundImage: String?
 
     var body: some View {
-        PremiumSurfaceCard {
+        ZStack(alignment: .leading) {
+            if let bgImage = backgroundImage {
+                Image(bgImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipShape(RoundedRectangle(cornerRadius: PremiumTheme.inputRadius))
+            } else {
+                PremiumSurfaceCard { Color.clear.frame(height: 0) }
+            }
+
             HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(iconTint)
-                    .frame(width: 40, height: 40)
-                    .background(iconBg)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                if backgroundImage == nil {
+                    Image(systemName: icon)
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(iconTint)
+                        .frame(width: 40, height: 40)
+                        .background(iconBg)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.system(size: 12))
-                        .foregroundStyle(PremiumTheme.textMuted)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(backgroundImage != nil ? .white.opacity(0.85) : PremiumTheme.textMuted)
                     Text(value)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(PremiumTheme.ink)
+                        .foregroundStyle(backgroundImage != nil ? .white : PremiumTheme.ink)
                 }
                 Spacer()
             }
+            .padding(backgroundImage != nil ? 14 : 0)
         }
+        .frame(height: 72)
+        .clipShape(RoundedRectangle(cornerRadius: PremiumTheme.inputRadius))
+        .overlay(RoundedRectangle(cornerRadius: PremiumTheme.inputRadius).stroke(PremiumTheme.border))
     }
 }
 
