@@ -258,3 +258,9 @@
 - **Android** (`TripPlannerScreen.kt`):
   - `LaunchedEffect` bỏ `suppressSearch` khỏi key (chỉ còn `value, committedDestination`) → tránh effect trigger lại lần 2 khi flag toggle false → fix bấm 2 lần mới tắt gợi ý.
 - **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `d89b0c24`).
+
+## [2026-06-07] Fix sọc dọc trang chi tiết + fix ảnh bìa trip chưa có
+- **iOS** (`TripDetailView.swift`): thêm `.scrollIndicators(.hidden)` ẩn thanh cuộn dọc; đổi `.background(PremiumTheme.bg)` → `.background(Color.white)` cho đồng bộ trắng.
+- **Backend** (`lib/pexels.ts`): `resolvePexelsCoverUrl` giờ bỏ prefix hành chính VN ("Thành Phố", "Tỉnh"...) trước khi query Pexels; nếu không tìm thấy ảnh → retry với suffix " travel". Giải quyết trip "Thành Phố Đà Lạt" trước đây không trả ảnh vì Pexels không hiểu tiếng Việt có dấu + prefix.
+- **Lưu ý:** ảnh bìa có ngay khi `listTrips`/`getTrip` được gọi (cả hai đều chạy `enrichTripWithCoverImage`). App client reload danh sách trip ngay sau khi tạo xong → ảnh xuất hiện real-time.
+- **Test:** backend `tsc` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `320ebb1f`).

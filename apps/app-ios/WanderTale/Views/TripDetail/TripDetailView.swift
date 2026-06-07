@@ -31,7 +31,8 @@ struct TripDetailView: View {
                 content(trip)
             }
         }
-        .background(PremiumTheme.bg)
+        .scrollIndicators(.hidden)
+        .background(Color.white)
         .navigationTitle(trip?.destination ?? "Chi tiết")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

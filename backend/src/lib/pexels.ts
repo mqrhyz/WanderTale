@@ -73,15 +73,25 @@ async function fetchPexelsPhotos(query: string): Promise<string[]> {
   return urls;
 }
 
-/** Ảnh cover — search Pexels bằng nguyên chuỗi điểm đến, chọn 1 trong 5 ảnh đầu. */
+/** Ảnh cover — search Pexels bằng tên điểm đến (đã clean prefix hành chính), chọn 1 trong 5 ảnh đầu. */
 export async function resolvePexelsCoverUrl(
   destination: string,
   tripId: string
 ): Promise<string | null> {
-  const query = destination.trim();
-  if (!query) return null;
+  const raw = destination.trim();
+  if (!raw) return null;
 
-  const photos = await fetchPexelsPhotos(query);
+  // Bỏ prefix hành chính VN để query Pexels tìm được ảnh phong cảnh.
+  const cleaned = raw
+    .replace(/^(Thành Phố|Thành phố|TP\.|TP |Tỉnh|Thị xã|Quận|Huyện)\s*/i, "")
+    .trim();
+  const query = cleaned || raw;
+
+  // Thử query nguyên gốc (có thể Pexels hiểu); nếu rỗng thì append " travel".
+  let photos = await fetchPexelsPhotos(query);
+  if (photos.length === 0 && query.length >= 2) {
+    photos = await fetchPexelsPhotos(`${query} travel`);
+  }
   if (photos.length === 0) return null;
   return photos[pickStablePhotoIndex(tripId, photos.length)] ?? null;
 }
