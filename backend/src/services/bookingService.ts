@@ -35,6 +35,7 @@ export type CreateBookingInput = {
   location_id?: string | null;
   currency?: string;
   provider?: string | null;
+  payment_mode?: "prepaid" | "pay_later";
   metadata?: Record<string, unknown>;
 };
 
@@ -61,7 +62,8 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
       location_id: input.location_id ?? null,
       type: input.type ?? "other",
       provider: input.provider ?? null,
-      status: "pending_payment",
+      status: input.payment_mode === "pay_later" ? "confirmed" : "pending_payment",
+      payment_mode: input.payment_mode ?? "prepaid",
       currency: input.currency ?? "VND",
       total_amount: total,
       gross_amount: total,

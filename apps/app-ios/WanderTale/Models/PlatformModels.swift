@@ -284,6 +284,9 @@ struct BusinessLocationCreate: Codable {
     var name: String
     var address: String?
     var category: String?
+    var city: String?
+    var price_vnd: Double?
+    var description: String?
 }
 
 struct BusinessReviewRow: Codable, Identifiable {
@@ -344,6 +347,7 @@ struct BookingRecord: Codable, Identifiable {
     var net_amount: Double?
     var confirmed_at: String?
     var created_at: String?
+    var payment_mode: String?
 }
 
 struct BookingCreate: Codable {
@@ -353,9 +357,11 @@ struct BookingCreate: Codable {
     var trip_id: String?
     var location_id: String?
     var currency: String?
+    var payment_mode: String?
 }
 
-struct BookingPayResponse: Codable {
+struct BookingPayResponse: Codable, Identifiable {
+    var id: String { booking_id }
     var booking_id: String
     var status: String
     var provider: String?

@@ -1912,14 +1912,31 @@ private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocat
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Chi nhánh") }
+    var city by remember { mutableStateOf("") }
+    var price by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
     PortalInputDialog(
         title = "Thêm địa điểm",
         onDismiss = onDismiss,
-        onSave = { onSave(BusinessLocationCreate(name.trim(), address.trim(), category.trim())) },
+        onSave = {
+            onSave(
+                BusinessLocationCreate(
+                    name = name.trim(),
+                    address = address.trim(),
+                    category = category.trim(),
+                    city = city.trim().ifBlank { null },
+                    price_vnd = price.filter { it.isDigit() }.toDoubleOrNull(),
+                    description = description.trim().ifBlank { null },
+                )
+            )
+        },
     ) {
         PortalTextField("Tên địa điểm", name) { name = it }
         PortalTextField("Địa chỉ", address) { address = it }
+        PortalTextField("Thành phố (vd: Đà Lạt)", city) { city = it }
         PortalTextField("Loại hình", category) { category = it }
+        PortalTextField("Giá niêm yết (VND)", price) { price = it.filter { c -> c.isDigit() } }
+        PortalTextField("Mô tả ngắn", description) { description = it }
     }
 }
 

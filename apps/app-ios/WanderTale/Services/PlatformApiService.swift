@@ -137,6 +137,28 @@ extension ApiService {
         try await request(path: "/api/bookings/\(id)/pay", method: "POST")
     }
 
+    // MARK: - Sponsored locations + reviews
+
+    static func sponsoredLocations(city: String, maxPrice: Double? = nil) async throws -> SponsoredLocationList {
+        var query: [String: String] = ["city": city]
+        if let maxPrice, maxPrice > 0 { query["max_price"] = String(Int(maxPrice)) }
+        let qs = query.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&")
+        return try await request(path: "/api/locations/sponsored?\(qs)")
+    }
+
+    static func locationDetail(id: String) async throws -> LocationDetail {
+        try await request(path: "/api/locations/\(id)")
+    }
+
+    static func locationReviews(id: String) async throws -> LocationReviewList {
+        try await request(path: "/api/locations/\(id)/reviews")
+    }
+
+    static func createLocationReview(id: String, rating: Int, comment: String?) async throws -> LocationReview {
+        let data = try JSONEncoder().encode(LocationReviewCreate(rating: rating, comment: comment))
+        return try await request(path: "/api/locations/\(id)/reviews", method: "POST", body: data)
+    }
+
     static func confirmBooking(id: String) async throws -> BookingRecord {
         try await request(path: "/api/bookings/\(id)/confirm", method: "POST")
     }

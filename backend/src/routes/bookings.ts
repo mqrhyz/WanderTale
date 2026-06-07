@@ -57,6 +57,7 @@ export async function bookingsRoutes(app: FastifyInstance) {
       location_id?: string | null;
       currency?: string;
       provider?: string | null;
+      payment_mode?: "prepaid" | "pay_later";
       metadata?: Record<string, unknown>;
     };
   }>("/bookings", { preHandler: requireAuth }, async (req, reply) => {
@@ -71,6 +72,7 @@ export async function bookingsRoutes(app: FastifyInstance) {
         location_id: body.location_id ?? null,
         currency: body.currency,
         provider: body.provider ?? null,
+        payment_mode: body.payment_mode,
         metadata: body.metadata,
       });
       return reply.code(201).send(booking);

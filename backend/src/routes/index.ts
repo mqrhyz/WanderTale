@@ -6,6 +6,7 @@ import { dashboardRoutes } from "./dashboard.js";
 import { geocodeRoutes } from "./geocode.js";
 import { hotelAgentRoutes } from "./hotel-agent.js";
 import { healthRoutes } from "./health.js";
+import { locationsRoutes } from "./locations.js";
 import { mapsRoutes } from "./maps.js";
 import { paymentsRoutes } from "./payments.js";
 import { payoutsRoutes } from "./payouts.js";
@@ -27,6 +28,7 @@ export async function registerApiRoutes(app: FastifyInstance) {
   await app.register(adminPortalRoutes);
   await app.register(businessPortalRoutes);
   await app.register(bookingsRoutes);
+  await app.register(locationsRoutes);
   await app.register(payoutsRoutes);
   await app.register(paymentsRoutes);
 }

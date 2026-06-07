@@ -1,0 +1,76 @@
+import Foundation
+
+struct AppliedVoucher: Codable, Hashable {
+    let id: String
+    var code: String
+    var title: String
+    var discount_type: String
+    var discount_value: Double
+    var final_price_vnd: Double
+    var discount_vnd: Double
+}
+
+struct SponsoredLocation: Codable, Identifiable, Hashable {
+    let id: String
+    var business_id: String
+    var name: String
+    var address: String?
+    var category: String?
+    var city: String?
+    var price_vnd: Double?
+    var description: String?
+    var lat: Double?
+    var lng: Double?
+    var rating_avg: Double = 0
+    var rating_count: Int = 0
+    var image_url: String?
+    var voucher: AppliedVoucher?
+    var sponsored: Bool = true
+}
+
+struct SponsoredLocationList: Codable {
+    var items: [SponsoredLocation] = []
+}
+
+struct LocationBusinessInfo: Codable, Hashable {
+    let id: String
+    var name: String?
+    var hotline: String?
+    var status: String?
+}
+
+struct LocationDetail: Codable, Identifiable {
+    let id: String
+    var business_id: String
+    var name: String
+    var address: String?
+    var category: String?
+    var city: String?
+    var price_vnd: Double?
+    var description: String?
+    var lat: Double?
+    var lng: Double?
+    var rating_avg: Double = 0
+    var rating_count: Int = 0
+    var images: [String] = []
+    var business: LocationBusinessInfo?
+    var voucher: AppliedVoucher?
+}
+
+struct LocationReview: Codable, Identifiable {
+    let id: String
+    var location_id: String?
+    var user_id: String?
+    var rating: Int = 5
+    var comment: String?
+    var created_at: String?
+}
+
+struct LocationReviewList: Codable {
+    var items: [LocationReview] = []
+}
+
+struct LocationReviewCreate: Codable {
+    var rating: Int
+    var comment: String?
+}

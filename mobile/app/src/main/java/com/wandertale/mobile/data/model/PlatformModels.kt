@@ -267,6 +267,9 @@ data class BusinessLocationCreate(
     val name: String,
     val address: String,
     val category: String,
+    val city: String? = null,
+    val price_vnd: Double? = null,
+    val description: String? = null,
 )
 
 @Serializable
@@ -358,6 +361,7 @@ data class BookingCreate(
     val trip_id: String? = null,
     val location_id: String? = null,
     val currency: String? = null,
+    val payment_mode: String? = null,
 )
 
 @Serializable
@@ -511,3 +515,84 @@ data class BusinessProfilePatch(
 
 @Serializable
 data class PackagePurchaseRequest(val package_id: String)
+
+// --- Sponsored locations + reviews ---
+
+@Serializable
+data class AppliedVoucher(
+    val id: String,
+    val code: String,
+    val title: String,
+    val discount_type: String,
+    val discount_value: Double = 0.0,
+    val final_price_vnd: Double = 0.0,
+    val discount_vnd: Double = 0.0,
+)
+
+@Serializable
+data class SponsoredLocation(
+    val id: String,
+    val business_id: String,
+    val name: String,
+    val address: String? = null,
+    val category: String? = null,
+    val city: String? = null,
+    val price_vnd: Double? = null,
+    val description: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val rating_avg: Double = 0.0,
+    val rating_count: Int = 0,
+    val image_url: String? = null,
+    val voucher: AppliedVoucher? = null,
+    val sponsored: Boolean = true,
+)
+
+@Serializable
+data class SponsoredLocationList(val items: List<SponsoredLocation> = emptyList())
+
+@Serializable
+data class LocationBusinessInfo(
+    val id: String,
+    val name: String? = null,
+    val hotline: String? = null,
+    val status: String? = null,
+)
+
+@Serializable
+data class LocationDetail(
+    val id: String,
+    val business_id: String,
+    val name: String,
+    val address: String? = null,
+    val category: String? = null,
+    val city: String? = null,
+    val price_vnd: Double? = null,
+    val description: String? = null,
+    val lat: Double? = null,
+    val lng: Double? = null,
+    val rating_avg: Double = 0.0,
+    val rating_count: Int = 0,
+    val images: List<String> = emptyList(),
+    val business: LocationBusinessInfo? = null,
+    val voucher: AppliedVoucher? = null,
+)
+
+@Serializable
+data class LocationReview(
+    val id: String,
+    val location_id: String? = null,
+    val user_id: String? = null,
+    val rating: Int = 5,
+    val comment: String? = null,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class LocationReviewList(val items: List<LocationReview> = emptyList())
+
+@Serializable
+data class LocationReviewCreate(
+    val rating: Int,
+    val comment: String? = null,
+)

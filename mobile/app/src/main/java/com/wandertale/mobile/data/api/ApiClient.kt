@@ -261,6 +261,19 @@ object ApiClient {
     suspend fun purchaseAdPackage(id: String): AdPurchaseResponse = portalPost("/api/business/ad-packages/$id/purchase")
     suspend fun businessAdOrderStatus(id: String): com.wandertale.mobile.data.model.AdOrder =
         portalGet("/api/business/ad-orders/$id")
+
+    // --- Sponsored locations + reviews ---
+    suspend fun sponsoredLocations(city: String, maxPrice: Double? = null): List<com.wandertale.mobile.data.model.SponsoredLocation> {
+        val enc = java.net.URLEncoder.encode(city, "UTF-8")
+        val q = "/api/locations/sponsored?city=$enc" + (maxPrice?.takeIf { it > 0 }?.let { "&max_price=${it.toLong()}" } ?: "")
+        return portalGet<com.wandertale.mobile.data.model.SponsoredLocationList>(q).items
+    }
+    suspend fun locationDetail(id: String): com.wandertale.mobile.data.model.LocationDetail =
+        portalGet("/api/locations/$id")
+    suspend fun locationReviews(id: String): List<com.wandertale.mobile.data.model.LocationReview> =
+        portalGet<com.wandertale.mobile.data.model.LocationReviewList>("/api/locations/$id/reviews").items
+    suspend fun createLocationReview(id: String, rating: Int, comment: String?): com.wandertale.mobile.data.model.LocationReview =
+        portalPost("/api/locations/$id/reviews", com.wandertale.mobile.data.model.LocationReviewCreate(rating, comment))
     suspend fun businessCampaigns(): BusinessCampaignList = portalGet("/api/business/campaigns")
     suspend fun createBusinessCampaign(body: BusinessCampaignCreate): BusinessCampaignRow =
         portalPost("/api/business/campaigns", body)

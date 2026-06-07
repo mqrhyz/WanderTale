@@ -1634,6 +1634,9 @@ private struct BusinessLocationForm: View {
     @State private var name = ""
     @State private var address = ""
     @State private var category = ""
+    @State private var city = ""
+    @State private var price = ""
+    @State private var locationDescription = ""
     @State private var error: String?
     let onSave: (BusinessLocationCreate) async throws -> Void
 
@@ -1641,9 +1644,19 @@ private struct BusinessLocationForm: View {
         PortalFormShell(title: "Thêm địa điểm", error: error) {
             field("Tên địa điểm", text: $name)
             field("Địa chỉ", text: $address)
+            field("Thành phố (vd: Đà Lạt)", text: $city)
             field("Loại hình", text: $category)
+            field("Giá niêm yết (VND)", text: $price)
+            field("Mô tả ngắn", text: $locationDescription)
             saveButton("Thêm địa điểm") {
-                try await onSave(BusinessLocationCreate(name: name, address: address, category: category))
+                try await onSave(BusinessLocationCreate(
+                    name: name,
+                    address: address,
+                    category: category,
+                    city: city.isEmpty ? nil : city,
+                    price_vnd: Double(price.filter(\.isNumber)),
+                    description: locationDescription.isEmpty ? nil : locationDescription
+                ))
                 dismiss()
             }
         }

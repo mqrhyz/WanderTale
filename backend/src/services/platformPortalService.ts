@@ -246,7 +246,7 @@ export async function businessLocations(businessId: string) {
 
 export async function createBusinessLocation(
   businessId: string,
-  body: { name?: string; address?: string; category?: string; lat?: number; lng?: number },
+  body: { name?: string; address?: string; category?: string; lat?: number; lng?: number; price_vnd?: number; city?: string; description?: string },
 ) {
   if (!body.name?.trim()) throw new Error("location_name_required");
   const { data, error } = await getSupabaseAdmin()
@@ -258,6 +258,9 @@ export async function createBusinessLocation(
       category: body.category ?? null,
       lat: body.lat ?? null,
       lng: body.lng ?? null,
+      price_vnd: body.price_vnd != null ? n(body.price_vnd) : null,
+      city: body.city?.trim() || null,
+      description: body.description?.trim() || null,
     })
     .select("*")
     .single();

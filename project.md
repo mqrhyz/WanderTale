@@ -310,3 +310,14 @@
   - `HOTEL_AGENT_MAX_OFFERS_PER_SITE`: 3 → 2 (mỗi site tối đa 2 → tổng ~3-4 KS).
   - `TRIP_OTA_HARD_DEADLINE_MS`: 60000 → 45000 (chỉ còn 2 site, max per-site 30s).
 - Cập nhật qua `gcloud run services update --update-env-vars` (revision wander-tale-api-00062-cns). File `deploy/cloud-run.env.yaml` cũng sync để lần deploy sau giữ nguyên.
+
+## [2026-06-07] Marketplace: địa điểm tài trợ + trang chi tiết + review + booking trả trước/sau
+- **DB** (`20260607140000_sponsored_locations.sql`): `business_locations` thêm `price_vnd, city, description, rating_avg, rating_count`; `bookings` thêm `payment_mode (prepaid|pay_later)`; bảng `location_reviews` + trigger cập nhật rating; RLS đọc public, insert own.
+- **Backend**:
+  - `sponsoredLocationService.ts`: `listSponsoredLocations(city, maxPrice)` (lọc business có gói active + cùng thành phố + giá ≤ ngân sách, kèm ảnh + voucher tốt nhất + giá sau giảm); `getLocationDetail`; `listLocationReviews`; `createLocationReview`; `applyVoucher`.
+  - `routes/locations.ts`: GET `/api/locations/sponsored`, GET `/api/locations/:id`, GET/POST `/api/locations/:id/reviews`.
+  - `createBusinessLocation` nhận `price_vnd, city, description`. `bookingService.createBooking` + route nhận `payment_mode` (pay_later → status confirmed, không qua PayOS).
+- **iOS**: models `SponsoredLocation/LocationDetail/LocationReview/AppliedVoucher`; `LocationDetailView` (carousel ảnh, giá + voucher gạch giá, mô tả, review + viết đánh giá, nút "Đặt & thanh toán trước" / "Đặt chỗ, trả sau"); `BookingPaymentSheet` (QR auto-poll); tab Đề xuất hiện "Đề xuất từ đối tác" với `SponsoredLocationCard` → mở detail. Form địa điểm thêm giá/thành phố/mô tả.
+- **Android**: model tương ứng; `LocationDetailScreen` + `SponsoredLocationCard` + `BookingPaymentDialog` + `ReviewDialog`; TripDetail tab Đề xuất hiện sponsored (overlay detail, không sửa NavGraph). Form `BusinessLocationDialog` thêm giá/thành phố/mô tả.
+- **Luồng**: business mua gói → đăng ký địa điểm (giá + thành phố + ảnh duyệt) → user tạo trip cùng thành phố thấy ở tab Đề xuất → bấm xem chi tiết + review → đặt trả trước (PayOS QR) hoặc trả sau.
+- **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — đều pass. Migration đã push. Backend đã deploy (build `fab29253`).

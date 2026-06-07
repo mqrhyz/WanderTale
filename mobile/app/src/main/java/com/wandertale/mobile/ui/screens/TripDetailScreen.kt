@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.wandertale.mobile.WanderTaleApp
+import com.wandertale.mobile.data.api.ApiClient
 import com.wandertale.mobile.data.model.BookingSuggestion
 import com.wandertale.mobile.data.model.ItineraryDayPlan
 import com.wandertale.mobile.data.model.ItinerarySlot
@@ -109,6 +110,8 @@ fun TripDetailScreen(
     var trip by remember { mutableStateOf<TripRecord?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     var imageProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
+    var sponsoredLocations by remember { mutableStateOf<List<com.wandertale.mobile.data.model.SponsoredLocation>>(emptyList()) }
+    var selectedLocationId by remember { mutableStateOf<String?>(null) }
     val favIds by WanderTaleApp.instance.preferencesStore.favoriteTripIds.collectAsState(initial = emptySet())
     val isFav = tripId in favIds
     val scope = rememberCoroutineScope()
@@ -180,7 +183,17 @@ fun TripDetailScreen(
         }
     }
 
+    LaunchedEffect(trip?.destination) {
+        val dest = trip?.destination ?: return@LaunchedEffect
+        sponsoredLocations = runCatching { ApiClient.sponsoredLocations(dest, trip?.budget) }.getOrDefault(emptyList())
+    }
+
     val t = trip
+    val locId = selectedLocationId
+    if (locId != null) {
+        LocationDetailScreen(locationId = locId, tripId = tripId, onBack = { selectedLocationId = null })
+        return
+    }
     AppScaffold(
         title = t?.destination ?: "Chi tiết chuyến đi",
         onBack = onBack,
@@ -196,6 +209,8 @@ fun TripDetailScreen(
             t != null -> TripDetailContent(
                 trip = t,
                 imageProgress = imageProgress,
+                sponsored = sponsoredLocations,
+                onOpenLocation = { selectedLocationId = it },
                 modifier = padding,
                 onMaps = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
                 onDuplicate = {
@@ -223,6 +238,8 @@ fun TripDetailScreen(
 private fun TripDetailContent(
     trip: TripRecord,
     imageProgress: Pair<Int, Int>? = null,
+    sponsored: List<com.wandertale.mobile.data.model.SponsoredLocation> = emptyList(),
+    onOpenLocation: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     onMaps: (String) -> Unit,
     onDuplicate: () -> Unit,
@@ -309,6 +326,14 @@ private fun TripDetailContent(
                 }
             }
         } else {
+            if (sponsored.isNotEmpty()) {
+                item {
+                    Text("Đề xuất từ đối tác", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+                }
+                items(sponsored, key = { "sp-${it.id}" }) { loc ->
+                    SponsoredLocationCard(loc) { onOpenLocation(loc.id) }
+                }
+            }
             item {
                 Text("Khách sạn", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
             }

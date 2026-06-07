@@ -15,6 +15,7 @@ struct TripDetailView: View {
     @State private var actionError: String?
     @State private var actionInProgress = false
     @State private var selectedSection: DetailSection = .itinerary
+    @State private var sponsoredLocations: [SponsoredLocation] = []
 
     private enum DetailSection: String, CaseIterable {
         case itinerary = "Lịch trình"
@@ -173,6 +174,22 @@ struct TripDetailView: View {
     @ViewBuilder
     private func suggestionsSection(_ trip: TripRecord) -> some View {
         VStack(alignment: .leading, spacing: PremiumTheme.sectionGap) {
+            if !sponsoredLocations.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "sparkles").foregroundStyle(PremiumTheme.accent)
+                    Text("Đề xuất từ đối tác")
+                        .font(.system(size: 18, weight: .semibold))
+                }
+                ForEach(sponsoredLocations) { loc in
+                    NavigationLink {
+                        LocationDetailView(locationId: loc.id, tripId: trip.id)
+                    } label: {
+                        SponsoredLocationCard(location: loc)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
             HotelSectionView(
                 hotels: trip.itinerary_json?.hotel_suggestions ?? [],
                 destination: trip.destination,
@@ -326,6 +343,9 @@ struct TripDetailView: View {
         do {
             trip = try await ApiService.getTrip(id: tripId)
             startPollingIfNeeded()
+            if let t = trip {
+                sponsoredLocations = (try? await ApiService.sponsoredLocations(city: t.destination, maxPrice: t.budget))?.items ?? []
+            }
         } catch {
             self.error = formatApiError(error, fallback: "Không tải được chuyến đi")
         }
