@@ -17,26 +17,14 @@ struct TripPlannerView: View {
     @State private var error: String?
     @State private var suggestions: [GeocodeAutocompleteItem] = []
     @State private var suppressSuggestions = false
-    @State private var stableViewportWidth: CGFloat?
 
     var body: some View {
-        GeometryReader { proxy in
-            plannerLayout(width: stableViewportWidth ?? proxy.size.width)
-                .onAppear {
-                    if stableViewportWidth == nil {
-                        stableViewportWidth = proxy.size.width
-                    }
-                }
-                .onChange(of: proxy.size.width) { _, newWidth in
-                    guard abs(newWidth - (stableViewportWidth ?? newWidth)) > 80 else { return }
-                    stableViewportWidth = newWidth
-                }
-        }
-        .ignoresSafeArea(.keyboard, edges: .bottom)
-        .appTabRoot()
+        plannerLayout()
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+            .appTabRoot()
     }
 
-    private func plannerLayout(width: CGFloat) -> some View {
+    private func plannerLayout() -> some View {
         ZStack(alignment: .bottom) {
             AppScreenScroll {
                 VStack(alignment: .leading, spacing: 16) {
@@ -132,8 +120,7 @@ struct TripPlannerView: View {
             }
             .background(PremiumTheme.bg)
         }
-        .frame(width: width)
-        .frame(maxHeight: .infinity)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .transaction { $0.animation = nil }
     }
 
