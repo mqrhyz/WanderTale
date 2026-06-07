@@ -6,6 +6,7 @@ import {
   confirmBooking,
   createBooking,
   getBooking,
+  listUserBookings,
   payBooking,
 } from "../services/bookingService.js";
 
@@ -45,6 +46,16 @@ export async function bookingsRoutes(app: FastifyInstance) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
       return reply.code(msg === "business_not_found" ? 404 : 500).send({ error: msg });
+    }
+  });
+
+  // Booking của chính user (màn "Đặt chỗ & Thanh toán").
+  app.get("/bookings", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      return { items: await listUserBookings(req.userId!) };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(500).send({ error: msg });
     }
   });
 

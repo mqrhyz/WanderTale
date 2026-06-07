@@ -35,7 +35,7 @@ struct MainTabView: View {
                     case .business:
                         BusinessPortalView()
                     case .booking:
-                        BookingView()
+                        MyBookingsView()
                     }
                 }
         }

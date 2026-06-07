@@ -123,9 +123,10 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
             if (effectivePrice > 0) {
                 suspend fun book(mode: String) {
                     working = true
+                    val amount = if (mode == "prepaid") effectivePrice else (d.price_vnd ?: 0.0)
                     runCatching {
                         val created = ApiClient.createBooking(
-                            BookingCreate(business_id = d.business_id, total_amount = effectivePrice, type = "location", trip_id = tripId, location_id = d.id, currency = "VND", payment_mode = mode)
+                            BookingCreate(business_id = d.business_id, total_amount = amount, type = "location", trip_id = tripId, location_id = d.id, currency = "VND", payment_mode = mode)
                         )
                         if (mode == "prepaid") {
                             val pay = ApiClient.payBooking(created.id)
@@ -137,16 +138,29 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
                 Button(
                     onClick = { scope.launch { book("prepaid") } },
                     enabled = !working,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent, contentColor = Color.White),
-                ) { Text("Đặt & thanh toán trước", fontWeight = FontWeight.Bold) }
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Đặt & thanh toán trước", fontWeight = FontWeight.Bold)
+                        Text(FormatUtils.formatVnd(effectivePrice) + (if (d.voucher != null) " (đã giảm)" else ""), fontSize = 12.sp)
+                    }
+                }
                 OutlinedButton(
                     onClick = { scope.launch { book("pay_later") } },
                     enabled = !working,
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    modifier = Modifier.fillMaxWidth().height(54.dp),
                     shape = RoundedCornerShape(12.dp),
-                ) { Text("Đặt chỗ, trả sau", color = PremiumColors.Accent, fontWeight = FontWeight.SemiBold) }
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Đặt chỗ, trả sau", color = PremiumColors.Accent, fontWeight = FontWeight.SemiBold)
+                        Text(FormatUtils.formatVnd(d.price_vnd) + " (giá niêm yết)", color = PremiumColors.Accent, fontSize = 12.sp)
+                    }
+                }
+                if (d.voucher != null) {
+                    Text("Ưu đãi ${d.voucher.code} chỉ áp dụng khi thanh toán trước.", fontSize = 12.sp, color = PremiumColors.Muted)
+                }
             }
 
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {

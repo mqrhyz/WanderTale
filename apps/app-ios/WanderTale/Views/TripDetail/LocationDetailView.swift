@@ -134,16 +134,20 @@ struct LocationDetailView: View {
 
     @ViewBuilder
     private func bookingButtons(_ d: LocationDetail) -> some View {
-        if effectivePrice > 0 {
+        if (d.price_vnd ?? 0) > 0 {
             VStack(spacing: 10) {
                 Button {
                     Task { await book(mode: "prepaid", d: d) }
                 } label: {
                     HStack {
                         if bookingInProgress { ProgressView().tint(.white) }
-                        Text("Đặt & thanh toán trước").font(.system(size: 15, weight: .bold))
+                        VStack(spacing: 1) {
+                            Text("Đặt & thanh toán trước").font(.system(size: 15, weight: .bold))
+                            Text(FormatUtils.formatVnd(effectivePrice) + (d.voucher != nil ? " (đã giảm)" : ""))
+                                .font(.system(size: 12, weight: .medium)).opacity(0.9)
+                        }
                     }
-                    .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 48)
+                    .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 54)
                     .background(PremiumTheme.accent).clipShape(RoundedRectangle(cornerRadius: 12))
                 }
                 .disabled(bookingInProgress)
@@ -151,12 +155,22 @@ struct LocationDetailView: View {
                 Button {
                     Task { await book(mode: "pay_later", d: d) }
                 } label: {
-                    Text("Đặt chỗ, trả sau").font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(PremiumTheme.accent)
-                        .frame(maxWidth: .infinity).frame(height: 48)
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.accent))
+                    VStack(spacing: 1) {
+                        Text("Đặt chỗ, trả sau").font(.system(size: 15, weight: .semibold))
+                        Text(FormatUtils.formatVnd(d.price_vnd) + " (giá niêm yết)")
+                            .font(.system(size: 12, weight: .medium))
+                    }
+                    .foregroundStyle(PremiumTheme.accent)
+                    .frame(maxWidth: .infinity).frame(height: 54)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.accent))
                 }
                 .disabled(bookingInProgress)
+
+                if d.voucher != nil {
+                    Text("Ưu đãi \(d.voucher!.code) chỉ áp dụng khi thanh toán trước.")
+                        .font(.system(size: 12)).foregroundStyle(PremiumTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
         }
     }
@@ -217,10 +231,12 @@ struct LocationDetailView: View {
     private func book(mode: String, d: LocationDetail) async {
         bookingInProgress = true
         defer { bookingInProgress = false }
+        // Voucher chỉ áp khi thanh toán trước; trả sau dùng giá niêm yết.
+        let amount: Double = (mode == "prepaid") ? effectivePrice : (d.price_vnd ?? 0)
         do {
             let input = BookingCreate(
                 business_id: d.business_id,
-                total_amount: effectivePrice,
+                total_amount: amount,
                 type: "location",
                 trip_id: tripId,
                 location_id: d.id,

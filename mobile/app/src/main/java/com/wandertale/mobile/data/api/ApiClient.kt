@@ -317,6 +317,8 @@ object ApiClient {
     suspend fun businessDetail(id: String): com.wandertale.mobile.data.model.PublicBusinessDetail = portalGet("/api/businesses/$id")
     suspend fun createBooking(body: BookingCreate): BookingRecord = portalPost("/api/bookings", body)
     suspend fun getBooking(id: String): BookingRecord = portalGet("/api/bookings/$id")
+    suspend fun myBookings(): List<BookingRecord> =
+        portalGet<com.wandertale.mobile.data.model.BookingList>("/api/bookings").items
     suspend fun payBooking(id: String): BookingPayResponse = portalPost("/api/bookings/$id/pay")
     suspend fun confirmBooking(id: String): BookingRecord = portalPost("/api/bookings/$id/confirm")
     suspend fun cancelBooking(id: String): BookingRecord = portalPost("/api/bookings/$id/cancel")

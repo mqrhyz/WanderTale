@@ -246,3 +246,72 @@ private fun BusinessPickRow(biz: PublicBusinessRow, selected: Boolean, onClick: 
         Text("★ ${"%.1f".format(biz.rating_avg ?: 0.0)}", fontSize = 12.sp, color = PremiumColors.Accent)
     }
 }
+
+/** Danh sách đặt chỗ của user — "Đặt chỗ & Thanh toán" với mã + thông tin. */
+@Composable
+fun MyBookingsScreen(onBack: () -> Unit) {
+    var bookings by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BookingRecord>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun load() {
+        loading = true
+        bookings = runCatching { ApiClient.myBookings() }.getOrDefault(emptyList())
+        loading = false
+    }
+    LaunchedEffect(Unit) { load() }
+
+    AppScaffold(title = "Đặt chỗ & Thanh toán", onBack = onBack) { padding ->
+        when {
+            loading && bookings.isEmpty() -> Box(padding.fillMaxSize(), contentAlignment = Alignment.Center) { OrangeLoadingSpinner() }
+            bookings.isEmpty() -> Box(padding.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Chưa có đặt chỗ nào.", color = PremiumColors.Muted)
+            }
+            else -> LazyColumn(
+                padding.padding(PremiumDesign.ScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(bookings, key = { it.id }) { b -> MyBookingCard(b) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MyBookingCard(b: com.wandertale.mobile.data.model.BookingRecord) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(PremiumColors.Surface)
+            .border(1.dp, PremiumColors.Border, RoundedCornerShape(14.dp)).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(b.location_name ?: b.business_name ?: "Đặt chỗ", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Ink, modifier = Modifier.weight(1f))
+            BookingStatusPill(b.status ?: "")
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Mã:", fontSize = 13.sp, color = PremiumColors.Muted)
+            Text(b.code ?: b.id.take(8).uppercase(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Accent)
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(FormatUtils.formatVnd(b.total_amount), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Accent, modifier = Modifier.weight(1f))
+            Text(if (b.payment_mode == "pay_later") "Trả sau" else "Trả trước", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Muted)
+        }
+        b.created_at?.let { Text(it.take(10), fontSize = 12.sp, color = PremiumColors.Muted) }
+    }
+}
+
+@Composable
+private fun BookingStatusPill(status: String) {
+    val (label, color) = when (status) {
+        "paid" -> "Đã thanh toán" to Color(0xFF1B8E5A)
+        "confirmed" -> "Đã xác nhận" to Color(0xFF1B8E5A)
+        "pending_payment" -> "Chờ thanh toán" to Color(0xFFFFA51F)
+        "cancelled" -> "Đã huỷ" to PremiumColors.LogoutRed
+        "refunded" -> "Đã hoàn" to PremiumColors.Muted
+        else -> status to PremiumColors.Muted
+    }
+    Text(
+        label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = color,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 3.dp),
+    )
+}

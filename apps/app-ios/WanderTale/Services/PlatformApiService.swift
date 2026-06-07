@@ -133,6 +133,10 @@ extension ApiService {
         try await request(path: "/api/bookings/\(id)")
     }
 
+    static func myBookings() async throws -> BookingList {
+        try await request(path: "/api/bookings")
+    }
+
     static func payBooking(id: String) async throws -> BookingPayResponse {
         try await request(path: "/api/bookings/\(id)/pay", method: "POST")
     }

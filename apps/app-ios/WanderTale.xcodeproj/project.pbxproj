@@ -44,11 +44,13 @@
 		E45887DED473EC7BB1061B88 /* AppScreenLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E275C79AA36EFC416DA0110 /* AppScreenLayout.swift */; };
 		E7F6855676DBFBD5C705FF2E /* PremiumComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD78B35D9245BE0B52E2498C /* PremiumComponents.swift */; };
 		E857341AA3BE1134B4521128 /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996855210B9BD8BF9B827AAA /* SupabaseClient.swift */; };
+		EDDF62AD84770E9DABF18189 /* MyBookingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C562EC0667B17052469FEF9 /* MyBookingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		00EE63DAE8B1AA3F7A2C6EC3 /* PremiumTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumTheme.swift; sourceTree = "<group>"; };
 		088013EF817DA67009218A94 /* LocationDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationDetailView.swift; sourceTree = "<group>"; };
+		0C562EC0667B17052469FEF9 /* MyBookingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MyBookingsView.swift; sourceTree = "<group>"; };
 		0D7AA053D15DCD21926CE504 /* AppAssetPreloader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppAssetPreloader.swift; sourceTree = "<group>"; };
 		19E2C80A8F090162674C44F5 /* AuthViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViews.swift; sourceTree = "<group>"; };
 		1BC8756BA87D1604113D1D7D /* BusinessNotificationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BusinessNotificationsSheet.swift; sourceTree = "<group>"; };
@@ -86,7 +88,7 @@
 		E2DF251E5B37DE171E015F16 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		F2E766258697CEEC465F0D9E /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
 		F6C74731810FA7B4350BBC5A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		"TEMP_50C72623-1774-4697-9118-95F7619612FD" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -290,15 +292,16 @@
 				2B0B6EE9753CDD6DCA105ECE /* BookingPaymentSheet.swift */,
 				3A50CEB4684E0228361EFBBE /* HotelCardView.swift */,
 				088013EF817DA67009218A94 /* LocationDetailView.swift */,
+				0C562EC0667B17052469FEF9 /* MyBookingsView.swift */,
 				BAFCB6964E307A59ABC52739 /* TripDetailView.swift */,
 			);
 			path = TripDetail;
 			sourceTree = "<group>";
 		};
-		"TEMP_6C0CF82C-CC9C-4051-841F-83F21550BBA0" /* app-ios */ = {
+		"TEMP_CC7B5A66-B1CE-40C3-90B7-C0D076DA251B" /* app-ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_50C72623-1774-4697-9118-95F7619612FD" /* Config.xcconfig */,
+				"TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */,
 			);
 			path = "app-ios";
 			sourceTree = "<group>";
@@ -395,6 +398,7 @@
 				69E35B269B68F30403AC1BD6 /* MainTabView.swift in Sources */,
 				72B5D7EF71AC23935F3F5BF1 /* MediaComponents.swift in Sources */,
 				71FC85680776423E8A18894E /* Models.swift in Sources */,
+				EDDF62AD84770E9DABF18189 /* MyBookingsView.swift in Sources */,
 				45A58FF2BC11B0A4D7F24D33 /* PlatformApiService.swift in Sources */,
 				D690564DA36B36C5F636CF68 /* PlatformModels.swift in Sources */,
 				E7F6855676DBFBD5C705FF2E /* PremiumComponents.swift in Sources */,
@@ -417,7 +421,7 @@
 /* Begin XCBuildConfiguration section */
 		0C962A4F98F27E7DFAC38638 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_50C72623-1774-4697-9118-95F7619612FD" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -520,7 +524,7 @@
 		};
 		9D8A83515E9D4D85A737A4CC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_50C72623-1774-4697-9118-95F7619612FD" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

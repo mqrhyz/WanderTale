@@ -333,3 +333,11 @@
   - `BusinessLocationDialog` thêm ô URL ảnh → tạo location + media cùng lúc.
   - Poll 15s làm mới media + notifications + overview.
 - **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — đều pass. Backend deploy thành công (build `bdf57708`).
+
+## [2026-06-07] Fix ảnh sponsored + voucher chỉ khi trả trước + màn "Đặt chỗ & Thanh toán"
+- **Fix ảnh không hiện** (`sponsoredLocationService.ts`): `primaryImage` + `getLocationDetail` giờ fallback lấy ảnh approved của business khi media không gắn `location_id` (ảnh upload qua form media riêng). Chỉ lấy `type=image`.
+- **Voucher chỉ áp khi trả trước**: iOS + Android — nút "Đặt & thanh toán trước" dùng giá sau voucher; "Đặt chỗ, trả sau" dùng giá niêm yết. Hiện rõ giá trên mỗi nút + ghi chú "ưu đãi chỉ áp dụng khi thanh toán trước".
+- **Màn "Đặt chỗ & Thanh toán"** (lưu booking): backend `GET /api/bookings` (`listUserBookings`) trả booking của user kèm `code` (8 ký tự đầu, in hoa) + `location_name`/`business_name`. iOS `MyBookingsView`, Android `MyBookingsScreen` — list card: tên địa điểm, mã đặt chỗ, số tiền, trả trước/sau, trạng thái (pill màu). Route "booking" trong Profile trỏ vào màn này.
+- **Luồng**: bấm "thanh toán trước" → áp voucher → tạo booking + PayOS QR (auto-poll) → thành công → booking lưu lại, xem ở "Đặt chỗ & Thanh toán".
+- **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — pass. Backend deploy thành công (build `91d996e4`).
+- **Ghi chú:** thông báo thanh toán phía user hiện là màn success + lưu vào My Bookings (chưa có bell riêng cho user — có thể bổ sung sau).

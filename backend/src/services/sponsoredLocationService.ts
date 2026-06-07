@@ -80,16 +80,32 @@ async function bestVoucherForBusiness(businessId: string, priceVnd: number) {
   return best;
 }
 
-async function primaryImage(locationId: string): Promise<string | null> {
-  const { data } = await getSupabaseAdmin()
+async function primaryImage(locationId: string, businessId?: string): Promise<string | null> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb
     .from("business_media")
     .select("url")
     .eq("location_id", locationId)
     .eq("status", "approved")
+    .eq("type", "image")
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  return data?.url ?? null;
+  if (data?.url) return data.url;
+  // Fallback: ảnh approved bất kỳ của business (khi media upload không gắn location_id).
+  if (businessId) {
+    const { data: biz } = await sb
+      .from("business_media")
+      .select("url")
+      .eq("business_id", businessId)
+      .eq("status", "approved")
+      .eq("type", "image")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return biz?.url ?? null;
+  }
+  return null;
 }
 
 /**
@@ -126,7 +142,7 @@ export async function listSponsoredLocations(city: string, maxPriceVnd?: number)
   const enriched = await Promise.all(
     matched.slice(0, 10).map(async (loc) => {
       const [image, voucher] = await Promise.all([
-        primaryImage(loc.id),
+        primaryImage(loc.id, loc.business_id),
         bestVoucherForBusiness(loc.business_id, n(loc.price_vnd)),
       ]);
       return {
@@ -153,19 +169,25 @@ export async function getLocationDetail(locationId: string) {
 
   const [{ data: media }, { data: business }, voucher] = await Promise.all([
     sb.from("business_media")
-      .select("id,type,url,thumbnail_url")
-      .eq("location_id", locationId)
+      .select("id,type,url,thumbnail_url,location_id")
+      .eq("business_id", loc.business_id)
       .eq("status", "approved")
+      .eq("type", "image")
       .order("created_at", { ascending: false })
       .limit(12),
     sb.from("businesses").select("id,name,hotline,status").eq("id", loc.business_id).maybeSingle(),
     bestVoucherForBusiness(loc.business_id, n(loc.price_vnd)),
   ]);
 
+  // Ưu tiên ảnh gắn đúng location; nếu không có thì dùng ảnh business.
+  const all = media ?? [];
+  const tied = all.filter((m) => m.location_id === locationId);
+  const chosen = tied.length > 0 ? tied : all;
+
   return {
     ...loc,
-    images: (media ?? []).map((m) => m.url),
-    media: media ?? [],
+    images: chosen.map((m) => m.url),
+    media: chosen,
     business,
     voucher,
   };

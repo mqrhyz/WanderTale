@@ -429,3 +429,37 @@ export async function cancelBooking(bookingId: string, actorUserId: string) {
   });
   return data;
 }
+
+/** Danh sách booking của user (kèm tên địa điểm + business) cho màn "Đặt chỗ & Thanh toán". */
+export async function listUserBookings(userId: string, limit = 50) {
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from("bookings")
+    .select("id,business_id,trip_id,location_id,type,status,payment_mode,currency,total_amount,gross_amount,created_at,confirmed_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  const rows = data ?? [];
+
+  const locationIds = Array.from(new Set(rows.map((r) => r.location_id).filter(Boolean))) as string[];
+  const businessIds = Array.from(new Set(rows.map((r) => r.business_id).filter(Boolean))) as string[];
+
+  const [{ data: locs }, { data: bizs }] = await Promise.all([
+    locationIds.length
+      ? sb.from("business_locations").select("id,name").in("id", locationIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+    businessIds.length
+      ? sb.from("businesses").select("id,name").in("id", businessIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; name: string }> }),
+  ]);
+  const locName = new Map((locs ?? []).map((l) => [l.id, l.name]));
+  const bizName = new Map((bizs ?? []).map((b) => [b.id, b.name]));
+
+  return rows.map((r) => ({
+    ...r,
+    location_name: r.location_id ? locName.get(r.location_id) ?? null : null,
+    business_name: r.business_id ? bizName.get(r.business_id) ?? null : null,
+    code: r.id.slice(0, 8).toUpperCase(),
+  }));
+}

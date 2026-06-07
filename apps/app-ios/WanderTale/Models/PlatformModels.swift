@@ -348,6 +348,13 @@ struct BookingRecord: Codable, Identifiable {
     var confirmed_at: String?
     var created_at: String?
     var payment_mode: String?
+    var code: String?
+    var location_name: String?
+    var business_name: String?
+}
+
+struct BookingList: Codable {
+    var items: [BookingRecord] = []
 }
 
 struct BookingCreate: Codable {

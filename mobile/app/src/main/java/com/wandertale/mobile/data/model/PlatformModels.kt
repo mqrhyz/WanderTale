@@ -351,7 +351,14 @@ data class BookingRecord(
     val net_amount: Double? = null,
     val confirmed_at: String? = null,
     val created_at: String? = null,
+    val payment_mode: String? = null,
+    val code: String? = null,
+    val location_name: String? = null,
+    val business_name: String? = null,
 )
+
+@Serializable
+data class BookingList(val items: List<BookingRecord> = emptyList())
 
 @Serializable
 data class BookingCreate(
