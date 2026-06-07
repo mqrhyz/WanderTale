@@ -4,15 +4,26 @@ import { searchPlacesOptional } from "../lib/placesProvider.js";
 import type { TripGenerateInput } from "../schemas/trip.js";
 import type { TripGenerationContext } from "./tripGenerationContext.js";
 
-/** Từ khóa đánh dấu địa điểm KHÔNG phải du lịch — lọc kết quả VietMap/Google Places. */
+/** Từ khóa đánh dấu địa điểm KHÔNG phải du lịch — lọc kết quả VietMap/Google Places + cả gợi ý LLM. */
 const NON_TOURIST_KEYWORDS = [
-  "công an", "ubnd", "ủy ban", "hội trường", "bưu điện", "trung tâm hành chính",
-  "trường", "đại học", "bệnh viện", "phòng khám", "nhà máy", "khu công nghiệp",
+  // Cơ quan nhà nước / chính trị
+  "công an", "ubnd", "ủy ban", "uỷ ban", "hội đồng nhân dân", "hđnd",
+  "thành ủy", "thành uỷ", "tỉnh ủy", "tỉnh uỷ", "huyện ủy", "huyện uỷ",
+  "quận ủy", "quận uỷ", "đảng ủy", "đảng uỷ", "chi cục", "cục thuế",
+  "sở ", "phòng ", "ban quản lý", "ban chỉ huy", "tòa án", "toà án",
+  "viện kiểm sát", "kho bạc", "hải quan", "bộ chỉ huy", "đồn biên phòng",
+  "hội trường", "bưu điện", "trung tâm hành chính", "trụ sở",
+  // Giáo dục / y tế
+  "trường", "đại học", "cao đẳng", "trung học", "tiểu học", "mầm non",
+  "bệnh viện", "phòng khám", "trạm y tế", "nhà thuốc", "trung tâm y tế",
+  // Công nghiệp / dịch vụ không du lịch
+  "nhà máy", "khu công nghiệp", "cụm công nghiệp", "xí nghiệp",
   "nghĩa trang", "nghĩa địa", "sửa chữa", "xe máy", "ô tô", "gara", "garage",
   "công ty", "chi nhánh", "đại lý", "cửa hàng gia dụng", "siêu thị mini",
   "trang điểm", "dự tiệc", "mua bán nhà đất", "bất động sản", "địa điểm giao dịch",
   "kính", "glass", "nội thất", "vật liệu xây dựng", "phân bón", "thuốc trừ sâu",
-  "xăng dầu", "cây xăng", "trạm xăng", "ngân hàng", "atm",
+  "xăng dầu", "cây xăng", "trạm xăng", "ngân hàng", "atm", "kho ", "bãi xe",
+  "văn phòng", "tổng đài", "viễn thông", "điện lực", "cấp nước", "bảo hiểm",
 ];
 
 function isNonTouristPlace(name: string): boolean {
@@ -35,6 +46,11 @@ export const suggestedPlacesSchema = z.object({
 
 export type SuggestedPlace = z.infer<typeof suggestedPlaceSchema>;
 export type SuggestedPlacesPlan = z.infer<typeof suggestedPlacesSchema>;
+
+/** Lọc bỏ địa điểm phi du lịch khỏi danh sách gợi ý (dù từ LLM hay VietMap). */
+export function filterTouristPlaces(places: SuggestedPlace[]): SuggestedPlace[] {
+  return places.filter((p) => p.name.trim() && !isNonTouristPlace(p.name));
+}
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return Promise.race([
@@ -113,9 +129,12 @@ export async function suggestPlacesForTrip(
     `Travelers: ${body.travelers}, pace: ${body.pace}, accommodation: ${body.accommodation_style ?? "standard"}`,
     `Preferences: ${body.preferences.tags.join(", ") || "general"}`,
     `Thời điểm hiện tại: ${monthYear}. ƯU TIÊN địa điểm đang HOT / được ưa chuộng & phù hợp mùa này (${monthYear}); tránh nơi đã lỗi thời hoặc vắng khách.`,
+    `CHỈ gợi ý ĐỊA ĐIỂM DU LỊCH THỰC SỰ: danh thắng, bãi biển, hồ, núi, thác, chùa/nhà thờ/di tích, bảo tàng, công viên, khu vui chơi, chợ đêm/phố đi bộ, quán ăn ngon, quán cafe đẹp, spa.`,
+    `TUYỆT ĐỐI KHÔNG gợi ý: cơ quan nhà nước (thành ủy, tỉnh ủy, UBND, công an, sở/phòng/ban, tòa án, kho bạc, bưu điện, trung tâm hành chính, trụ sở), trường học/đại học, bệnh viện/phòng khám, nhà máy/khu công nghiệp, ngân hàng/ATM, văn phòng công ty, cây xăng, nghĩa trang, gara/sửa xe. Những nơi này KHÔNG phải điểm du lịch.`,
     `TUYỆT ĐỐI KHÔNG gợi ý địa điểm đã ĐÓNG CỬA VĨNH VIỄN, ngừng hoạt động, hoặc đang đóng cửa dài hạn.`,
     `Gợi ý đúng ${numDays * 3} địa điểm — ${numDays} ngày × 3 buổi (sáng/chiều/tối), mỗi buổi 1 địa điểm riêng.`,
     `Mỗi place BẮT BUỘC có "day" (1..${numDays}) và "name" là tên riêng cụ thể (không chung chung).`,
+    `"note" (tuỳ chọn) NÊN là 1 câu mô tả ngắn HẤP DẪN riêng cho địa điểm đó (điểm nổi bật, trải nghiệm, món signature, view...) — KHÔNG viết chung chung kiểu "khám phá X".`,
     `Không trùng tên địa điểm trong cùng chuyến đi.`,
     `estimated_cost_vnd: vé/ăn uống ước tính mỗi người hoặc mỗi lượt (VND).`,
     `WEATHER_JSON:\n${JSON.stringify(context.weather).slice(0, ctx)}`,
@@ -126,7 +145,10 @@ export async function suggestPlacesForTrip(
     const text = await withTimeout(llmGenerateJsonFast(prompt), 12_000, "suggestPlaces");
     const parsed = parseModelJsonText(text);
     const check = suggestedPlacesSchema.safeParse(parsed);
-    if (check.success && check.data.places.length > 0) return check.data;
+    if (check.success && check.data.places.length > 0) {
+      const filtered = filterTouristPlaces(check.data.places);
+      if (filtered.length > 0) return { places: filtered };
+    }
   } catch (error) {
     console.warn("[trip-gen] Gemini suggested places failed, fallback VietMap:", error);
   }

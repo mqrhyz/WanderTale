@@ -1,6 +1,17 @@
 import Foundation
 import SwiftUI
 
+/// Phân biệt lỗi do tác vụ bị huỷ (đổi tab, kết thúc pull-to-refresh, điều hướng)
+/// với lỗi mạng thật. Lỗi huỷ KHÔNG nên hiển thị cho người dùng.
+func isCancellationError(_ error: Error) -> Bool {
+    if error is CancellationError { return true }
+    if let urlError = error as? URLError, urlError.code == .cancelled { return true }
+    let nsError = error as NSError
+    if nsError.domain == NSURLErrorDomain, nsError.code == NSURLErrorCancelled { return true }
+    if nsError.domain == NSCocoaErrorDomain, nsError.code == NSUserCancelledError { return true }
+    return false
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -18,6 +29,9 @@ final class AppState {
     var dashboardError: String?
     var roleError: String?
 
+    private var preloadTask: Task<Void, Never>?
+    private var coverPollTask: Task<Void, Never>?
+
     func bootstrap() async {
         SupabaseClient.restoreSession()
         isAuthenticated = SupabaseClient.accessToken != nil
@@ -26,7 +40,16 @@ final class AppState {
     }
 
     func preload() async {
-        dashboardError = nil
+        // Chạy phần gọi mạng trong một Task không-cấu-trúc để việc huỷ do view
+        // (đổi tab, kết thúc pull-to-refresh, điều hướng sau khi tạo chuyến) KHÔNG
+        // làm huỷ request giữa chừng và hiện lỗi "đã hủy" sai.
+        preloadTask?.cancel()
+        let task = Task { await self.performPreload() }
+        preloadTask = task
+        await task.value
+    }
+
+    private func performPreload() async {
         roleError = nil
         var statsError: String?
         var tripsError: String?
@@ -37,26 +60,53 @@ final class AppState {
             return
         }
         if profile.is_admin || profile.is_business {
+            dashboardError = nil
             return
         }
 
         do {
             stats = try await ApiService.dashboard()
         } catch {
-            statsError = formatApiError(error, fallback: "Không tải thống kê")
+            if !isCancellationError(error) {
+                statsError = formatApiError(error, fallback: "Không tải thống kê")
+            }
         }
 
         do {
-            trips = try await ApiService.listTrips()
-            RemoteImageCache.prefetch(trips.compactMap { TripUtils.tripCoverImageUrl($0) })
+            let fetched = try await ApiService.listTrips()
+            trips = fetched
+            RemoteImageCache.prefetch(fetched.compactMap { TripUtils.tripCoverImageUrl($0) })
         } catch {
-            tripsError = formatApiError(error, fallback: "Không tải chuyến đi")
+            if !isCancellationError(error) {
+                tripsError = formatApiError(error, fallback: "Không tải chuyến đi")
+            }
         }
 
+        // Chỉ hiện lỗi thật (bỏ qua huỷ tác vụ); nếu không thì xoá lỗi cũ.
         if let statsError, let tripsError {
             dashboardError = "Không tải được dữ liệu từ \(AppConfig.apiURL). Thống kê: \(statsError). Chuyến đi: \(tripsError)"
         } else {
             dashboardError = statsError ?? tripsError
+        }
+
+        startCoverImagePollingIfNeeded()
+    }
+
+    /// Ảnh bìa được sinh ở server (Pexels) nên có thể chưa sẵn ngay lúc tạo chuyến.
+    /// Poll vài lần để ảnh bìa tự xuất hiện real-time mà không cần kéo refresh.
+    private func startCoverImagePollingIfNeeded() {
+        coverPollTask?.cancel()
+        guard trips.contains(where: { TripUtils.tripCoverImageUrl($0) == nil }) else { return }
+        coverPollTask = Task {
+            for _ in 0..<5 {
+                try? await Task.sleep(for: .seconds(3))
+                if Task.isCancelled { return }
+                guard let fresh = try? await ApiService.listTrips() else { continue }
+                if Task.isCancelled { return }
+                self.trips = fresh
+                RemoteImageCache.prefetch(fresh.compactMap { TripUtils.tripCoverImageUrl($0) })
+                if !fresh.contains(where: { TripUtils.tripCoverImageUrl($0) == nil }) { return }
+            }
         }
     }
 
@@ -88,6 +138,8 @@ final class AppState {
     }
 
     func signOut() {
+        preloadTask?.cancel()
+        coverPollTask?.cancel()
         SupabaseClient.signOut()
         isAuthenticated = false
         stats = nil
@@ -95,6 +147,7 @@ final class AppState {
         displayName = "Xin chào"
         accountInfo = nil
         roleError = nil
+        dashboardError = nil
     }
 
     func toggleFavorite(_ tripId: String) {
@@ -135,6 +188,7 @@ final class AppState {
                 displayName = accountInfo?.displayName ?? displayName
             }
         } catch {
+            if isCancellationError(error) { return }
             accountInfo = nil
             roleError = formatApiError(error, fallback: "Không tải được quyền tài khoản")
         }

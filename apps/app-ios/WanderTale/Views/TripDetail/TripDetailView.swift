@@ -351,7 +351,9 @@ struct TripDetailView: View {
                 guard !Task.isCancelled else { break }
                 guard let updated = try? await ApiService.getTrip(id: tripId) else { continue }
                 await MainActor.run {
-                    self.trip = updated
+                    // Giữ lại ảnh đã hiển thị ở client để không bị mất khi backend
+                    // trả bản itinerary mới (vd sau khi quét khách sạn xong).
+                    self.trip = TripUtils.mergingSlotImages(from: self.trip, into: updated)
                     if !TripUtils.tripNeedsMediaPolling(updated) {
                         self.imageProgress = nil
                     }
