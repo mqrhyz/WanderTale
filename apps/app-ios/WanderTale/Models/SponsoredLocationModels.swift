@@ -88,3 +88,18 @@ struct BusinessNotification: Codable, Identifiable {
 struct BusinessNotificationList: Codable {
     var items: [BusinessNotification] = []
 }
+
+struct Promotion: Codable, Identifiable {
+    let id: String
+    var code: String
+    var title: String
+    var description: String?
+    var discount_percent: Double?
+    var discount_amount: Double?
+    var valid_until: String?
+    var partner_name: String?
+}
+
+struct PromotionList: Codable {
+    var items: [Promotion] = []
+}

@@ -36,6 +36,8 @@ struct DashboardView: View {
                     onOpenTrip: { path.append(Route.tripDetail($0)) },
                     onCreateTrip: onCreateTrip
                 )
+
+                PromotionsSection()
             }
         }
         .refreshable { await appState.preload() }
