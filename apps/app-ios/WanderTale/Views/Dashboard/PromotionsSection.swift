@@ -92,6 +92,10 @@ private struct PromotionVoucherCard: View {
                     .foregroundStyle(PremiumTheme.muted)
                     .lineLimit(2)
             }
+            Text(applicabilityText(promo))
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(PremiumTheme.muted)
+                .lineLimit(1)
             Spacer(minLength: 0)
             HStack {
                 Text(discountText(promo))
@@ -219,4 +223,19 @@ private func discountText(_ promo: Promotion) -> String {
     if let pct = promo.discount_percent, pct > 0 { return "Giảm \(Int(pct))%" }
     if let amt = promo.discount_amount, amt > 0 { return "Giảm \(FormatUtils.formatVnd(amt))" }
     return "Ưu đãi"
+}
+
+private func applicabilityText(_ promo: Promotion) -> String {
+    switch promo.applicability ?? "hotel_places" {
+    case "user_subscription":
+        return "Dùng cho subscription"
+    case "pro_plan":
+        switch promo.billing_cycle ?? "both" {
+        case "monthly": return "Pro theo tháng"
+        case "yearly": return "Pro theo năm"
+        default: return "Pro tháng/năm"
+        }
+    default:
+        return "Khách sạn/địa điểm"
+    }
 }

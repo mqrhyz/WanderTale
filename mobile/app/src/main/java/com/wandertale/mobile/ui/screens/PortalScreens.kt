@@ -1551,6 +1551,8 @@ private fun AdminPromotionManagerDialog(
     var amount by remember { mutableStateOf("") }
     var validFrom by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
     var validUntil by remember { mutableStateOf(LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_DATE)) }
+    var applicability by remember { mutableStateOf("hotel_places") }
+    var billingCycle by remember { mutableStateOf("both") }
     var postTitle by remember { mutableStateOf("") }
     var postSubtitle by remember { mutableStateOf("") }
     var postBody by remember { mutableStateOf("") }
@@ -1561,6 +1563,7 @@ private fun AdminPromotionManagerDialog(
     fun resetVoucherForm() {
         selectedVoucherId = null
         code = ""; voucherTitle = ""; voucherDesc = ""; percent = ""; amount = ""
+        applicability = "hotel_places"; billingCycle = "both"
     }
 
     fun resetPostForm() {
@@ -1578,6 +1581,8 @@ private fun AdminPromotionManagerDialog(
         amount = voucher.discount_amount?.toInt()?.toString() ?: ""
         validFrom = voucher.valid_from ?: validFrom
         validUntil = voucher.valid_until ?: validUntil
+        applicability = voucher.applicability ?: "hotel_places"
+        billingCycle = voucher.billing_cycle ?: "both"
     }
 
     fun fillPost(post: PromotionPost) {
@@ -1627,6 +1632,20 @@ private fun AdminPromotionManagerDialog(
                     PortalTextInput("Giảm số tiền", amount, KeyboardType.Number) { amount = it }
                     PortalTextInput("Ngày bắt đầu yyyy-mm-dd", validFrom) { validFrom = it }
                     PortalTextInput("Ngày kết thúc yyyy-mm-dd", validUntil) { validUntil = it }
+                    Text("Áp dụng cho", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PortalChip("Khách sạn/địa điểm", applicability == "hotel_places") { applicability = "hotel_places" }
+                        PortalChip("Subscription user", applicability == "user_subscription") { applicability = "user_subscription" }
+                        PortalChip("Gói Pro", applicability == "pro_plan") { applicability = "pro_plan" }
+                    }
+                    if (applicability == "pro_plan") {
+                        Text("Chu kỳ Pro", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PortalChip("Tháng & năm", billingCycle == "both") { billingCycle = "both" }
+                            PortalChip("Theo tháng", billingCycle == "monthly") { billingCycle = "monthly" }
+                            PortalChip("Theo năm", billingCycle == "yearly") { billingCycle = "yearly" }
+                        }
+                    }
                     Button(
                         onClick = {
                             val input = PromotionVoucherCreate(
@@ -1637,6 +1656,8 @@ private fun AdminPromotionManagerDialog(
                                 discount_amount = amount.replace(".", "").toDoubleOrNull(),
                                 valid_from = validFrom,
                                 valid_until = validUntil,
+                                applicability = applicability,
+                                billing_cycle = if (applicability == "pro_plan") billingCycle else "both",
                             )
                             selectedVoucherId?.let { onUpdateVoucher(it, input) } ?: onCreateVoucher(input)
                             resetVoucherForm()
@@ -1743,6 +1764,7 @@ private fun PromotionVoucherAdminRow(voucher: Promotion, selected: Boolean, onCl
             Text(promotionAdminDiscount(voucher), color = PortalPurple, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
         Text(voucher.title, color = portalText(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text(promotionApplicabilityLabel(voucher), color = portalMuted(), fontSize = 12.sp)
         Text("${voucher.valid_from ?: "—"} → ${voucher.valid_until ?: "—"}", color = portalMuted(), fontSize = 12.sp)
     }
 }
@@ -1774,6 +1796,17 @@ private fun promotionAdminDiscount(voucher: Promotion): String {
     voucher.discount_amount?.takeIf { it > 0 }?.let { return formatPlatformVnd(it) }
     return "Ưu đãi"
 }
+
+private fun promotionApplicabilityLabel(voucher: Promotion): String =
+    when (voucher.applicability ?: "hotel_places") {
+        "user_subscription" -> "Áp dụng subscription user"
+        "pro_plan" -> when (voucher.billing_cycle ?: "both") {
+            "monthly" -> "Gói Pro theo tháng"
+            "yearly" -> "Gói Pro theo năm"
+            else -> "Gói Pro tháng/năm"
+        }
+        else -> "Khách sạn/địa điểm đề xuất"
+    }
 
 @Composable
 private fun PortalChip(label: String, selected: Boolean, onClick: () -> Unit) {

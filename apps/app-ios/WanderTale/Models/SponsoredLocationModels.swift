@@ -100,6 +100,8 @@ struct Promotion: Codable, Identifiable {
     var valid_until: String?
     var partner_name: String?
     var is_saved: Bool?
+    var applicability: String?
+    var billing_cycle: String?
 }
 
 struct PromotionList: Codable {
@@ -136,6 +138,8 @@ struct PromotionVoucherCreate: Codable {
     var discount_amount: Double?
     var valid_from: String?
     var valid_until: String?
+    var applicability: String?
+    var billing_cycle: String?
 }
 
 struct PromotionPostCreate: Codable {

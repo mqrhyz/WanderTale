@@ -636,6 +636,8 @@ data class Promotion(
     val valid_until: String? = null,
     val partner_name: String? = null,
     val is_saved: Boolean? = null,
+    val applicability: String? = null,
+    val billing_cycle: String? = null,
 )
 
 @Serializable
@@ -674,6 +676,8 @@ data class PromotionVoucherCreate(
     val discount_amount: Double? = null,
     val valid_from: String? = null,
     val valid_until: String? = null,
+    val applicability: String? = null,
+    val billing_cycle: String? = null,
 )
 
 @Serializable

@@ -376,6 +376,14 @@ private fun PromotionVoucherCard(voucher: Promotion, onToggle: () -> Unit) {
             voucher.description?.takeIf { it.isNotBlank() }?.let {
                 Text(it, fontSize = 12.sp, color = PremiumColors.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
+            Text(
+                promotionApplicabilityText(voucher),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = PremiumColors.Muted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
             Spacer(Modifier.weight(1f))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -490,6 +498,17 @@ private fun promotionDiscountText(voucher: Promotion): String {
     voucher.discount_amount?.takeIf { it > 0 }?.let { return "Giảm ${FormatUtils.formatVnd(it)}" }
     return "Ưu đãi"
 }
+
+private fun promotionApplicabilityText(voucher: Promotion): String =
+    when (voucher.applicability ?: "hotel_places") {
+        "user_subscription" -> "Dùng cho subscription"
+        "pro_plan" -> when (voucher.billing_cycle ?: "both") {
+            "monthly" -> "Pro theo tháng"
+            "yearly" -> "Pro theo năm"
+            else -> "Pro tháng/năm"
+        }
+        else -> "Khách sạn/địa điểm"
+    }
 
 @Composable
 private fun ProfileSettingsRow(label: String, icon: ImageVector, onClick: () -> Unit) {

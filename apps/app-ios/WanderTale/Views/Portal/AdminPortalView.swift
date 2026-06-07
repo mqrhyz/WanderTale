@@ -1211,6 +1211,8 @@ private struct AdminPromotionManagerSheet: View {
     @State private var discountAmount = ""
     @State private var validFrom = String(Date().ISO8601Format().prefix(10))
     @State private var validUntil = String(Date().addingTimeInterval(60 * 60 * 24 * 30).ISO8601Format().prefix(10))
+    @State private var voucherApplicability = "hotel_places"
+    @State private var voucherBillingCycle = "both"
     @State private var postTitle = ""
     @State private var postSubtitle = ""
     @State private var postBody = ""
@@ -1238,6 +1240,18 @@ private struct AdminPromotionManagerSheet: View {
                         TextField("Giảm số tiền", text: $discountAmount).keyboardType(.numberPad)
                         TextField("Ngày bắt đầu yyyy-mm-dd", text: $validFrom)
                         TextField("Ngày kết thúc yyyy-mm-dd", text: $validUntil)
+                        Picker("Áp dụng cho", selection: $voucherApplicability) {
+                            Text("Khách sạn/địa điểm").tag("hotel_places")
+                            Text("Subscription user").tag("user_subscription")
+                            Text("Gói Pro").tag("pro_plan")
+                        }
+                        if voucherApplicability == "pro_plan" {
+                            Picker("Chu kỳ Pro", selection: $voucherBillingCycle) {
+                                Text("Tháng & năm").tag("both")
+                                Text("Theo tháng").tag("monthly")
+                                Text("Theo năm").tag("yearly")
+                            }
+                        }
                     }
                     Section("Voucher hiện có") {
                         if vouchers.isEmpty {
@@ -1317,6 +1331,9 @@ private struct AdminPromotionManagerSheet: View {
                 Text(discountLabel(voucher)).font(.system(size: 12, weight: .bold)).foregroundStyle(AdminPortalStyle.purple)
             }
             Text(voucher.title).font(.system(size: 14, weight: .semibold))
+            Text(voucherApplicabilityLabel(voucher))
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
             Text("\(voucher.valid_from ?? "—") → \(voucher.valid_until ?? "—")")
                 .font(.system(size: 12)).foregroundStyle(.secondary)
         }
@@ -1348,6 +1365,8 @@ private struct AdminPromotionManagerSheet: View {
         discountAmount = voucher.discount_amount.map { String(Int($0)) } ?? ""
         validFrom = voucher.valid_from ?? validFrom
         validUntil = voucher.valid_until ?? validUntil
+        voucherApplicability = voucher.applicability ?? "hotel_places"
+        voucherBillingCycle = voucher.billing_cycle ?? "both"
     }
 
     private func fillPost(_ post: PromotionPost) {
@@ -1366,6 +1385,7 @@ private struct AdminPromotionManagerSheet: View {
         if mode == 0 {
             selectedVoucherId = nil
             code = ""; voucherTitle = ""; voucherDescription = ""; discountPercent = ""; discountAmount = ""
+            voucherApplicability = "hotel_places"; voucherBillingCycle = "both"
         } else {
             selectedPostId = nil
             postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; attachedVoucherId = ""; postType = "main"
@@ -1383,7 +1403,9 @@ private struct AdminPromotionManagerSheet: View {
                     discount_percent: Double(discountPercent.replacingOccurrences(of: ",", with: ".")),
                     discount_amount: Double(discountAmount.replacingOccurrences(of: ".", with: "")),
                     valid_from: validFrom,
-                    valid_until: validUntil
+                    valid_until: validUntil,
+                    applicability: voucherApplicability,
+                    billing_cycle: voucherApplicability == "pro_plan" ? voucherBillingCycle : "both"
                 )
                 if let selectedVoucherId { try await onUpdateVoucher(selectedVoucherId, input) } else { try await onCreateVoucher(input) }
                 resetCurrentForm()
@@ -1425,6 +1447,21 @@ private struct AdminPromotionManagerSheet: View {
         if let pct = voucher.discount_percent, pct > 0 { return "Giảm \(Int(pct))%" }
         if let amount = voucher.discount_amount, amount > 0 { return FormatUtils.formatVnd(amount) }
         return "Ưu đãi"
+    }
+
+    private func voucherApplicabilityLabel(_ voucher: Promotion) -> String {
+        switch voucher.applicability ?? "hotel_places" {
+        case "user_subscription":
+            return "Áp dụng subscription user"
+        case "pro_plan":
+            switch voucher.billing_cycle ?? "both" {
+            case "monthly": return "Gói Pro theo tháng"
+            case "yearly": return "Gói Pro theo năm"
+            default: return "Gói Pro tháng/năm"
+            }
+        default:
+            return "Khách sạn/địa điểm đề xuất"
+        }
     }
 }
 

@@ -3,6 +3,25 @@ import { getSupabaseAdmin } from "../lib/auth.js";
 type VoucherRow = Record<string, unknown>;
 type PostRow = Record<string, unknown>;
 
+const VOUCHER_APPLICABILITIES = new Set(["hotel_places", "user_subscription", "pro_plan"]);
+const VOUCHER_BILLING_CYCLES = new Set(["both", "monthly", "yearly"]);
+
+function metadata(v: VoucherRow): Record<string, unknown> {
+  return v.metadata && typeof v.metadata === "object" && !Array.isArray(v.metadata)
+    ? (v.metadata as Record<string, unknown>)
+    : {};
+}
+
+function voucherApplicability(value: unknown): string {
+  const normalized = String(value ?? "hotel_places");
+  return VOUCHER_APPLICABILITIES.has(normalized) ? normalized : "hotel_places";
+}
+
+function voucherBillingCycle(value: unknown): string {
+  const normalized = String(value ?? "both");
+  return VOUCHER_BILLING_CYCLES.has(normalized) ? normalized : "both";
+}
+
 function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -20,6 +39,7 @@ function partnerName(v: VoucherRow): string | null {
 
 function mapVoucher(v: VoucherRow, savedIds = new Set<string>()) {
   const id = String(v.id);
+  const meta = metadata(v);
   return {
     id,
     code: v.code,
@@ -31,6 +51,8 @@ function mapVoucher(v: VoucherRow, savedIds = new Set<string>()) {
     valid_until: v.valid_until ?? null,
     partner_name: partnerName(v),
     is_saved: savedIds.has(id),
+    applicability: voucherApplicability(meta.applicability),
+    billing_cycle: voucherBillingCycle(meta.billing_cycle),
   };
 }
 
@@ -81,14 +103,14 @@ export async function listPromotionHome(userId: string) {
   const [voucherResult, postResult] = await Promise.all([
     sb
       .from("vouchers")
-      .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,created_at,partners(name)")
+      .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,created_at,partners(name)")
       .lte("valid_from", today)
       .gte("valid_until", today)
       .order("created_at", { ascending: false })
       .limit(20),
     sb
       .from("promotion_posts")
-      .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name))")
+      .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,partners(name))")
       .eq("status", "published")
       .or(`starts_at.is.null,starts_at.lte.${today}`)
       .or(`ends_at.is.null,ends_at.gte.${today}`)
@@ -107,7 +129,7 @@ export async function getPromotionPost(postId: string, userId: string) {
   const saved = await savedVoucherIds(userId);
   const { data, error } = await getSupabaseAdmin()
     .from("promotion_posts")
-    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name))")
+    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,partners(name))")
     .eq("id", postId)
     .maybeSingle();
   if (error) throw error;
@@ -136,7 +158,7 @@ export async function unsavePromotionVoucher(userId: string, voucherId: string) 
 export async function adminListPromotionVouchers() {
   const { data, error } = await getSupabaseAdmin()
     .from("vouchers")
-    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,created_at,partners(name)")
+    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,created_at,partners(name)")
     .order("created_at", { ascending: false })
     .limit(100);
   if (error) throw error;
@@ -151,6 +173,8 @@ export async function adminCreatePromotionVoucher(body: {
   discount_amount?: number;
   valid_from?: string;
   valid_until?: string;
+  applicability?: string;
+  billing_cycle?: string;
 }) {
   if (!body.code?.trim()) throw new Error("voucher_code_required");
   if (!body.title?.trim()) throw new Error("voucher_title_required");
@@ -167,8 +191,12 @@ export async function adminCreatePromotionVoucher(body: {
       discount_amount: n(body.discount_amount),
       valid_from: body.valid_from || today,
       valid_until: body.valid_until || today,
+      metadata: {
+        applicability: voucherApplicability(body.applicability),
+        billing_cycle: voucherBillingCycle(body.billing_cycle),
+      },
     })
-    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,created_at,partners(name)")
+    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,created_at,partners(name)")
     .single();
   if (error) throw error;
   return mapVoucher(data as VoucherRow);
@@ -182,6 +210,8 @@ export async function adminUpdatePromotionVoucher(voucherId: string, body: {
   discount_amount?: number | null;
   valid_from?: string;
   valid_until?: string;
+  applicability?: string;
+  billing_cycle?: string;
 }) {
   const patch: Record<string, unknown> = {};
   if (body.code !== undefined) patch.code = body.code.trim().toUpperCase();
@@ -191,12 +221,26 @@ export async function adminUpdatePromotionVoucher(voucherId: string, body: {
   if (body.discount_amount !== undefined) patch.discount_amount = n(body.discount_amount);
   if (body.valid_from !== undefined) patch.valid_from = body.valid_from;
   if (body.valid_until !== undefined) patch.valid_until = body.valid_until;
+  if (body.applicability !== undefined || body.billing_cycle !== undefined) {
+    const { data: current, error: currentError } = await getSupabaseAdmin()
+      .from("vouchers")
+      .select("metadata")
+      .eq("id", voucherId)
+      .maybeSingle();
+    if (currentError) throw currentError;
+    const currentMeta = metadata((current ?? {}) as VoucherRow);
+    patch.metadata = {
+      ...currentMeta,
+      applicability: voucherApplicability(body.applicability ?? currentMeta.applicability),
+      billing_cycle: voucherBillingCycle(body.billing_cycle ?? currentMeta.billing_cycle),
+    };
+  }
   if (!Object.keys(patch).length) throw new Error("empty_update");
   const { data, error } = await getSupabaseAdmin()
     .from("vouchers")
     .update(patch)
     .eq("id", voucherId)
-    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,created_at,partners(name)")
+    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,created_at,partners(name)")
     .single();
   if (error) throw error;
   return mapVoucher(data as VoucherRow);
@@ -214,7 +258,7 @@ export async function adminDeletePromotionVoucher(voucherId: string) {
 export async function adminListPromotionPosts() {
   const { data, error } = await getSupabaseAdmin()
     .from("promotion_posts")
-    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name))")
+    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,partners(name))")
     .order("sort_order", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(100);
@@ -253,7 +297,7 @@ export async function adminCreatePromotionPost(userId: string, body: {
       ends_at: body.ends_at || null,
       created_by: userId,
     })
-    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name))")
+    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,partners(name))")
     .single();
   if (error) throw error;
   return mapPost(data as PostRow);
@@ -287,7 +331,7 @@ export async function adminUpdatePromotionPost(postId: string, body: {
     .from("promotion_posts")
     .update(patch)
     .eq("id", postId)
-    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name))")
+    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,partners(name))")
     .single();
   if (error) throw error;
   return mapPost(data as PostRow);
