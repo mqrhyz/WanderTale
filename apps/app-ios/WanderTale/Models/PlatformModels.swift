@@ -91,6 +91,8 @@ struct AdminUserRow: Codable, Identifiable {
     var phone: String?
     var is_admin: Bool = false
     var is_business: Bool = false
+    var is_premium: Bool?
+    var subscription_tier: String?
     var status: String?
     var last_login_at: String?
     var last_device: String?

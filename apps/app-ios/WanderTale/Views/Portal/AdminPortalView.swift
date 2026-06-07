@@ -194,7 +194,7 @@ struct AdminPortalView: View {
                     metricCard("Trips tạo hôm nay", "\(o.trips_today)", subtitle: trendSubtitle(o.trips_today, label: "so hôm qua"))
                 }
                 HStack(spacing: 12) {
-                    metricCard("Doanh thu tháng", formatCompactVnd(o.total_revenue_vnd), subtitle: trendSubtitle(o.total_revenue_vnd.isFinite ? Int(o.total_revenue_vnd / 1_000_000) : 0, label: "vs tháng trước"))
+                    metricCard("Doanh thu tháng", formatCompactVnd(o.commission_revenue_vnd), subtitle: trendSubtitle(o.commission_revenue_vnd.isFinite ? Int(o.commission_revenue_vnd / 1_000_000) : 0, label: "vs tháng trước"))
                     metricCard("Business hoạt động", "\(o.business_count)", subtitle: "\(o.pending_business_count) chờ duyệt")
                 }
                 adminSectionTitle("DOANH THU 7 NGÀY")
@@ -350,7 +350,6 @@ struct AdminPortalView: View {
 
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
-            adminMediaSection
             adminPayoutsSection
             adminAiRulesSection
             logsSection
@@ -964,7 +963,8 @@ struct AdminPortalView: View {
                 let date = parsePortalDate(rawDate),
                 let index = days.firstIndex(of: calendar.startOfDay(for: date))
             else { continue }
-            totals[index] += transaction.net_amount ?? transaction.gross_amount ?? 0
+            guard transaction.kind == "booking_commission" || transaction.kind == "commission" else { continue }
+            totals[index] += transaction.commission_amount ?? 0
         }
 
         return totals
@@ -1211,13 +1211,7 @@ private struct AdminUserDetailView: View {
                         .font(.system(size: 23, weight: .bold))
                         .foregroundStyle(AdminPortalStyle.text)
                     Spacer()
-                    Image(systemName: "ellipsis.vertical")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(AdminPortalStyle.text)
-                        .frame(width: 48, height: 48)
-                        .background(AdminPortalStyle.card)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(AdminPortalStyle.stroke))
+                    Color.clear.frame(width: 48, height: 48)
                 }
                 .padding(.horizontal, 22)
                 .padding(.top, 18)
@@ -1244,7 +1238,7 @@ private struct AdminUserDetailView: View {
                                     .lineLimit(1)
                                 HStack(spacing: 8) {
                                     detailPill(detail.user.status == "banned" ? "Banned" : "Active", bad: detail.user.status == "banned")
-                                    detailPill(detail.user.is_business ? "Business" : "User", dark: true)
+                                    detailPill(accountPlanLabel(detail.user), dark: true)
                                 }
                             }
                         }
@@ -1344,11 +1338,20 @@ private struct AdminUserDetailView: View {
     private func detailPill(_ text: String, bad: Bool = false, dark: Bool = false) -> some View {
         Text(text)
             .font(.system(size: 12, weight: .bold))
-            .foregroundStyle(dark ? Color.white : (bad ? Color(red: 0.48, green: 0.08, blue: 0.08) : AdminPortalStyle.green))
+            .foregroundStyle(dark ? AdminPortalStyle.text : (bad ? Color(red: 0.48, green: 0.08, blue: 0.08) : AdminPortalStyle.green))
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
-            .background(dark ? AdminPortalStyle.card : (bad ? Color(red: 1, green: 0.92, blue: 0.92) : Color(red: 0.80, green: 1, blue: 0.91)))
+            .background(dark ? AdminPortalStyle.bg.opacity(0.95) : (bad ? Color(red: 1, green: 0.92, blue: 0.92) : Color(red: 0.80, green: 1, blue: 0.91)))
             .clipShape(Capsule())
+            .overlay(Capsule().stroke(dark ? AdminPortalStyle.stroke : Color.clear))
+    }
+
+    private func accountPlanLabel(_ user: AdminUserRow) -> String {
+        let tier = user.subscription_tier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if user.is_premium == true || tier == "premium" || tier == "pro" {
+            return "Premium"
+        }
+        return "Free"
     }
 
     private func tripRow(_ trip: AdminTripBrief) -> some View {

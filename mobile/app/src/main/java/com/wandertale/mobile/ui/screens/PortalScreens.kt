@@ -1009,7 +1009,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                 item {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         overview?.let {
-                                            PortalMetricCard("Doanh thu tháng", compactVnd(it.total_revenue_vnd), "đã đồng bộ", Modifier.weight(1f))
+                                            PortalMetricCard("Doanh thu tháng", compactVnd(it.commission_revenue_vnd), "đã đồng bộ", Modifier.weight(1f))
                                             PortalMetricCard("Business hoạt động", "${it.business_count}", "${it.pending_business_count} chờ duyệt", Modifier.weight(1f))
                                         }
                                     }
@@ -1120,31 +1120,6 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                             }
                             else -> {
                                 val filteredLogs = filteredSystemLogs(logs, logFilter)
-                                item { PortalSectionTitle("DUYỆT MEDIA") }
-                                if (media.isEmpty()) item { EmptyPortalText("Chưa có media chờ duyệt.") }
-                                items(media, key = { it.id }) { m ->
-                                    AdminMediaModerationCard(
-                                        media = m,
-                                        onApprove = {
-                                            scope.launch {
-                                                runCatching {
-                                                    ApiClient.adminUpdateMediaStatus(m.id, "approved")
-                                                    actionMessage = "Đã duyệt media."
-                                                    load()
-                                                }.onFailure { actionMessage = it.message }
-                                            }
-                                        },
-                                        onReject = {
-                                            scope.launch {
-                                                runCatching {
-                                                    ApiClient.adminUpdateMediaStatus(m.id, "rejected", "Không đạt yêu cầu")
-                                                    actionMessage = "Đã từ chối media."
-                                                    load()
-                                                }.onFailure { actionMessage = it.message }
-                                            }
-                                        },
-                                    )
-                                }
 
                                 item { PortalSectionTitle("PAYOUT") }
                                 if (payouts.isEmpty()) item { EmptyPortalText("Chưa có khoản payout nào.") }
@@ -1395,7 +1370,9 @@ private fun RevenueBars(transactions: List<PlatformTransaction>) {
         val raw = tx.created_at?.take(10) ?: return@forEach
         val date = runCatching { java.time.LocalDate.parse(raw) }.getOrNull() ?: return@forEach
         val idx = days.indexOf(date)
-        if (idx >= 0) values[idx] += (tx.net_amount ?: tx.gross_amount ?: 0.0)
+        if (idx >= 0 && (tx.kind == "booking_commission" || tx.kind == "commission")) {
+            values[idx] += tx.commission_amount ?: 0.0
+        }
     }
     val max = values.maxOrNull()?.takeIf { it > 0.0 } ?: 1.0
     fun viWeekday(d: java.time.LocalDate): String = when (d.dayOfWeek.value) {
@@ -2356,7 +2333,7 @@ private fun AdminUserDetailDialog(
                 Spacer(Modifier.weight(1f))
                 Text("Chi tiết user", color = portalText(), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.weight(1f))
-                Text("⋮", color = portalText(), fontSize = 24.sp)
+                Spacer(Modifier.width(28.dp))
             }
             Row(
                 Modifier
@@ -2384,7 +2361,7 @@ private fun AdminUserDetailDialog(
                     Text(detail.email ?: "—", color = PortalPurple, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         RoleChip(if (detail.status == "banned") "Banned" else "Active", detail.status != "banned")
-                        RoleChip(if (detail.is_business) "Business" else "User", true)
+                        RoleChip(userPlanLabel(detail), true)
                     }
                 }
             }
@@ -2532,6 +2509,11 @@ private fun RoleChip(label: String, active: Boolean) {
             .border(1.dp, if (active) Color.Transparent else portalStroke(), RoundedCornerShape(50))
             .padding(horizontal = 8.dp, vertical = 4.dp),
     )
+}
+
+private fun userPlanLabel(detail: AdminUserDetail): String {
+    val tier = detail.subscription_tier?.trim()?.lowercase(Locale.ROOT)
+    return if (detail.is_premium == true || tier == "premium" || tier == "pro") "Premium" else "Free"
 }
 
 private fun jsonElementText(el: kotlinx.serialization.json.JsonElement): String = when (el) {
