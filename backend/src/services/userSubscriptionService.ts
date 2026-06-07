@@ -11,7 +11,7 @@ const USER_SUBSCRIPTION_PACKAGES = [
     name: "WanderTale Pro tháng",
     tier: "pro",
     billing_cycle: "monthly",
-    price_vnd: 59000,
+    price_vnd: 49000,
     duration_days: 30,
     benefits: [
       "Tạo chuyến đi AI không giới hạn",

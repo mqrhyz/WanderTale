@@ -99,11 +99,7 @@ struct ProfileView: View {
                 Image("UpgradeIcon")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 42, height: 42)
-                    .padding(6)
-                    .background(PremiumTheme.surface)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(PremiumTheme.border))
+                    .frame(width: 58, height: 58)
             }
             .buttonStyle(.plain)
         }

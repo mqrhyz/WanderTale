@@ -27,11 +27,8 @@ struct PromotionsSection: View {
                     }
 
                     if !posts.isEmpty {
-                        VStack(spacing: 12) {
-                            ForEach(posts) { post in
-                                PromotionPostCard(post: post)
-                                    .onTapGesture { selectedPost = post }
-                            }
+                        PromotionPostMasonry(posts: posts) { post in
+                            selectedPost = post
                         }
                     }
                 }
@@ -64,6 +61,47 @@ struct PromotionsSection: View {
     private func save(_ promo: Promotion) async {
         try? await ApiService.savePromotionVoucher(id: promo.id)
         await load()
+    }
+}
+
+private struct PromotionPostMasonry: View {
+    let posts: [PromotionPost]
+    let onTap: (PromotionPost) -> Void
+
+    private var primary: [PromotionPost] {
+        posts.filter { $0.post_type == "main" }
+    }
+
+    private var secondary: [PromotionPost] {
+        posts.filter { $0.post_type != "main" }
+    }
+
+    var body: some View {
+        if primary.isEmpty || secondary.isEmpty {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                ForEach(posts) { post in
+                    PromotionPostCard(post: post)
+                        .onTapGesture { onTap(post) }
+                }
+            }
+        } else {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 12) {
+                    ForEach(primary) { post in
+                        PromotionPostCard(post: post)
+                            .onTapGesture { onTap(post) }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+                VStack(spacing: 12) {
+                    ForEach(secondary) { post in
+                        PromotionPostCard(post: post)
+                            .onTapGesture { onTap(post) }
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
     }
 }
 

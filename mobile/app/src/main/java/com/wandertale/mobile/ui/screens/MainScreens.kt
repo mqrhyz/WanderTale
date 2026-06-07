@@ -358,8 +358,53 @@ private fun PromotionHomeSection(
                 }
             }
         }
-        posts.forEach { post ->
-            PromotionPostCard(post = post, onClick = { onPostClick(post) })
+        if (posts.isNotEmpty()) {
+            PromotionPostMasonry(posts = posts, onPostClick = onPostClick)
+        }
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun PromotionPostMasonry(
+    posts: List<PromotionPost>,
+    onPostClick: (PromotionPost) -> Unit,
+) {
+    val primary = posts.filter { it.post_type == "main" }
+    val secondary = posts.filter { it.post_type != "main" }
+    if (primary.isEmpty() || secondary.isEmpty()) {
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            maxItemsInEachRow = 2,
+        ) {
+            posts.forEach { post ->
+                PromotionPostCard(
+                    post = post,
+                    onClick = { onPostClick(post) },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+            }
+        }
+    } else {
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                primary.forEach { post ->
+                    PromotionPostCard(post = post, onClick = { onPostClick(post) })
+                }
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                secondary.forEach { post ->
+                    PromotionPostCard(post = post, onClick = { onPostClick(post) })
+                }
+            }
         }
     }
 }
@@ -418,10 +463,10 @@ private fun PromotionVoucherCard(voucher: Promotion, onToggle: () -> Unit) {
 }
 
 @Composable
-private fun PromotionPostCard(post: PromotionPost, onClick: () -> Unit) {
+private fun PromotionPostCard(post: PromotionPost, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ratio = if (post.post_type == "main") 3f / 4f else 1f
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .aspectRatio(ratio)
             .clip(RoundedCornerShape(18.dp))
@@ -572,6 +617,17 @@ fun TripsListScreen(
     val activeTrips = trips.filter { getTripPhase(it.start_date, it.end_date) != TripPhase.COMPLETED }
     val pastTrips = trips.filter { getTripPhase(it.start_date, it.end_date) == TripPhase.COMPLETED }
     var segmentIndex by remember { mutableStateOf(0) }
+    var promotionHome by remember { mutableStateOf<PromotionHomePayload?>(null) }
+    var selectedPromotionPost by remember { mutableStateOf<PromotionPost?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun loadPromotions() {
+        promotionHome = runCatching { ApiClient.promotionHome() }.getOrNull()
+    }
+
+    LaunchedEffect(Unit) {
+        loadPromotions()
+    }
 
     val segmentTrips = when (segmentIndex) {
         0 -> activeTrips
@@ -637,6 +693,22 @@ fun TripsListScreen(
                             )
                         }
                     }
+                    item {
+                        PromotionHomeSection(
+                            payload = promotionHome,
+                            onPostClick = { selectedPromotionPost = it },
+                            onToggleVoucher = { voucher ->
+                                scope.launch {
+                                    if (voucher.is_saved == true) {
+                                        runCatching { ApiClient.unsavePromotionVoucher(voucher.id) }
+                                    } else {
+                                        runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                                    }
+                                    loadPromotions()
+                                }
+                            },
+                        )
+                    }
                     item { Spacer(Modifier.height(8.dp)) }
                 }
             }
@@ -650,6 +722,20 @@ fun TripsListScreen(
         ) { content() }
     } else {
         Box(modifier) { content() }
+    }
+
+    selectedPromotionPost?.let { post ->
+        PromotionPostDialog(
+            post = post,
+            onDismiss = { selectedPromotionPost = null },
+            onSaveVoucher = { voucher ->
+                scope.launch {
+                    runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                    loadPromotions()
+                    selectedPromotionPost = selectedPromotionPost?.copy(voucher = voucher.copy(is_saved = true))
+                }
+            },
+        )
     }
 }
 
@@ -904,12 +990,9 @@ private fun ProfileCompactHeader(name: String, onUpgrade: () -> Unit) {
             painter = painterResource(id = R.drawable.up),
             contentDescription = "Nâng cấp Pro",
             modifier = Modifier
-                .size(52.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surface)
-                .border(1.dp, PremiumColors.Border.copy(alpha = 0.55f), CircleShape)
+                .size(62.dp)
                 .clickable(onClick = onUpgrade)
-                .padding(7.dp),
+                .padding(2.dp),
         )
     }
 }
