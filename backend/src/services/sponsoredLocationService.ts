@@ -80,6 +80,25 @@ async function bestVoucherForBusiness(businessId: string, priceVnd: number) {
   return best;
 }
 
+/** Tất cả voucher active áp dụng cho 1 business (đã tính giá sau giảm). */
+async function listAppliedVouchers(businessId: string, priceVnd: number): Promise<NonNullable<AppliedVoucher>[]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await getSupabaseAdmin()
+    .from("business_vouchers")
+    .select("id,code,title,discount_type,discount_value,max_discount_vnd,valid_from,valid_until,status")
+    .eq("business_id", businessId)
+    .eq("status", "active")
+    .lte("valid_from", today)
+    .gte("valid_until", today);
+  const out: NonNullable<AppliedVoucher>[] = [];
+  for (const v of data ?? []) {
+    const applied = applyVoucher(priceVnd, v as never);
+    if (applied) out.push(applied);
+  }
+  out.sort((a, b) => b.discount_vnd - a.discount_vnd);
+  return out;
+}
+
 async function primaryImage(locationId: string, businessId?: string): Promise<string | null> {
   const sb = getSupabaseAdmin();
   const { data } = await sb
@@ -167,7 +186,7 @@ export async function getLocationDetail(locationId: string) {
   if (error) throw error;
   if (!loc) throw new Error("location_not_found");
 
-  const [{ data: media }, { data: business }, voucher] = await Promise.all([
+  const [{ data: media }, { data: business }, voucher, vouchers] = await Promise.all([
     sb.from("business_media")
       .select("id,type,url,thumbnail_url,location_id")
       .eq("business_id", loc.business_id)
@@ -177,6 +196,7 @@ export async function getLocationDetail(locationId: string) {
       .limit(12),
     sb.from("businesses").select("id,name,hotline,status").eq("id", loc.business_id).maybeSingle(),
     bestVoucherForBusiness(loc.business_id, n(loc.price_vnd)),
+    listAppliedVouchers(loc.business_id, n(loc.price_vnd)),
   ]);
 
   // Ưu tiên ảnh gắn đúng location; nếu không có thì dùng ảnh business.
@@ -190,6 +210,7 @@ export async function getLocationDetail(locationId: string) {
     media: chosen,
     business,
     voucher,
+    vouchers,
   };
 }
 

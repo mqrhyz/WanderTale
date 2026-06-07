@@ -369,6 +369,7 @@ data class BookingCreate(
     val location_id: String? = null,
     val currency: String? = null,
     val payment_mode: String? = null,
+    val metadata: Map<String, String>? = null,
 )
 
 @Serializable
@@ -583,6 +584,7 @@ data class LocationDetail(
     val images: List<String> = emptyList(),
     val business: LocationBusinessInfo? = null,
     val voucher: AppliedVoucher? = null,
+    val vouchers: List<AppliedVoucher> = emptyList(),
 )
 
 @Serializable

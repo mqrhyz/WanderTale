@@ -4,17 +4,16 @@ struct LocationDetailView: View {
     let locationId: String
     var tripId: String?
 
-    @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
     @State private var detail: LocationDetail?
     @State private var reviews: [LocationReview] = []
     @State private var loading = true
     @State private var error: String?
 
     @State private var showReviewSheet = false
-    @State private var booking: BookingRecord?
+    @State private var formMode: String?          // "prepaid" | "pay_later"
     @State private var payResponse: BookingPayResponse?
     @State private var booked = false
-    @State private var bookingInProgress = false
 
     var body: some View {
         ScrollView {
@@ -32,39 +31,49 @@ struct LocationDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
         .sheet(isPresented: $showReviewSheet) {
-            AddReviewSheet(locationId: locationId) {
-                Task { await loadReviews() }
+            AddReviewSheet(locationId: locationId) { Task { await loadReviews() } }
+        }
+        .sheet(item: $formMode.asIdentifiable) { wrapper in
+            if let d = detail {
+                BookingFormSheet(
+                    detail: d,
+                    mode: wrapper.value,
+                    tripId: tripId,
+                    defaultName: appState.accountInfo?.displayName ?? appState.displayName,
+                    defaultPhone: appState.accountInfo?.phone ?? "",
+                    onPay: { resp in formMode = nil; payResponse = resp },
+                    onPaidLater: { formMode = nil; booked = true }
+                )
             }
         }
         .sheet(item: $payResponse) { resp in
-            BookingPaymentSheet(response: resp) {
-                payResponse = nil
-            }
+            BookingPaymentSheet(response: resp) { payResponse = nil }
         }
         .alert("Đặt chỗ thành công", isPresented: $booked) {
             Button("OK") { }
         } message: {
-            Text("Bạn đã đặt chỗ (trả sau). Vui lòng thanh toán tại địa điểm.")
+            Text("Bạn đã đặt chỗ (trả sau). Vui lòng thanh toán tại địa điểm. Xem ở mục Đặt chỗ.")
         }
     }
 
     @ViewBuilder
     private func content(_ d: LocationDetail) -> some View {
         VStack(alignment: .leading, spacing: 16) {
-            if !d.images.isEmpty {
-                ImageCarousel(images: d.images, alt: d.name, fallback: String(d.name.prefix(1)))
-                    .frame(height: 230)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-            } else {
-                RemoteImage(url: nil, fallback: d.name)
-                    .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+            ZStack {
+                if !d.images.isEmpty {
+                    ImageCarousel(images: d.images, alt: d.name, fallback: String(d.name.prefix(1)))
+                } else {
+                    RemoteImage(url: nil, fallback: d.name)
+                }
             }
+            .frame(maxWidth: .infinity)
+            .frame(height: 240)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
 
             VStack(alignment: .leading, spacing: 8) {
                 HStack {
                     Text(d.name).font(.system(size: 22, weight: .bold))
-                    if d.voucher != nil {
+                    if !d.vouchers.isEmpty {
                         Text("Ưu đãi").font(.system(size: 11, weight: .bold))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 8).padding(.vertical, 3)
@@ -74,8 +83,7 @@ struct LocationDetailView: View {
                 HStack(spacing: 10) {
                     if d.rating_count > 0 {
                         Label(String(format: "%.1f (%d)", d.rating_avg, d.rating_count), systemImage: "star.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.orange)
+                            .font(.system(size: 13, weight: .semibold)).foregroundStyle(.orange)
                     }
                     if let cat = d.category, !cat.isEmpty {
                         Text(cat).font(.system(size: 13)).foregroundStyle(PremiumTheme.muted)
@@ -97,7 +105,6 @@ struct LocationDetailView: View {
             }
 
             bookingButtons(d)
-
             reviewsBlock()
         }
         .padding(PremiumTheme.screenPadding)
@@ -108,66 +115,33 @@ struct LocationDetailView: View {
         if let price = d.price_vnd, price > 0 {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let v = d.voucher {
-                    Text(FormatUtils.formatVnd(price))
-                        .font(.system(size: 15))
-                        .strikethrough()
-                        .foregroundStyle(PremiumTheme.muted)
-                    Text(FormatUtils.formatVnd(v.final_price_vnd))
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(PremiumTheme.accent)
-                    Text("\(v.code)").font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(PremiumTheme.accent)
+                    Text(FormatUtils.formatVnd(price)).font(.system(size: 15)).strikethrough().foregroundStyle(PremiumTheme.muted)
+                    Text(FormatUtils.formatVnd(v.final_price_vnd)).font(.system(size: 22, weight: .bold)).foregroundStyle(PremiumTheme.accent)
                 } else {
-                    Text(FormatUtils.formatVnd(price))
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(PremiumTheme.accent)
+                    Text(FormatUtils.formatVnd(price)).font(.system(size: 22, weight: .bold)).foregroundStyle(PremiumTheme.accent)
                 }
             }
         }
-    }
-
-    private var effectivePrice: Double {
-        guard let d = detail else { return 0 }
-        if let v = d.voucher { return v.final_price_vnd }
-        return d.price_vnd ?? 0
     }
 
     @ViewBuilder
     private func bookingButtons(_ d: LocationDetail) -> some View {
         if (d.price_vnd ?? 0) > 0 {
             VStack(spacing: 10) {
-                Button {
-                    Task { await book(mode: "prepaid", d: d) }
-                } label: {
-                    HStack {
-                        if bookingInProgress { ProgressView().tint(.white) }
-                        VStack(spacing: 1) {
-                            Text("Đặt & thanh toán trước").font(.system(size: 15, weight: .bold))
-                            Text(FormatUtils.formatVnd(effectivePrice) + (d.voucher != nil ? " (đã giảm)" : ""))
-                                .font(.system(size: 12, weight: .medium)).opacity(0.9)
-                        }
-                    }
-                    .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 54)
-                    .background(PremiumTheme.accent).clipShape(RoundedRectangle(cornerRadius: 12))
+                Button { formMode = "prepaid" } label: {
+                    Text("Đặt & thanh toán trước")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 50)
+                        .background(PremiumTheme.accent).clipShape(RoundedRectangle(cornerRadius: 12))
                 }
-                .disabled(bookingInProgress)
-
-                Button {
-                    Task { await book(mode: "pay_later", d: d) }
-                } label: {
-                    VStack(spacing: 1) {
-                        Text("Đặt chỗ, trả sau").font(.system(size: 15, weight: .semibold))
-                        Text(FormatUtils.formatVnd(d.price_vnd) + " (giá niêm yết)")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundStyle(PremiumTheme.accent)
-                    .frame(maxWidth: .infinity).frame(height: 54)
-                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.accent))
+                Button { formMode = "pay_later" } label: {
+                    Text("Đặt chỗ, trả sau")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(PremiumTheme.accent).frame(maxWidth: .infinity).frame(height: 50)
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(PremiumTheme.accent))
                 }
-                .disabled(bookingInProgress)
-
-                if d.voucher != nil {
-                    Text("Ưu đãi \(d.voucher!.code) chỉ áp dụng khi thanh toán trước.")
+                if !d.vouchers.isEmpty {
+                    Text("Có ưu đãi khi thanh toán trước — chọn mã ở bước thanh toán.")
                         .font(.system(size: 12)).foregroundStyle(PremiumTheme.muted)
                         .frame(maxWidth: .infinity, alignment: .center)
                 }
@@ -182,8 +156,7 @@ struct LocationDetailView: View {
                 Text("Đánh giá").font(.system(size: 16, weight: .semibold))
                 Spacer()
                 Button("Viết đánh giá") { showReviewSheet = true }
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(PremiumTheme.accent)
+                    .font(.system(size: 13, weight: .semibold)).foregroundStyle(PremiumTheme.accent)
             }
             if reviews.isEmpty {
                 Text("Chưa có đánh giá. Hãy là người đầu tiên!")
@@ -202,9 +175,7 @@ struct LocationDetailView: View {
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                    .background(PremiumTheme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(12).background(PremiumTheme.surface).clipShape(RoundedRectangle(cornerRadius: 12))
                 }
             }
         }
@@ -227,37 +198,190 @@ struct LocationDetailView: View {
         reviews = (try? await ApiService.locationReviews(id: locationId))?.items ?? []
         detail = try? await ApiService.locationDetail(id: locationId)
     }
+}
 
-    private func book(mode: String, d: LocationDetail) async {
-        bookingInProgress = true
-        defer { bookingInProgress = false }
-        // Voucher chỉ áp khi thanh toán trước; trả sau dùng giá niêm yết.
-        let amount: Double = (mode == "prepaid") ? effectivePrice : (d.price_vnd ?? 0)
+// MARK: - Booking form (auto-fill user info + voucher picker)
+
+private struct BookingFormSheet: View {
+    let detail: LocationDetail
+    let mode: String
+    let tripId: String?
+    let defaultName: String
+    let defaultPhone: String
+    let onPay: (BookingPayResponse) -> Void
+    let onPaidLater: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var phone = ""
+    @State private var note = ""
+    @State private var selectedVoucherId: String?
+    @State private var working = false
+    @State private var error: String?
+
+    private var isPrepaid: Bool { mode == "prepaid" }
+
+    private var selectedVoucher: AppliedVoucher? {
+        guard isPrepaid, let id = selectedVoucherId else { return nil }
+        return detail.vouchers.first { $0.id == id }
+    }
+
+    private var finalPrice: Double {
+        let base = detail.price_vnd ?? 0
+        if let v = selectedVoucher { return v.final_price_vnd }
+        return base
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(detail.name).font(.system(size: 18, weight: .bold))
+
+                    field("Họ tên", text: $name, placeholder: "Tên người đặt")
+                    field("Số điện thoại", text: $phone, placeholder: "SĐT liên hệ", keyboard: .phonePad)
+                    field("Ghi chú (tuỳ chọn)", text: $note, placeholder: "Yêu cầu thêm…")
+
+                    if isPrepaid && !detail.vouchers.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Chọn ưu đãi").font(.system(size: 14, weight: .semibold))
+                            voucherOption(nil)
+                            ForEach(detail.vouchers, id: \.id) { v in voucherOption(v) }
+                        }
+                    }
+
+                    priceSummary
+
+                    if let error {
+                        Text(error).font(.system(size: 13)).foregroundStyle(PremiumTheme.logoutRed)
+                    }
+
+                    Button {
+                        Task { await submit() }
+                    } label: {
+                        HStack(spacing: 8) {
+                            if working { ProgressView().tint(.white) }
+                            Text(isPrepaid ? "Thanh toán \(FormatUtils.formatVnd(finalPrice))" : "Xác nhận đặt chỗ")
+                                .font(.system(size: 16, weight: .bold))
+                        }
+                        .foregroundStyle(.white).frame(maxWidth: .infinity).frame(height: 50)
+                        .background(canSubmit ? PremiumTheme.accent : PremiumTheme.accent.opacity(0.5))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .disabled(!canSubmit || working)
+                }
+                .padding(PremiumTheme.screenPadding)
+            }
+            .background(Color.white)
+            .navigationTitle(isPrepaid ? "Thanh toán trước" : "Đặt chỗ, trả sau")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Đóng") { dismiss() } } }
+            .onAppear {
+                if name.isEmpty { name = defaultName }
+                if phone.isEmpty { phone = defaultPhone }
+                if isPrepaid { selectedVoucherId = detail.voucher?.id }
+            }
+        }
+    }
+
+    private var canSubmit: Bool {
+        !name.trimmingCharacters(in: .whitespaces).isEmpty && finalPrice > 0
+    }
+
+    private var priceSummary: some View {
+        VStack(spacing: 6) {
+            if let base = detail.price_vnd, selectedVoucher != nil {
+                HStack { Text("Giá niêm yết"); Spacer(); Text(FormatUtils.formatVnd(base)).strikethrough() }
+                    .font(.system(size: 13)).foregroundStyle(PremiumTheme.muted)
+                HStack { Text("Ưu đãi \(selectedVoucher!.code)"); Spacer(); Text("-\(FormatUtils.formatVnd(selectedVoucher!.discount_vnd))") }
+                    .font(.system(size: 13)).foregroundStyle(PremiumTheme.accent)
+            }
+            HStack {
+                Text("Tổng thanh toán").font(.system(size: 15, weight: .semibold))
+                Spacer()
+                Text(FormatUtils.formatVnd(finalPrice)).font(.system(size: 18, weight: .bold)).foregroundStyle(PremiumTheme.accent)
+            }
+        }
+        .padding(12).background(PremiumTheme.surface).clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func voucherOption(_ v: AppliedVoucher?) -> some View {
+        let selected = (v?.id ?? nil) == selectedVoucherId || (v == nil && selectedVoucherId == nil)
+        return Button {
+            selectedVoucherId = v?.id
+        } label: {
+            HStack {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .foregroundStyle(selected ? PremiumTheme.accent : PremiumTheme.muted)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(v == nil ? "Không dùng ưu đãi" : "\(v!.code) — \(v!.title)")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(PremiumTheme.ink)
+                    if let v { Text("Giảm \(FormatUtils.formatVnd(v.discount_vnd))").font(.system(size: 12)).foregroundStyle(PremiumTheme.accent) }
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(selected ? PremiumTheme.accentLight : PremiumTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(selected ? PremiumTheme.accent : PremiumTheme.border))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func submit() async {
+        working = true
+        defer { working = false }
+        var meta: [String: String] = ["customer_name": name.trimmingCharacters(in: .whitespaces)]
+        if !phone.isEmpty { meta["phone"] = phone }
+        if !note.isEmpty { meta["note"] = note }
+        if let v = selectedVoucher { meta["voucher_code"] = v.code }
         do {
-            let input = BookingCreate(
-                business_id: d.business_id,
-                total_amount: amount,
+            let created = try await ApiService.createBooking(BookingCreate(
+                business_id: detail.business_id,
+                total_amount: finalPrice,
                 type: "location",
                 trip_id: tripId,
-                location_id: d.id,
+                location_id: detail.id,
                 currency: "VND",
-                payment_mode: mode
-            )
-            let created = try await ApiService.createBooking(input)
-            booking = created
-            if mode == "prepaid" {
+                payment_mode: mode,
+                metadata: meta
+            ))
+            if isPrepaid {
                 let pay = try await ApiService.payBooking(id: created.id)
                 if pay.checkout_url != nil || pay.qr_code != nil {
-                    payResponse = pay
+                    onPay(pay)
                 } else {
-                    booked = true
+                    onPaidLater()
                 }
             } else {
-                booked = true
+                onPaidLater()
             }
         } catch {
             self.error = formatApiError(error, fallback: "Không đặt được chỗ")
         }
+    }
+
+    private func field(_ label: String, text: Binding<String>, placeholder: String, keyboard: UIKeyboardType = .default) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(label).font(.system(size: 13, weight: .semibold)).foregroundStyle(PremiumTheme.textMuted)
+            TextField(placeholder, text: text)
+                .keyboardType(keyboard)
+                .font(.system(size: 15))
+                .padding(12)
+                .background(PremiumTheme.inputBg)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+}
+
+// Helper: present a sheet from an optional String mode.
+private struct StringItem: Identifiable { let id = UUID(); let value: String }
+private extension Binding where Value == String? {
+    var asIdentifiable: Binding<StringItem?> {
+        Binding<StringItem?>(
+            get: { wrappedValue.map { StringItem(value: $0) } },
+            set: { wrappedValue = $0?.value }
+        )
     }
 }
 
@@ -283,16 +407,13 @@ private struct AddReviewSheet: View {
                 Text("Bình luận").font(.system(size: 15, weight: .semibold))
                 TextField("Cảm nhận của bạn về địa điểm…", text: $comment, axis: .vertical)
                     .lineLimit(3...6)
-                    .padding(12)
-                    .background(PremiumTheme.inputBg)
-                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(12).background(PremiumTheme.inputBg).clipShape(RoundedRectangle(cornerRadius: 12))
                 Button {
                     Task {
                         submitting = true
                         _ = try? await ApiService.createLocationReview(id: locationId, rating: rating, comment: comment)
                         submitting = false
-                        onDone()
-                        dismiss()
+                        onDone(); dismiss()
                     }
                 } label: {
                     Text(submitting ? "Đang gửi…" : "Gửi đánh giá")

@@ -365,6 +365,7 @@ struct BookingCreate: Codable {
     var location_id: String?
     var currency: String?
     var payment_mode: String?
+    var metadata: [String: String]?
 }
 
 struct BookingPayResponse: Codable, Identifiable {

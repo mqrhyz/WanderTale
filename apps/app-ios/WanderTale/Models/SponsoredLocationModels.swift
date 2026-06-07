@@ -55,6 +55,7 @@ struct LocationDetail: Codable, Identifiable {
     var images: [String] = []
     var business: LocationBusinessInfo?
     var voucher: AppliedVoucher?
+    var vouchers: [AppliedVoucher] = []
 }
 
 struct LocationReview: Codable, Identifiable {

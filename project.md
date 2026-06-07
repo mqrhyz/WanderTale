@@ -347,3 +347,10 @@
 - **Android**: `WanderTaleNavLight.kt` đổi nav item "favorites" → label "Đặt chỗ", icon `ConfirmationNumber`. `NavGraph` MainShell tab "favorites" render `MyBookingsTab` (composable mới trong BookingScreen.kt, header "Đặt chỗ" + danh sách booking).
 - FavoritesScreen/FavoritesView vẫn còn trong code nhưng không còn trên bottom bar.
 - **Test:** Android compileDebugKotlin, iOS xcodebuild — pass. Không đổi backend.
+
+## [2026-06-07] Form đặt chỗ (tự điền + chọn voucher) + ẩn mã voucher ở detail + ảnh full-width iOS
+- **Backend** (`sponsoredLocationService.ts`): `getLocationDetail` trả thêm `vouchers` (toàn bộ voucher active đã tính giá sau giảm) để client cho chọn ở bước thanh toán.
+- **Ẩn mã voucher ở trang chi tiết**: cả iOS/Android bỏ hiển thị code (vd HE2027) cạnh giá; chỉ còn giá gạch + giá giảm. Mã chỉ hiện ở form thanh toán.
+- **iOS ảnh full-width**: ImageCarousel bọc trong khung `maxWidth: .infinity, height: 240` → ảnh to full ngang như Android.
+- **Form đặt chỗ** (fix "ấn không có gì xảy ra"): bấm "Đặt & thanh toán trước" / "Đặt chỗ, trả sau" → mở **form**: tự điền Họ tên + SĐT từ tài khoản user, ô ghi chú; với trả trước có **danh sách chọn voucher** (mặc định voucher tốt nhất) + tổng tiền cập nhật theo voucher. Bấm xác nhận → tạo booking (kèm metadata customer_name/phone/note/voucher_code) → trả trước hiện QR PayOS auto-poll, trả sau hiện thành công. iOS: `BookingFormSheet`; Android: `BookingFormDialog` + `VoucherRow`.
+- **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — pass. Backend deploy thành công (build `5dfae9d1`).

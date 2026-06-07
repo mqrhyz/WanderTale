@@ -30,6 +30,7 @@ import coil.compose.AsyncImage
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.wandertale.mobile.data.api.ApiClient
+import com.wandertale.mobile.data.DashboardHomeCache
 import com.wandertale.mobile.data.model.BookingCreate
 import com.wandertale.mobile.data.model.BookingPayResponse
 import com.wandertale.mobile.data.model.LocationDetail
@@ -48,6 +49,7 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
     var error by remember { mutableStateOf<String?>(null) }
     var showReview by remember { mutableStateOf(false) }
     var payResp by remember { mutableStateOf<BookingPayResponse?>(null) }
+    var formMode by remember { mutableStateOf<String?>(null) }
     var paidLater by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -108,7 +110,6 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
                     if (d.voucher != null) {
                         Text(FormatUtils.formatVnd(d.price_vnd), fontSize = 14.sp, color = PremiumColors.Muted, textDecoration = TextDecoration.LineThrough)
                         Text(FormatUtils.formatVnd(d.voucher.final_price_vnd), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Accent)
-                        Text(d.voucher.code, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Accent)
                     } else {
                         Text(FormatUtils.formatVnd(d.price_vnd), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Accent)
                     }
@@ -120,46 +121,20 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
                 Text(it, fontSize = 14.sp, color = PremiumColors.Ink)
             }
 
-            if (effectivePrice > 0) {
-                suspend fun book(mode: String) {
-                    working = true
-                    val amount = if (mode == "prepaid") effectivePrice else (d.price_vnd ?: 0.0)
-                    runCatching {
-                        val created = ApiClient.createBooking(
-                            BookingCreate(business_id = d.business_id, total_amount = amount, type = "location", trip_id = tripId, location_id = d.id, currency = "VND", payment_mode = mode)
-                        )
-                        if (mode == "prepaid") {
-                            val pay = ApiClient.payBooking(created.id)
-                            if (!pay.qr_code.isNullOrBlank() || !pay.checkout_url.isNullOrBlank()) payResp = pay else paidLater = true
-                        } else paidLater = true
-                    }.onFailure { error = it.message }
-                    working = false
-                }
+            if ((d.price_vnd ?: 0.0) > 0) {
                 Button(
-                    onClick = { scope.launch { book("prepaid") } },
-                    enabled = !working,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    onClick = { formMode = "prepaid" },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent, contentColor = Color.White),
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Đặt & thanh toán trước", fontWeight = FontWeight.Bold)
-                        Text(FormatUtils.formatVnd(effectivePrice) + (if (d.voucher != null) " (đã giảm)" else ""), fontSize = 12.sp)
-                    }
-                }
+                ) { Text("Đặt & thanh toán trước", fontWeight = FontWeight.Bold, fontSize = 16.sp) }
                 OutlinedButton(
-                    onClick = { scope.launch { book("pay_later") } },
-                    enabled = !working,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
+                    onClick = { formMode = "pay_later" },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
                     shape = RoundedCornerShape(12.dp),
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Đặt chỗ, trả sau", color = PremiumColors.Accent, fontWeight = FontWeight.SemiBold)
-                        Text(FormatUtils.formatVnd(d.price_vnd) + " (giá niêm yết)", color = PremiumColors.Accent, fontSize = 12.sp)
-                    }
-                }
-                if (d.voucher != null) {
-                    Text("Ưu đãi ${d.voucher.code} chỉ áp dụng khi thanh toán trước.", fontSize = 12.sp, color = PremiumColors.Muted)
+                ) { Text("Đặt chỗ, trả sau", color = PremiumColors.Accent, fontWeight = FontWeight.SemiBold, fontSize = 16.sp) }
+                if (d.vouchers.isNotEmpty()) {
+                    Text("Có ưu đãi khi thanh toán trước — chọn mã ở bước thanh toán.", fontSize = 12.sp, color = PremiumColors.Muted)
                 }
             }
 
@@ -198,10 +173,23 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
         )
     }
 
+    val dd = detail
+    if (formMode != null && dd != null) {
+        BookingFormDialog(
+            detail = dd,
+            mode = formMode!!,
+            tripId = tripId,
+            defaultName = DashboardHomeCache.accountInfo?.displayName.orEmpty(),
+            defaultPhone = DashboardHomeCache.accountInfo?.phone.orEmpty(),
+            onDismiss = { formMode = null },
+            onPay = { resp -> formMode = null; payResp = resp },
+            onPaidLater = { formMode = null; paidLater = true },
+        )
+    }
+
     payResp?.let { resp ->
         BookingPaymentDialog(resp, onDone = { payResp = null; scope.launch { reload() } })
     }
-
     if (paidLater) {
         AlertDialog(
             onDismissRequest = { paidLater = false },
@@ -365,4 +353,98 @@ fun BusinessNotificationsDialog(
             }
         },
     )
+}
+
+@Composable
+private fun BookingFormDialog(
+    detail: LocationDetail,
+    mode: String,
+    tripId: String?,
+    defaultName: String,
+    defaultPhone: String,
+    onDismiss: () -> Unit,
+    onPay: (BookingPayResponse) -> Unit,
+    onPaidLater: () -> Unit,
+) {
+    val isPrepaid = mode == "prepaid"
+    var name by remember { mutableStateOf(defaultName) }
+    var phone by remember { mutableStateOf(defaultPhone) }
+    var note by remember { mutableStateOf("") }
+    var selectedVoucherId by remember { mutableStateOf(if (isPrepaid) detail.voucher?.id else null) }
+    var working by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    val selectedVoucher = if (isPrepaid) detail.vouchers.firstOrNull { it.id == selectedVoucherId } else null
+    val finalPrice = selectedVoucher?.final_price_vnd ?: (detail.price_vnd ?: 0.0)
+    val canSubmit = name.trim().isNotEmpty() && finalPrice > 0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                enabled = canSubmit && !working,
+                onClick = {
+                    scope.launch {
+                        working = true
+                        val meta = buildMap {
+                            put("customer_name", name.trim())
+                            if (phone.isNotBlank()) put("phone", phone.trim())
+                            if (note.isNotBlank()) put("note", note.trim())
+                            selectedVoucher?.let { put("voucher_code", it.code) }
+                        }
+                        runCatching {
+                            val created = ApiClient.createBooking(
+                                BookingCreate(business_id = detail.business_id, total_amount = finalPrice, type = "location", trip_id = tripId, location_id = detail.id, currency = "VND", payment_mode = mode, metadata = meta)
+                            )
+                            if (isPrepaid) {
+                                val pay = ApiClient.payBooking(created.id)
+                                if (!pay.qr_code.isNullOrBlank() || !pay.checkout_url.isNullOrBlank()) onPay(pay) else onPaidLater()
+                            } else onPaidLater()
+                        }.onFailure { error = it.message }
+                        working = false
+                    }
+                },
+            ) { Text(if (isPrepaid) "Thanh toán ${FormatUtils.formatVnd(finalPrice)}" else "Xác nhận", fontWeight = FontWeight.Bold, color = PremiumColors.Accent) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Đóng") } },
+        title = { Text(if (isPrepaid) "Thanh toán trước" else "Đặt chỗ, trả sau", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(detail.name, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Họ tên") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Số điện thoại") }, modifier = Modifier.fillMaxWidth(), singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone))
+                OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Ghi chú (tuỳ chọn)") }, modifier = Modifier.fillMaxWidth())
+
+                if (isPrepaid && detail.vouchers.isNotEmpty()) {
+                    Text("Chọn ưu đãi", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = PremiumColors.Ink)
+                    VoucherRow(null, selectedVoucherId == null) { selectedVoucherId = null }
+                    detail.vouchers.forEach { v -> VoucherRow(v, selectedVoucherId == v.id) { selectedVoucherId = v.id } }
+                }
+
+                Row(Modifier.fillMaxWidth()) {
+                    Text("Tổng thanh toán", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(FormatUtils.formatVnd(finalPrice), fontWeight = FontWeight.Bold, color = PremiumColors.Accent)
+                }
+                error?.let { Text(it, fontSize = 12.sp, color = PremiumColors.LogoutRed) }
+            }
+        },
+    )
+}
+
+@Composable
+private fun VoucherRow(v: com.wandertale.mobile.data.model.AppliedVoucher?, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(if (selected) PremiumColors.Accent.copy(alpha = 0.12f) else PremiumColors.Surface)
+            .clickable(onClick = onClick).padding(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(if (selected) Icons.Default.CheckCircle else Icons.Default.Star, null, tint = if (selected) PremiumColors.Accent else PremiumColors.Muted, modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f)) {
+            Text(if (v == null) "Không dùng ưu đãi" else "${v.code} — ${v.title}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+            if (v != null) Text("Giảm ${FormatUtils.formatVnd(v.discount_vnd)}", fontSize = 12.sp, color = PremiumColors.Accent)
+        }
+    }
 }
