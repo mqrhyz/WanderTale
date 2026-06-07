@@ -302,3 +302,11 @@
   - `cloud-run.env.yaml`: `TRIP_OTA_HARD_DEADLINE_MS` 90000 → 60000.
 - **Về Booking.com không hoạt động trên server:** Booking chặn IP datacenter của Cloud Run (redirect homepage/consent) → `gotoOtaSearch` throw. Đây là giới hạn cơ bản, không fix triệt để được nếu không có residential proxy. App vẫn lấy giá từ Agoda/Vntrip. Anti-bot context (UA thật, locale vi-VN, webdriver=false) đã có sẵn.
 - **Test:** package build OK, backend `tsc` exit 0. Deploy Cloud Run thành công (build `95973e1c`).
+
+## [2026-06-07] Bỏ Booking khỏi quét OTA → nhanh hơn, mỗi site 2 KS
+- **Phân tích:** giảm số khách sạn/site KHÔNG giúp nhanh (thời gian = mở trang + render, không phải số card trích). Thứ làm chậm là Booking (luôn fail/timeout trên IP Cloud Run).
+- **Sửa (env, update trực tiếp service không rebuild):**
+  - `TRIP_OTA_SITES`: "booking,agoda,vntrip" → "agoda,vntrip" (bỏ Booking luôn fail).
+  - `HOTEL_AGENT_MAX_OFFERS_PER_SITE`: 3 → 2 (mỗi site tối đa 2 → tổng ~3-4 KS).
+  - `TRIP_OTA_HARD_DEADLINE_MS`: 60000 → 45000 (chỉ còn 2 site, max per-site 30s).
+- Cập nhật qua `gcloud run services update --update-env-vars` (revision wander-tale-api-00062-cns). File `deploy/cloud-run.env.yaml` cũng sync để lần deploy sau giữ nguyên.
