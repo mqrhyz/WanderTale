@@ -1,5 +1,9 @@
 import Foundation
 
+private struct ApiOkResponse: Decodable {
+    var ok: Bool?
+}
+
 extension ApiService {
     static func businessOverview() async throws -> BusinessOverview {
         try await request(path: "/api/business/overview")
@@ -208,6 +212,22 @@ extension ApiService {
         try await request(path: "/api/promotions")
     }
 
+    static func promotionHome() async throws -> PromotionHomePayload {
+        try await request(path: "/api/promotions")
+    }
+
+    static func promotionPost(id: String) async throws -> PromotionPost {
+        try await request(path: "/api/promotions/posts/\(id)")
+    }
+
+    static func savePromotionVoucher(id: String) async throws {
+        let _: ApiOkResponse = try await request(path: "/api/promotions/vouchers/\(id)/save", method: "POST")
+    }
+
+    static func unsavePromotionVoucher(id: String) async throws {
+        let _: ApiOkResponse = try await request(path: "/api/promotions/vouchers/\(id)/save", method: "DELETE")
+    }
+
     // MARK: - Marketplace: admin media / ad-packages / AI rules / payouts
 
     static func adminMedia(status: String? = nil) async throws -> BusinessMediaList {
@@ -254,6 +274,24 @@ extension ApiService {
 
     static func adminProcessPayout(id: String) async throws -> PayoutRecord {
         try await request(path: "/api/payouts/\(id)/process", method: "POST")
+    }
+
+    static func adminPromotionVouchers() async throws -> PromotionList {
+        try await request(path: "/api/admin/promotion-vouchers")
+    }
+
+    static func adminCreatePromotionVoucher(_ input: PromotionVoucherCreate) async throws -> Promotion {
+        let data = try JSONEncoder().encode(input)
+        return try await request(path: "/api/admin/promotion-vouchers", method: "POST", body: data)
+    }
+
+    static func adminPromotionPosts() async throws -> PromotionPostList {
+        try await request(path: "/api/admin/promotion-posts")
+    }
+
+    static func adminCreatePromotionPost(_ input: PromotionPostCreate) async throws -> PromotionPost {
+        let data = try JSONEncoder().encode(input)
+        return try await request(path: "/api/admin/promotion-posts", method: "POST", body: data)
     }
 }
 

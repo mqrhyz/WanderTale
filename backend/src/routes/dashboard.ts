@@ -1,6 +1,12 @@
 import type { FastifyInstance } from "fastify";
-import { getSupabaseAdmin, requireAuth } from "../lib/auth.js";
+import { requireAuth } from "../lib/auth.js";
 import { dashboardStats } from "../services/tripService.js";
+import {
+  getPromotionPost,
+  listPromotionHome,
+  savePromotionVoucher,
+  unsavePromotionVoucher,
+} from "../services/promotionService.js";
 
 export async function dashboardRoutes(app: FastifyInstance) {
   app.get("/dashboard", { preHandler: requireAuth }, async (req, reply) => {
@@ -13,29 +19,35 @@ export async function dashboardRoutes(app: FastifyInstance) {
     }
   });
 
-  /** Ưu đãi đang chạy (admin/partner vouchers) — hiện trên dashboard user. */
-  app.get("/promotions", { preHandler: requireAuth }, async (_req, reply) => {
+  /** Ưu đãi do admin quản lý: vouchers ngang + bài viết chương trình ưu đãi. */
+  app.get("/promotions", { preHandler: requireAuth }, async (req, reply) => {
     try {
-      const today = new Date().toISOString().slice(0, 10);
-      const { data } = await getSupabaseAdmin()
-        .from("vouchers")
-        .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name)")
-        .lte("valid_from", today)
-        .gte("valid_until", today)
-        .order("created_at", { ascending: false })
-        .limit(10);
-      return {
-        items: (data ?? []).map((v: Record<string, unknown>) => ({
-          id: v.id,
-          code: v.code,
-          title: v.title,
-          description: v.description,
-          discount_percent: v.discount_percent,
-          discount_amount: v.discount_amount,
-          valid_until: v.valid_until,
-          partner_name: (v.partners as { name?: string } | null)?.name ?? null,
-        })),
-      };
+      return await listPromotionHome(req.userId!);
+    } catch (e) {
+      return reply.code(500).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
+  app.get<{ Params: { postId: string } }>("/promotions/posts/:postId", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      return await getPromotionPost(req.params.postId, req.userId!);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(msg === "promotion_post_not_found" ? 404 : 500).send({ error: msg });
+    }
+  });
+
+  app.post<{ Params: { voucherId: string } }>("/promotions/vouchers/:voucherId/save", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      return await savePromotionVoucher(req.userId!, req.params.voucherId);
+    } catch (e) {
+      return reply.code(500).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
+  app.delete<{ Params: { voucherId: string } }>("/promotions/vouchers/:voucherId/save", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      return await unsavePromotionVoucher(req.userId!, req.params.voucherId);
     } catch (e) {
       return reply.code(500).send({ error: e instanceof Error ? e.message : "error" });
     }

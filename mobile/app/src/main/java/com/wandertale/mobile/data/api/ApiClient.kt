@@ -52,6 +52,13 @@ import com.wandertale.mobile.data.model.PackagePurchaseRequest
 import com.wandertale.mobile.data.model.PayoutList
 import com.wandertale.mobile.data.model.PayoutRecord
 import com.wandertale.mobile.data.model.PlatformTransactionList
+import com.wandertale.mobile.data.model.Promotion
+import com.wandertale.mobile.data.model.PromotionHomePayload
+import com.wandertale.mobile.data.model.PromotionList
+import com.wandertale.mobile.data.model.PromotionPost
+import com.wandertale.mobile.data.model.PromotionPostCreate
+import com.wandertale.mobile.data.model.PromotionPostList
+import com.wandertale.mobile.data.model.PromotionVoucherCreate
 import com.wandertale.mobile.data.model.ReviewReplyPatch
 import com.wandertale.mobile.data.model.SystemLogList
 import com.wandertale.mobile.data.model.TripRecord
@@ -255,6 +262,11 @@ object ApiClient {
         }
     }
 
+    suspend fun promotionHome(): PromotionHomePayload = portalGet("/api/promotions")
+    suspend fun promotionPost(id: String): PromotionPost = portalGet("/api/promotions/posts/$id")
+    suspend fun savePromotionVoucher(id: String): Map<String, Boolean> = portalPost("/api/promotions/vouchers/$id/save")
+    suspend fun unsavePromotionVoucher(id: String): Map<String, Boolean> = portalDelete("/api/promotions/vouchers/$id/save")
+
     suspend fun businessOverview(): BusinessOverview = portalGet("/api/business/overview")
     suspend fun businessTransactions(): PlatformTransactionList = portalGet("/api/business/transactions")
     suspend fun businessAdPackages(): AdPackageList = portalGet("/api/business/ad-packages")
@@ -298,6 +310,12 @@ object ApiClient {
     suspend fun adminAiConfig(): AiConfigList = portalGet("/api/admin/ai-config")
     suspend fun adminUserDetail(userId: String): AdminUserDetail = portalGet("/api/admin/users/$userId")
     suspend fun adminSystemLogs(): SystemLogList = portalGet("/api/admin/system-logs")
+    suspend fun adminPromotionVouchers(): PromotionList = portalGet("/api/admin/promotion-vouchers")
+    suspend fun adminCreatePromotionVoucher(body: PromotionVoucherCreate): Promotion =
+        portalPost("/api/admin/promotion-vouchers", body)
+    suspend fun adminPromotionPosts(): PromotionPostList = portalGet("/api/admin/promotion-posts")
+    suspend fun adminCreatePromotionPost(body: PromotionPostCreate): PromotionPost =
+        portalPost("/api/admin/promotion-posts", body)
 
     suspend fun adminUpdateUserRole(userId: String, patch: UserRolePatch): AdminUserRow =
         portalPatch("/api/admin/users/$userId/role", patch)
@@ -363,6 +381,14 @@ object ApiClient {
     private suspend inline fun <reified T> portalPost(path: String): T = authorized { token ->
         try {
             http.post("${baseUrl()}$path") { header("Authorization", "Bearer $token") }.body()
+        } catch (e: ResponseException) {
+            throw parseError(e)
+        }
+    }
+
+    private suspend inline fun <reified T> portalDelete(path: String): T = authorized { token ->
+        try {
+            http.delete("${baseUrl()}$path") { header("Authorization", "Bearer $token") }.body()
         } catch (e: ResponseException) {
             throw parseError(e)
         }

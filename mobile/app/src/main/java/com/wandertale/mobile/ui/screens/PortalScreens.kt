@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
@@ -104,6 +105,10 @@ import com.wandertale.mobile.data.model.BusinessVoucherCreate
 import com.wandertale.mobile.data.model.BusinessVoucherRow
 import com.wandertale.mobile.data.model.PayoutRecord
 import com.wandertale.mobile.data.model.PlatformTransaction
+import com.wandertale.mobile.data.model.Promotion
+import com.wandertale.mobile.data.model.PromotionPost
+import com.wandertale.mobile.data.model.PromotionPostCreate
+import com.wandertale.mobile.data.model.PromotionVoucherCreate
 import com.wandertale.mobile.data.model.SystemLogRow
 import com.wandertale.mobile.data.model.UserRolePatch
 import com.wandertale.mobile.ui.components.AppScaffold
@@ -900,6 +905,8 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
     var media by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BusinessMediaRow>>(emptyList()) }
     var payouts by remember { mutableStateOf<List<PayoutRecord>>(emptyList()) }
     var aiRules by remember { mutableStateOf<List<com.wandertale.mobile.data.model.AiRecommendationRule>>(emptyList()) }
+    var promotionVouchers by remember { mutableStateOf<List<Promotion>>(emptyList()) }
+    var promotionPosts by remember { mutableStateOf<List<PromotionPost>>(emptyList()) }
     var selectedUser by remember { mutableStateOf<AdminUserDetail?>(null) }
     var userSearch by remember { mutableStateOf("") }
     var userFilter by remember { mutableStateOf("Tất cả") }
@@ -908,6 +915,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
     var showCreateUser by remember { mutableStateOf(false) }
     var showAdminMenu by remember { mutableStateOf(false) }
     var showAdminAccountInfo by remember { mutableStateOf(false) }
+    var showPromotionManager by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var actionMessage by remember { mutableStateOf<String?>(null) }
@@ -928,6 +936,8 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                 val med = async { ApiClient.adminMedia() }
                 val pay = async { ApiClient.adminPayouts() }
                 val rules = async { ApiClient.adminAiRecommendationRules() }
+                val promoV = async { ApiClient.adminPromotionVouchers() }
+                val promoP = async { ApiClient.adminPromotionPosts() }
                 overview = o.await()
                 transactions = t.await().items
                 users = u.await().items
@@ -937,6 +947,8 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                 media = med.await().items
                 payouts = pay.await().items
                 aiRules = rules.await().items
+                promotionVouchers = promoV.await().items
+                promotionPosts = promoP.await().items
             }
         }.onFailure {
             error = it.message ?: "Không tải được dữ liệu admin"
@@ -1032,12 +1044,13 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                 }
                                 item { PortalSectionTitle("DOANH THU 7 NGÀY") }
                                 item { RevenueBars(transactions) }
-                                item { PortalSectionTitle("CẢNH BÁO HỆ THỐNG") }
-                                val warningLogs = logs.filter { it.level == "error" || it.level == "warning" }.take(2)
-                                if (warningLogs.isEmpty()) {
-                                    item { EmptyPortalText("Chưa có cảnh báo hệ thống.") }
-                                } else {
-                                    items(warningLogs, key = { it.id }) { log -> AdminAlertCard(log) }
+                                item { PortalSectionTitle("QUẢN LÝ VOUCHER") }
+                                item {
+                                    AdminPromotionManagerCard(
+                                        voucherCount = promotionVouchers.size,
+                                        postCount = promotionPosts.size,
+                                        onClick = { showPromotionManager = true },
+                                    )
                                 }
                                 item { PortalSectionTitle("NGƯỜI DÙNG MỚI NHẤT") }
                                 if (users.isEmpty()) item { EmptyPortalText("Chưa có người dùng.") }
@@ -1246,6 +1259,29 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
             onDismiss = { showAdminAccountInfo = false },
         )
     }
+    if (showPromotionManager) {
+        AdminPromotionManagerDialog(
+            vouchers = promotionVouchers,
+            posts = promotionPosts,
+            onDismiss = { showPromotionManager = false },
+            onCreateVoucher = { input ->
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminCreatePromotionVoucher(input)
+                        load()
+                    }.onFailure { actionMessage = it.message }
+                }
+            },
+            onCreatePost = { input ->
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminCreatePromotionPost(input)
+                        load()
+                    }.onFailure { actionMessage = it.message }
+                }
+            },
+        )
+    }
     }
 }
 
@@ -1427,6 +1463,181 @@ private fun AdminAlertCard(log: SystemLogRow) {
             Text("${log.source ?: "system"} — ${log.created_at?.take(16)?.replace('T', ' ') ?: ""}", color = if (isError) Color(0xFF7A1717) else Color(0xFF5B3100), fontSize = 12.sp)
         }
     }
+}
+
+@Composable
+private fun AdminPromotionManagerCard(voucherCount: Int, postCount: Int, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(portalCard())
+            .border(1.dp, portalStroke(), RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(PortalPurple),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Filled.ConfirmationNumber, contentDescription = null, tint = Color.White)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Khám phá ưu đãi", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text("$voucherCount voucher · $postCount bài viết", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text("Tạo voucher, bài chính 3:4 và bài phụ 1:1 cho Home user.", color = portalMuted(), fontSize = 12.sp, maxLines = 2)
+        }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = portalMuted())
+    }
+}
+
+@Composable
+@OptIn(ExperimentalLayoutApi::class)
+private fun AdminPromotionManagerDialog(
+    vouchers: List<Promotion>,
+    posts: List<PromotionPost>,
+    onDismiss: () -> Unit,
+    onCreateVoucher: (PromotionVoucherCreate) -> Unit,
+    onCreatePost: (PromotionPostCreate) -> Unit,
+) {
+    var tab by remember { mutableIntStateOf(0) }
+    var code by remember { mutableStateOf("") }
+    var voucherTitle by remember { mutableStateOf("") }
+    var voucherDesc by remember { mutableStateOf("") }
+    var percent by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var validFrom by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
+    var validUntil by remember { mutableStateOf(LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_DATE)) }
+    var postTitle by remember { mutableStateOf("") }
+    var postSubtitle by remember { mutableStateOf("") }
+    var postBody by remember { mutableStateOf("") }
+    var coverUrl by remember { mutableStateOf("") }
+    var postType by remember { mutableStateOf("main") }
+    var selectedVoucherId by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(portalBg())
+                .border(1.dp, portalStroke(), RoundedCornerShape(20.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Quản lý ưu đãi", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 20.sp, modifier = Modifier.weight(1f))
+                TextButton(onClick = onDismiss) { Text("Đóng") }
+            }
+            TabRow(selectedTabIndex = tab, containerColor = portalBg(), contentColor = PortalPurple) {
+                Tab(selected = tab == 0, onClick = { tab = 0 }, text = { Text("Voucher") })
+                Tab(selected = tab == 1, onClick = { tab = 1 }, text = { Text("Bài viết") })
+            }
+            Column(
+                Modifier
+                    .height(430.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                if (tab == 0) {
+                    PortalTextInput("Mã voucher", code) { code = it.uppercase(Locale.ROOT) }
+                    PortalTextInput("Tiêu đề", voucherTitle) { voucherTitle = it }
+                    PortalTextInput("Mô tả", voucherDesc) { voucherDesc = it }
+                    PortalTextInput("Giảm phần trăm", percent, KeyboardType.Number) { percent = it }
+                    PortalTextInput("Giảm số tiền", amount, KeyboardType.Number) { amount = it }
+                    PortalTextInput("Ngày bắt đầu yyyy-mm-dd", validFrom) { validFrom = it }
+                    PortalTextInput("Ngày kết thúc yyyy-mm-dd", validUntil) { validUntil = it }
+                    Button(
+                        onClick = {
+                            onCreateVoucher(
+                                PromotionVoucherCreate(
+                                    code = code,
+                                    title = voucherTitle,
+                                    description = voucherDesc.ifBlank { null },
+                                    discount_percent = percent.toDoubleOrNull(),
+                                    discount_amount = amount.replace(".", "").toDoubleOrNull(),
+                                    valid_from = validFrom,
+                                    valid_until = validUntil,
+                                ),
+                            )
+                            code = ""; voucherTitle = ""; voucherDesc = ""; percent = ""; amount = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PortalPurple),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Tạo voucher") }
+                } else {
+                    PortalTextInput("Tiêu đề", postTitle) { postTitle = it }
+                    PortalTextInput("Phụ đề", postSubtitle) { postSubtitle = it }
+                    PortalTextInput("URL ảnh bìa", coverUrl) { coverUrl = it }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PortalChip("Chính 3:4", postType == "main") { postType = "main" }
+                        PortalChip("Phụ 1:1", postType == "secondary") { postType = "secondary" }
+                    }
+                    Text("Voucher đính kèm", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PortalChip("Không có", selectedVoucherId.isEmpty()) { selectedVoucherId = "" }
+                        vouchers.forEach { voucher ->
+                            PortalChip(voucher.code, selectedVoucherId == voucher.id) { selectedVoucherId = voucher.id }
+                        }
+                    }
+                    PortalTextInput("Nội dung", postBody) { postBody = it }
+                    Button(
+                        onClick = {
+                            onCreatePost(
+                                PromotionPostCreate(
+                                    title = postTitle,
+                                    subtitle = postSubtitle.ifBlank { null },
+                                    body = postBody.ifBlank { null },
+                                    cover_image_url = coverUrl,
+                                    post_type = postType,
+                                    voucher_id = selectedVoucherId.ifBlank { null },
+                                    status = "published",
+                                    sort_order = if (postType == "main") 10 else 0,
+                                ),
+                            )
+                            postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; selectedVoucherId = ""
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PortalGreen),
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Tạo bài viết") }
+                }
+                Text("${vouchers.size} voucher · ${posts.size} bài viết đang có", color = portalMuted(), fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PortalTextInput(label: String, value: String, keyboardType: KeyboardType = KeyboardType.Text, onChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onChange,
+        label = { Text(label) },
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+        singleLine = false,
+        modifier = Modifier.fillMaxWidth(),
+    )
+}
+
+@Composable
+private fun PortalChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        color = if (selected) PortalGreen else portalMuted(),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (selected) Color(0xFFD9FFF3) else portalCard())
+            .border(1.dp, if (selected) PortalGreen.copy(alpha = 0.25f) else portalStroke(), RoundedCornerShape(999.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+    )
 }
 
 @Composable

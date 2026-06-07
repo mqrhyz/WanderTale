@@ -623,3 +623,72 @@ data class BusinessNotification(
 
 @Serializable
 data class BusinessNotificationList(val items: List<BusinessNotification> = emptyList())
+
+@Serializable
+data class Promotion(
+    val id: String,
+    val code: String,
+    val title: String,
+    val description: String? = null,
+    val discount_percent: Double? = null,
+    val discount_amount: Double? = null,
+    val valid_from: String? = null,
+    val valid_until: String? = null,
+    val partner_name: String? = null,
+    val is_saved: Boolean? = null,
+)
+
+@Serializable
+data class PromotionList(val items: List<Promotion> = emptyList())
+
+@Serializable
+data class PromotionPost(
+    val id: String,
+    val title: String,
+    val subtitle: String? = null,
+    val body: String? = null,
+    val cover_image_url: String,
+    val post_type: String = "secondary",
+    val voucher_id: String? = null,
+    val status: String? = null,
+    val sort_order: Int? = null,
+    val starts_at: String? = null,
+    val ends_at: String? = null,
+    val created_at: String? = null,
+    val voucher: Promotion? = null,
+)
+
+@Serializable
+data class PromotionHomePayload(
+    val items: List<Promotion> = emptyList(),
+    val vouchers: List<Promotion> = emptyList(),
+    val posts: List<PromotionPost> = emptyList(),
+)
+
+@Serializable
+data class PromotionVoucherCreate(
+    val code: String,
+    val title: String,
+    val description: String? = null,
+    val discount_percent: Double? = null,
+    val discount_amount: Double? = null,
+    val valid_from: String? = null,
+    val valid_until: String? = null,
+)
+
+@Serializable
+data class PromotionPostCreate(
+    val title: String,
+    val subtitle: String? = null,
+    val body: String? = null,
+    val cover_image_url: String,
+    val post_type: String = "secondary",
+    val voucher_id: String? = null,
+    val status: String? = "published",
+    val sort_order: Int? = null,
+    val starts_at: String? = null,
+    val ends_at: String? = null,
+)
+
+@Serializable
+data class PromotionPostList(val items: List<PromotionPost> = emptyList())

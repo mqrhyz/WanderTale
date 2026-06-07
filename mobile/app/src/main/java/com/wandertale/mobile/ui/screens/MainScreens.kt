@@ -1,6 +1,7 @@
 package com.wandertale.mobile.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.calculateEndPadding
@@ -20,11 +22,15 @@ import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import coil.compose.AsyncImage
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apartment
+import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.filled.CardTravel
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Help
@@ -32,6 +38,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.LocalOffer
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.MonetizationOn
 import androidx.compose.material.icons.outlined.Route
@@ -71,11 +78,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import com.wandertale.mobile.data.DashboardHomeCache
 import com.wandertale.mobile.WanderTaleApp
+import com.wandertale.mobile.data.api.ApiClient
 import com.wandertale.mobile.data.model.DashboardStats
+import com.wandertale.mobile.data.model.Promotion
+import com.wandertale.mobile.data.model.PromotionHomePayload
+import com.wandertale.mobile.data.model.PromotionPost
 import com.wandertale.mobile.data.model.TripRecord
 import com.wandertale.mobile.ui.components.AppScaffold
 import com.wandertale.mobile.ui.components.DashboardHeroCard
@@ -108,6 +120,7 @@ import com.wandertale.mobile.util.FormatUtils
 import com.wandertale.mobile.util.TripPhase
 import com.wandertale.mobile.util.getTripPhase
 import kotlinx.coroutines.launch
+import androidx.compose.ui.layout.ContentScale
 
 @Composable
 fun MainShell(
@@ -186,6 +199,18 @@ fun DashboardScreen(
     isRefreshing: Boolean = false,
     onRefresh: (() -> Unit)? = null,
 ) {
+    var promotionHome by remember { mutableStateOf<PromotionHomePayload?>(null) }
+    var selectedPromotionPost by remember { mutableStateOf<PromotionPost?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun loadPromotions() {
+        promotionHome = runCatching { ApiClient.promotionHome() }.getOrNull()
+    }
+
+    LaunchedEffect(Unit) {
+        loadPromotions()
+    }
+
     val listContent: @Composable () -> Unit = {
         LazyColumn(
             modifier = modifier.padding(horizontal = PremiumDesign.ScreenPadding, vertical = 12.dp),
@@ -256,8 +281,38 @@ fun DashboardScreen(
                     onCreateTrip = { onNavigate("planner") },
                 )
             }
+            item {
+                PromotionHomeSection(
+                    payload = promotionHome,
+                    onPostClick = { selectedPromotionPost = it },
+                    onToggleVoucher = { voucher ->
+                        scope.launch {
+                            if (voucher.is_saved == true) {
+                                runCatching { ApiClient.unsavePromotionVoucher(voucher.id) }
+                            } else {
+                                runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                            }
+                            loadPromotions()
+                        }
+                    },
+                )
+            }
             item { Spacer(Modifier.height(8.dp)) }
         }
+    }
+
+    selectedPromotionPost?.let { post ->
+        PromotionPostDialog(
+            post = post,
+            onDismiss = { selectedPromotionPost = null },
+            onSaveVoucher = { voucher ->
+                scope.launch {
+                    runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                    loadPromotions()
+                    selectedPromotionPost = selectedPromotionPost?.copy(voucher = voucher.copy(is_saved = true))
+                }
+            },
+        )
     }
 
     if (onRefresh != null) {
@@ -269,6 +324,170 @@ fun DashboardScreen(
     } else {
         listContent()
     }
+}
+
+@Composable
+private fun PromotionHomeSection(
+    payload: PromotionHomePayload?,
+    onPostClick: (PromotionPost) -> Unit,
+    onToggleVoucher: (Promotion) -> Unit,
+) {
+    val vouchers = payload?.let { it.vouchers.ifEmpty { it.items } } ?: emptyList()
+    val posts = payload?.posts.orEmpty()
+    if (vouchers.isEmpty() && posts.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Text(
+            "Khám phá ưu đãi dành riêng cho bạn",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        if (vouchers.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(vouchers, key = { it.id }) { voucher ->
+                    PromotionVoucherCard(voucher = voucher, onToggle = { onToggleVoucher(voucher) })
+                }
+            }
+        }
+        posts.forEach { post ->
+            PromotionPostCard(post = post, onClick = { onPostClick(post) })
+        }
+    }
+}
+
+@Composable
+private fun PromotionVoucherCard(voucher: Promotion, onToggle: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(226.dp)
+            .height(142.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PremiumDesign.CardRadius))
+            .border(1.dp, PremiumColors.Border.copy(alpha = 0.5f), RoundedCornerShape(PremiumDesign.CardRadius))
+            .padding(14.dp),
+    ) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
+                Icon(Icons.Filled.LocalOffer, contentDescription = null, tint = PremiumColors.Accent, modifier = Modifier.size(16.dp))
+                Text(voucher.code, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Accent, maxLines = 1)
+            }
+            Text(voucher.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2)
+            voucher.description?.takeIf { it.isNotBlank() }?.let {
+                Text(it, fontSize = 12.sp, color = PremiumColors.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            Spacer(Modifier.weight(1f))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    promotionDiscountText(voucher),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .background(PremiumColors.Accent, RoundedCornerShape(999.dp))
+                        .padding(horizontal = 9.dp, vertical = 4.dp),
+                )
+                Spacer(Modifier.weight(1f))
+                Icon(
+                    imageVector = if (voucher.is_saved == true) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                    contentDescription = null,
+                    tint = PremiumColors.Accent,
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clickable(onClick = onToggle)
+                        .padding(4.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromotionPostCard(post: PromotionPost, onClick: () -> Unit) {
+    val ratio = if (post.post_type == "main") 3f / 4f else 1f
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .aspectRatio(ratio)
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomStart,
+    ) {
+        AsyncImage(
+            model = post.cover_image_url,
+            contentDescription = post.title,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            Modifier
+                .matchParentSize()
+                .background(Color.Black.copy(alpha = 0.34f)),
+        )
+        Column(
+            Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            if (post.voucher != null) {
+                Text(
+                    "Có voucher",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    modifier = Modifier
+                        .background(PremiumColors.Accent, RoundedCornerShape(999.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            Text(post.title, fontSize = if (post.post_type == "main") 22.sp else 18.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2)
+            post.subtitle?.takeIf { it.isNotBlank() }?.let {
+                Text(it, fontSize = 13.sp, color = Color.White.copy(alpha = 0.88f), maxLines = 2)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PromotionPostDialog(
+    post: PromotionPost,
+    onDismiss: () -> Unit,
+    onSaveVoucher: (Promotion) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            post.voucher?.let { voucher ->
+                Button(onClick = { onSaveVoucher(voucher) }, colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent)) {
+                    Text(if (voucher.is_saved == true) "Đã lưu" else "Lưu voucher")
+                }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Đóng") } },
+        title = { Text(post.title, fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AsyncImage(
+                    model = post.cover_image_url,
+                    contentDescription = post.title,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(if (post.post_type == "main") 3f / 4f else 1f)
+                        .clip(RoundedCornerShape(14.dp)),
+                )
+                post.subtitle?.takeIf { it.isNotBlank() }?.let { Text(it, fontWeight = FontWeight.SemiBold) }
+                post.body?.takeIf { it.isNotBlank() }?.let { Text(it) }
+                post.voucher?.let { voucher ->
+                    Text("${voucher.code} · ${promotionDiscountText(voucher)}", fontWeight = FontWeight.Bold, color = PremiumColors.Accent)
+                }
+            }
+        },
+    )
+}
+
+private fun promotionDiscountText(voucher: Promotion): String {
+    voucher.discount_percent?.takeIf { it > 0 }?.let { return "Giảm ${it.toInt()}%" }
+    voucher.discount_amount?.takeIf { it > 0 }?.let { return "Giảm ${FormatUtils.formatVnd(it)}" }
+    return "Ưu đãi"
 }
 
 @Composable

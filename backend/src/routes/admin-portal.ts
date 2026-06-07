@@ -24,6 +24,12 @@ import {
   updateAiRecommendationRule,
 } from "../services/aiRecommendationService.js";
 import { listAdminPayouts } from "../services/payoutService.js";
+import {
+  adminCreatePromotionPost,
+  adminCreatePromotionVoucher,
+  adminListPromotionPosts,
+  adminListPromotionVouchers,
+} from "../services/promotionService.js";
 
 export async function adminPortalRoutes(app: FastifyInstance) {
   app.get("/admin/overview", { preHandler: requireAdmin }, async (_req, reply) => {
@@ -257,6 +263,38 @@ export async function adminPortalRoutes(app: FastifyInstance) {
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
       return reply.code(500).send({ error: msg });
+    }
+  });
+
+  app.get("/admin/promotion-vouchers", { preHandler: requireAdmin }, async (_req, reply) => {
+    try {
+      return { items: await adminListPromotionVouchers() };
+    } catch (e) {
+      return reply.code(500).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
+  app.post<{ Body: Record<string, unknown> }>("/admin/promotion-vouchers", { preHandler: requireAdmin }, async (req, reply) => {
+    try {
+      return await adminCreatePromotionVoucher(req.body as never);
+    } catch (e) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
+  app.get("/admin/promotion-posts", { preHandler: requireAdmin }, async (_req, reply) => {
+    try {
+      return { items: await adminListPromotionPosts() };
+    } catch (e) {
+      return reply.code(500).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
+  app.post<{ Body: Record<string, unknown> }>("/admin/promotion-posts", { preHandler: requireAdmin }, async (req, reply) => {
+    try {
+      return await adminCreatePromotionPost(req.userId!, req.body as never);
+    } catch (e) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
     }
   });
 }

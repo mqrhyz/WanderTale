@@ -96,10 +96,61 @@ struct Promotion: Codable, Identifiable {
     var description: String?
     var discount_percent: Double?
     var discount_amount: Double?
+    var valid_from: String?
     var valid_until: String?
     var partner_name: String?
+    var is_saved: Bool?
 }
 
 struct PromotionList: Codable {
     var items: [Promotion] = []
+}
+
+struct PromotionPost: Codable, Identifiable {
+    let id: String
+    var title: String
+    var subtitle: String?
+    var body: String?
+    var cover_image_url: String
+    var post_type: String
+    var voucher_id: String?
+    var status: String?
+    var sort_order: Int?
+    var starts_at: String?
+    var ends_at: String?
+    var created_at: String?
+    var voucher: Promotion?
+}
+
+struct PromotionHomePayload: Codable {
+    var items: [Promotion] = []
+    var vouchers: [Promotion] = []
+    var posts: [PromotionPost] = []
+}
+
+struct PromotionVoucherCreate: Codable {
+    var code: String
+    var title: String
+    var description: String?
+    var discount_percent: Double?
+    var discount_amount: Double?
+    var valid_from: String?
+    var valid_until: String?
+}
+
+struct PromotionPostCreate: Codable {
+    var title: String
+    var subtitle: String?
+    var body: String?
+    var cover_image_url: String
+    var post_type: String
+    var voucher_id: String?
+    var status: String?
+    var sort_order: Int?
+    var starts_at: String?
+    var ends_at: String?
+}
+
+struct PromotionPostList: Codable {
+    var items: [PromotionPost] = []
 }

@@ -13,6 +13,8 @@ struct AdminPortalView: View {
     @State private var media: [BusinessMediaRow] = []
     @State private var payouts: [PayoutRecord] = []
     @State private var aiRules: [AiRecommendationRule] = []
+    @State private var promotionVouchers: [Promotion] = []
+    @State private var promotionPosts: [PromotionPost] = []
     @State private var selectedUserDetail: AdminUserDetail?
     @State private var userSearch = ""
     @State private var userFilter = "Tất cả"
@@ -22,6 +24,7 @@ struct AdminPortalView: View {
     @State private var error: String?
     @State private var actionMessage: String?
     @State private var showCreateUser = false
+    @State private var showPromotionManager = false
 
     private let sections = ["Dashboard", "Users", "Business", "Cài đặt"]
 
@@ -61,6 +64,20 @@ struct AdminPortalView: View {
                 await load()
                 actionMessage = "Đã tạo tài khoản \(input.email)."
             }
+        }
+        .sheet(isPresented: $showPromotionManager) {
+            AdminPromotionManagerSheet(
+                vouchers: promotionVouchers,
+                posts: promotionPosts,
+                onCreateVoucher: { input in
+                    _ = try await ApiService.adminCreatePromotionVoucher(input)
+                    await load()
+                },
+                onCreatePost: { input in
+                    _ = try await ApiService.adminCreatePromotionPost(input)
+                    await load()
+                }
+            )
         }
         .sheet(item: $selectedUserDetail) { detail in
             AdminUserDetailView(detail: detail) { status in
@@ -199,17 +216,8 @@ struct AdminPortalView: View {
                 }
                 adminSectionTitle("DOANH THU 7 NGÀY")
                 revenueBars
-                adminSectionTitle("CẢNH BÁO HỆ THỐNG")
-                let warningLogs = logs.filter { $0.level.lowercased() == "error" || $0.level.lowercased() == "warning" }.prefix(2)
-                if warningLogs.isEmpty {
-                    adminEmpty("Chưa có cảnh báo hệ thống.")
-                } else {
-                    VStack(spacing: 10) {
-                        ForEach(Array(warningLogs), id: \.id) { log in
-                            adminAlertCard(log)
-                        }
-                    }
-                }
+                adminSectionTitle("QUẢN LÝ VOUCHER")
+                adminPromotionManagerCard
                 adminSectionTitle("NGƯỜI DÙNG MỚI NHẤT")
                 if users.isEmpty {
                     adminEmpty("Chưa có người dùng.")
@@ -566,6 +574,43 @@ struct AdminPortalView: View {
         .background(isError ? Color(red: 1, green: 0.91, blue: 0.91) : Color(red: 1, green: 0.95, blue: 0.84))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(isError ? Color.red.opacity(0.5) : Color.orange.opacity(0.6)))
+    }
+
+    private var adminPromotionManagerCard: some View {
+        Button {
+            showPromotionManager = true
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "ticket.fill")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 52, height: 52)
+                    .background(AdminPortalStyle.purple)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Khám phá ưu đãi")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(AdminPortalStyle.text)
+                    Text("\(promotionVouchers.count) voucher · \(promotionPosts.count) bài viết")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AdminPortalStyle.muted)
+                    Text("Tạo voucher, bài viết chính 3:4 và bài viết phụ 1:1 cho Home user.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(AdminPortalStyle.muted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(AdminPortalStyle.muted)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AdminPortalStyle.card)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(AdminPortalStyle.stroke))
+        }
+        .buttonStyle(.plain)
     }
 
     private func adminUserInlineRow(_ user: AdminUserRow) -> some View {
@@ -1046,6 +1091,8 @@ struct AdminPortalView: View {
             async let m = ApiService.adminMedia()
             async let pay = ApiService.adminPayouts()
             async let rules = ApiService.adminAiRecommendationRules()
+            async let promoVouchers = ApiService.adminPromotionVouchers()
+            async let promoPosts = ApiService.adminPromotionPosts()
             overview = try await o
             transactions = try await t.items
             users = try await u.items
@@ -1055,6 +1102,8 @@ struct AdminPortalView: View {
             media = try await m.items
             payouts = try await pay.items
             aiRules = try await rules.items
+            promotionVouchers = try await promoVouchers.items
+            promotionPosts = try await promoPosts.items
         } catch {
             self.error = formatApiError(error, fallback: "Không tải được dữ liệu admin")
         }
@@ -1124,6 +1173,133 @@ private enum AdminPortalStyle {
     static let green = Color(red: 0.05, green: 0.75, blue: 0.58)
     static let purple = Color(red: 0.39, green: 0.32, blue: 0.92)
     static let lavender = Color(red: 0.67, green: 0.63, blue: 0.91)
+}
+
+private struct AdminPromotionManagerSheet: View {
+    let vouchers: [Promotion]
+    let posts: [PromotionPost]
+    let onCreateVoucher: (PromotionVoucherCreate) async throws -> Void
+    let onCreatePost: (PromotionPostCreate) async throws -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var mode = 0
+    @State private var code = ""
+    @State private var voucherTitle = ""
+    @State private var voucherDescription = ""
+    @State private var discountPercent = ""
+    @State private var discountAmount = ""
+    @State private var validFrom = String(Date().ISO8601Format().prefix(10))
+    @State private var validUntil = String(Date().addingTimeInterval(60 * 60 * 24 * 30).ISO8601Format().prefix(10))
+    @State private var postTitle = ""
+    @State private var postSubtitle = ""
+    @State private var postBody = ""
+    @State private var coverUrl = ""
+    @State private var postType = "main"
+    @State private var selectedVoucherId = ""
+    @State private var error: String?
+    @State private var saving = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Loại", selection: $mode) {
+                    Text("Voucher").tag(0)
+                    Text("Bài viết").tag(1)
+                }
+                .pickerStyle(.segmented)
+
+                if mode == 0 {
+                    Section("Voucher") {
+                        TextField("Mã voucher", text: $code)
+                            .textInputAutocapitalization(.characters)
+                        TextField("Tiêu đề", text: $voucherTitle)
+                        TextField("Mô tả", text: $voucherDescription, axis: .vertical)
+                        TextField("Giảm phần trăm", text: $discountPercent)
+                            .keyboardType(.decimalPad)
+                        TextField("Giảm số tiền", text: $discountAmount)
+                            .keyboardType(.numberPad)
+                        TextField("Ngày bắt đầu yyyy-mm-dd", text: $validFrom)
+                        TextField("Ngày kết thúc yyyy-mm-dd", text: $validUntil)
+                    }
+                } else {
+                    Section("Bài viết") {
+                        TextField("Tiêu đề", text: $postTitle)
+                        TextField("Phụ đề", text: $postSubtitle)
+                        TextField("URL ảnh bìa", text: $coverUrl)
+                            .textInputAutocapitalization(.never)
+                            .keyboardType(.URL)
+                        Picker("Loại bài viết", selection: $postType) {
+                            Text("Chính 3:4").tag("main")
+                            Text("Phụ 1:1").tag("secondary")
+                        }
+                        Picker("Voucher đính kèm", selection: $selectedVoucherId) {
+                            Text("Không có").tag("")
+                            ForEach(vouchers) { voucher in
+                                Text("\(voucher.code) · \(voucher.title)").tag(voucher.id)
+                            }
+                        }
+                        TextField("Nội dung", text: $postBody, axis: .vertical)
+                            .lineLimit(5...10)
+                    }
+                }
+
+                Section("Đang có") {
+                    Text("\(vouchers.count) voucher · \(posts.count) bài viết")
+                }
+
+                if let error {
+                    Text(error).foregroundStyle(.red)
+                }
+            }
+            .navigationTitle("Quản lý ưu đãi")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Đóng") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Đang lưu..." : "Tạo") {
+                        Task { await submit() }
+                    }
+                    .disabled(saving)
+                }
+            }
+        }
+    }
+
+    private func submit() async {
+        saving = true
+        error = nil
+        do {
+            if mode == 0 {
+                try await onCreateVoucher(PromotionVoucherCreate(
+                    code: code,
+                    title: voucherTitle,
+                    description: voucherDescription.isEmpty ? nil : voucherDescription,
+                    discount_percent: Double(discountPercent.replacingOccurrences(of: ",", with: ".")),
+                    discount_amount: Double(discountAmount.replacingOccurrences(of: ".", with: "")),
+                    valid_from: validFrom,
+                    valid_until: validUntil
+                ))
+                code = ""; voucherTitle = ""; voucherDescription = ""; discountPercent = ""; discountAmount = ""
+            } else {
+                try await onCreatePost(PromotionPostCreate(
+                    title: postTitle,
+                    subtitle: postSubtitle.isEmpty ? nil : postSubtitle,
+                    body: postBody.isEmpty ? nil : postBody,
+                    cover_image_url: coverUrl,
+                    post_type: postType,
+                    voucher_id: selectedVoucherId.isEmpty ? nil : selectedVoucherId,
+                    status: "published",
+                    sort_order: postType == "main" ? 10 : 0,
+                    starts_at: nil,
+                    ends_at: nil
+                ))
+                postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; selectedVoucherId = ""
+            }
+        } catch {
+            self.error = formatApiError(error, fallback: "Không tạo được ưu đãi")
+        }
+        saving = false
+    }
 }
 
 private struct AdminCreateUserSheet: View {
