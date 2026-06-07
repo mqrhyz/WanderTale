@@ -120,30 +120,20 @@ struct MetricCard: View {
                 .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            HStack {
-                Spacer()
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(label)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(labelColor ?? PremiumTheme.ink)
-                    Text(value)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(PremiumTheme.ink)
-                    if let sub = subtitle {
-                        Text(sub)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(PremiumTheme.textMuted)
-                    }
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .bold))
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(labelColor ?? PremiumTheme.ink)
+                Text(value)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundStyle(PremiumTheme.ink)
+                if let sub = subtitle {
+                    Text(sub)
+                        .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(PremiumTheme.textMuted)
-                        .frame(width: 22, height: 22)
-                        .background(Color.white.opacity(0.8))
-                        .clipShape(Circle())
                 }
-                .padding(.trailing, 14)
-                .padding(.vertical, 10)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(height: 100)
         .clipShape(RoundedRectangle(cornerRadius: 16))
