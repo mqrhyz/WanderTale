@@ -6,6 +6,7 @@ import {
   confirmBooking,
   createBooking,
   getBooking,
+  getBookingReceipt,
   listUserBookings,
   payBooking,
 } from "../services/bookingService.js";
@@ -95,11 +96,11 @@ export async function bookingsRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>("/bookings/:id", { preHandler: requireAuth }, async (req, reply) => {
     try {
-      const booking = await getBooking(req.params.id);
-      if (!(await isOwnerOrAdmin(req.userId!, booking)) && !(await isBusinessOwnerOfBooking(req.userId!, booking))) {
+      const receipt = await getBookingReceipt(req.params.id);
+      if (!(await isOwnerOrAdmin(req.userId!, receipt)) && !(await isBusinessOwnerOfBooking(req.userId!, receipt))) {
         return reply.code(403).send({ error: "forbidden" });
       }
-      return booking;
+      return receipt;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
       return reply.code(msg === "booking_not_found" ? 404 : 500).send({ error: msg });

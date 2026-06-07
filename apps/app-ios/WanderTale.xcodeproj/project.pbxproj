@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		00779EAB8CF135D2DBAD4D25 /* WanderTaleApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B49F5FAC839D2C2FDA66B28B /* WanderTaleApp.swift */; };
 		069250DD7F0998CA259D760F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F6C74731810FA7B4350BBC5A /* Assets.xcassets */; };
+		0A810D6EC1AA368D6064BD6F /* BookingReceiptView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCEAC96FBF6F2B5544FFB935 /* BookingReceiptView.swift */; };
 		11D3F3EBE81802A5ECFD4843 /* BookingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D6A024902E4D65344584582 /* BookingView.swift */; };
 		14676EB51B7B0D959110D5B1 /* DashboardComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28178AAB0569FF9E6FE9E574 /* DashboardComponents.swift */; };
 		1A8809714CA59CDD487C4993 /* AppAssetPreloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D7AA053D15DCD21926CE504 /* AppAssetPreloader.swift */; };
@@ -83,12 +84,13 @@
 		BAFCB6964E307A59ABC52739 /* TripDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailView.swift; sourceTree = "<group>"; };
 		BD78B35D9245BE0B52E2498C /* PremiumComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumComponents.swift; sourceTree = "<group>"; };
 		BEB7B1CA4139537EAA1FE6BD /* GoogleAuthCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuthCoordinator.swift; sourceTree = "<group>"; };
+		CCEAC96FBF6F2B5544FFB935 /* BookingReceiptView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookingReceiptView.swift; sourceTree = "<group>"; };
 		CFD2DD853B5C5332A217C1D6 /* SplashView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SplashView.swift; sourceTree = "<group>"; };
 		D27BC09DD726C490676549A3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		E2DF251E5B37DE171E015F16 /* KeychainStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStore.swift; sourceTree = "<group>"; };
 		F2E766258697CEEC465F0D9E /* ApiService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ApiService.swift; sourceTree = "<group>"; };
 		F6C74731810FA7B4350BBC5A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		"TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
+		"TEMP_8CDCF8C0-7E40-4DE1-9775-BCC23CF61931" /* Config.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -290,6 +292,7 @@
 			isa = PBXGroup;
 			children = (
 				2B0B6EE9753CDD6DCA105ECE /* BookingPaymentSheet.swift */,
+				CCEAC96FBF6F2B5544FFB935 /* BookingReceiptView.swift */,
 				3A50CEB4684E0228361EFBBE /* HotelCardView.swift */,
 				088013EF817DA67009218A94 /* LocationDetailView.swift */,
 				0C562EC0667B17052469FEF9 /* MyBookingsView.swift */,
@@ -298,10 +301,10 @@
 			path = TripDetail;
 			sourceTree = "<group>";
 		};
-		"TEMP_CC7B5A66-B1CE-40C3-90B7-C0D076DA251B" /* app-ios */ = {
+		"TEMP_410ED1FF-01E8-4C0B-89DD-663A16C4737B" /* app-ios */ = {
 			isa = PBXGroup;
 			children = (
-				"TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */,
+				"TEMP_8CDCF8C0-7E40-4DE1-9775-BCC23CF61931" /* Config.xcconfig */,
 			);
 			path = "app-ios";
 			sourceTree = "<group>";
@@ -384,6 +387,7 @@
 				35E0C78CA7DCA904F53CF421 /* AppState.swift in Sources */,
 				9E163E8D2E56A1284340509B /* AuthViews.swift in Sources */,
 				D9A33B391E445C6EAAD9AB06 /* BookingPaymentSheet.swift in Sources */,
+				0A810D6EC1AA368D6064BD6F /* BookingReceiptView.swift in Sources */,
 				11D3F3EBE81802A5ECFD4843 /* BookingView.swift in Sources */,
 				CDF76B0868418DD7702C3053 /* BottomNavBar.swift in Sources */,
 				621E4796F7CE35BB99C8F5AD /* BusinessNotificationsSheet.swift in Sources */,
@@ -421,7 +425,7 @@
 /* Begin XCBuildConfiguration section */
 		0C962A4F98F27E7DFAC38638 /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_8CDCF8C0-7E40-4DE1-9775-BCC23CF61931" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;
@@ -524,7 +528,7 @@
 		};
 		9D8A83515E9D4D85A737A4CC /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = "TEMP_B4988A15-6256-434C-9F9C-36C37D423A67" /* Config.xcconfig */;
+			baseConfigurationReference = "TEMP_8CDCF8C0-7E40-4DE1-9775-BCC23CF61931" /* Config.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				CLANG_ANALYZER_NONNULL = YES;

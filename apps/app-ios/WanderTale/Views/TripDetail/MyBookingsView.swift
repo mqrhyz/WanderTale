@@ -3,6 +3,7 @@ import SwiftUI
 struct MyBookingsView: View {
     @State private var bookings: [BookingRecord] = []
     @State private var loading = true
+    @State private var selectedBookingId: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,7 +29,10 @@ struct MyBookingsView: View {
                 } else {
                     VStack(spacing: 12) {
                         ForEach(bookings) { b in
-                            card(b)
+                            Button { selectedBookingId = b.id } label: {
+                                card(b)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding(PremiumTheme.screenPadding)
@@ -40,6 +44,9 @@ struct MyBookingsView: View {
         .background(PremiumTheme.bg)
         .appTabRoot()
         .task { await load() }
+        .sheet(item: $selectedBookingId.asIdentifiable) { wrapper in
+            BookingReceiptView(bookingId: wrapper.value)
+        }
     }
 
     private func card(_ b: BookingRecord) -> some View {
@@ -99,5 +106,15 @@ struct MyBookingsView: View {
         loading = true
         bookings = (try? await ApiService.myBookings())?.items ?? []
         loading = false
+    }
+}
+
+private struct BookingIdItem: Identifiable { let id = UUID(); let value: String }
+private extension Binding where Value == String? {
+    var asIdentifiable: Binding<BookingIdItem?> {
+        Binding<BookingIdItem?>(
+            get: { wrappedValue.map { BookingIdItem(value: $0) } },
+            set: { wrappedValue = $0?.value }
+        )
     }
 }

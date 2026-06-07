@@ -350,7 +350,10 @@ struct BookingRecord: Codable, Identifiable {
     var payment_mode: String?
     var code: String?
     var location_name: String?
+    var location_address: String?
     var business_name: String?
+    var business_hotline: String?
+    var metadata: [String: String]?
 }
 
 struct BookingList: Codable {

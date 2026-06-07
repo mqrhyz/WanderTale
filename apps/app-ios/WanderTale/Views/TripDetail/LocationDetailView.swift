@@ -11,9 +11,10 @@ struct LocationDetailView: View {
     @State private var error: String?
 
     @State private var showReviewSheet = false
-    @State private var formMode: String?          // "prepaid" | "pay_later"
+    @State private var formMode: String?
     @State private var payResponse: BookingPayResponse?
     @State private var booked = false
+    @State private var receiptBookingId: String?
 
     var body: some View {
         ScrollView {
@@ -42,12 +43,18 @@ struct LocationDetailView: View {
                     defaultName: appState.accountInfo?.displayName ?? appState.displayName,
                     defaultPhone: appState.accountInfo?.phone ?? "",
                     onPay: { resp in formMode = nil; payResponse = resp },
-                    onPaidLater: { formMode = nil; booked = true }
+                    onPaidLater: { bookingId in formMode = nil; receiptBookingId = bookingId }
                 )
             }
         }
         .sheet(item: $payResponse) { resp in
-            BookingPaymentSheet(response: resp) { payResponse = nil }
+            BookingPaymentSheet(response: resp) {
+                payResponse = nil
+                receiptBookingId = resp.booking_id
+            }
+        }
+        .sheet(item: $receiptBookingId.asIdentifiable) { wrapper in
+            BookingReceiptView(bookingId: wrapper.value)
         }
         .alert("Đặt chỗ thành công", isPresented: $booked) {
             Button("OK") { }
@@ -218,7 +225,7 @@ private struct BookingFormSheet: View {
     let defaultName: String
     let defaultPhone: String
     let onPay: (BookingPayResponse) -> Void
-    let onPaidLater: () -> Void
+    let onPaidLater: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
@@ -360,10 +367,10 @@ private struct BookingFormSheet: View {
                 if pay.checkout_url != nil || pay.qr_code != nil {
                     onPay(pay)
                 } else {
-                    onPaidLater()
+                    onPaidLater(created.id)
                 }
             } else {
-                onPaidLater()
+                onPaidLater(created.id)
             }
         } catch {
             self.error = formatApiError(error, fallback: "Không đặt được chỗ")

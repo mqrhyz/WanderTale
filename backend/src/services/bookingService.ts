@@ -463,3 +463,25 @@ export async function listUserBookings(userId: string, limit = 50) {
     code: r.id.slice(0, 8).toUpperCase(),
   }));
 }
+
+/** Booking đầy đủ cho trang hoá đơn: kèm tên địa điểm/business + mã. */
+export async function getBookingReceipt(bookingId: string) {
+  const booking = await getBooking(bookingId);
+  const sb = getSupabaseAdmin();
+  const [{ data: loc }, { data: biz }] = await Promise.all([
+    booking.location_id
+      ? sb.from("business_locations").select("name,address").eq("id", booking.location_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    booking.business_id
+      ? sb.from("businesses").select("name,hotline").eq("id", booking.business_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  return {
+    ...booking,
+    code: String(booking.id).slice(0, 8).toUpperCase(),
+    location_name: loc?.name ?? null,
+    location_address: loc?.address ?? null,
+    business_name: biz?.name ?? null,
+    business_hotline: biz?.hotline ?? null,
+  };
+}
