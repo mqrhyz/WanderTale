@@ -130,7 +130,7 @@ export async function persistGeneratedTrip(params: {
   return trip;
 }
 
-/** Cập nhật lịch sau khi quét OTA nền (P2). */
+/** Cập nhật lịch sau khi quét OTA nền (P2). Merge giữ lại image_preview_url đã enrich. */
 export async function updateTripAfterOtaPricing(params: {
   userId: string;
   tripId: string;
@@ -139,19 +139,70 @@ export async function updateTripAfterOtaPricing(params: {
   generationStatus?: "generating" | "pricing_pending" | "ready" | "failed";
 }) {
   const sb = getSupabase();
+
+  // Đọc itinerary hiện tại để merge image_preview_url đã có (tránh mất ảnh).
+  const { data: current } = await sb
+    .from("trips")
+    .select("itinerary_json")
+    .eq("id", params.tripId)
+    .eq("user_id", params.userId)
+    .maybeSingle();
+
+  const merged = mergeSlotImages(params.itinerary, current?.itinerary_json as GeneratedItinerary | null);
+
   const { error } = await sb
     .from("trips")
     .update({
-      summary: params.itinerary.summary,
-      total_estimated_cost: params.itinerary.total_estimated_cost,
-      risk_warnings: params.itinerary.risk_warnings,
-      itinerary_json: params.itinerary as unknown as Record<string, unknown>,
+      summary: merged.summary,
+      total_estimated_cost: merged.total_estimated_cost,
+      risk_warnings: merged.risk_warnings,
+      itinerary_json: merged as unknown as Record<string, unknown>,
       generation_status: params.generationStatus ?? "ready",
       hotel_pricing_status: params.hotelPricingStatus,
     })
     .eq("id", params.tripId)
     .eq("user_id", params.userId);
   if (error) throw new Error(error.message);
+}
+
+/** Giữ lại image_preview_url/image_preview_urls đã có trong DB khi write mới. */
+function mergeSlotImages(
+  incoming: GeneratedItinerary & { pricing_meta?: unknown },
+  existing: GeneratedItinerary | null | undefined,
+): GeneratedItinerary & { pricing_meta?: unknown } {
+  if (!existing?.days?.length) return incoming;
+
+  // Build map title → images từ existing
+  const imageMap = new Map<string, { url?: string; urls?: string[] }>();
+  for (const day of existing.days) {
+    for (const slot of (day as { activities?: Array<Record<string, unknown>> }).activities ?? []) {
+      const title = String(slot.title ?? "").trim().toLowerCase();
+      if (!title) continue;
+      const url = slot.image_preview_url as string | undefined;
+      const urls = slot.image_preview_urls as string[] | undefined;
+      if (url || urls?.length) imageMap.set(title, { url, urls });
+    }
+  }
+
+  if (imageMap.size === 0) return incoming;
+
+  const days = incoming.days.map((day) => {
+    const activities = ((day as { activities?: Array<Record<string, unknown>> }).activities ?? []).map((slot) => {
+      const title = String(slot.title ?? "").trim().toLowerCase();
+      const cached = imageMap.get(title);
+      if (!cached) return slot;
+      return {
+        ...slot,
+        image_preview_url: slot.image_preview_url || cached.url,
+        image_preview_urls: (slot.image_preview_urls as string[] | undefined)?.length
+          ? slot.image_preview_urls
+          : cached.urls,
+      };
+    });
+    return { ...day, activities };
+  });
+
+  return { ...incoming, days } as GeneratedItinerary & { pricing_meta?: unknown };
 }
 
 export async function markTripGenerationFailed(userId: string, tripId: string, message: string): Promise<void> {

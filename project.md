@@ -264,3 +264,13 @@
 - **Backend** (`lib/pexels.ts`): `resolvePexelsCoverUrl` giờ bỏ prefix hành chính VN ("Thành Phố", "Tỉnh"...) trước khi query Pexels; nếu không tìm thấy ảnh → retry với suffix " travel". Giải quyết trip "Thành Phố Đà Lạt" trước đây không trả ảnh vì Pexels không hiểu tiếng Việt có dấu + prefix.
 - **Lưu ý:** ảnh bìa có ngay khi `listTrips`/`getTrip` được gọi (cả hai đều chạy `enrichTripWithCoverImage`). App client reload danh sách trip ngay sau khi tạo xong → ảnh xuất hiện real-time.
 - **Test:** backend `tsc` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `320ebb1f`).
+
+## [2026-06-07] AI itinerary: loại bỏ địa điểm phi du lịch + không trùng + mô tả marketing + fix ảnh mất
+- **Prompt AI** (`openaiItinerary.ts` `buildItineraryPrompt`):
+  - Thêm lệnh TUYỆT ĐỐI KHÔNG đề xuất cơ quan hành chính (công an, UBND, hội trường, bưu điện, trung tâm hành chính, trường học, bệnh viện...). Chỉ địa điểm du lịch thực sự.
+  - Thêm ràng buộc KHÔNG trùng lặp: mỗi title chỉ xuất hiện tối đa 1 lần trong toàn bộ lịch trình.
+  - Đổi yêu cầu `summary`: BẮT BUỘC mô tả hấp dẫn kiểu marketing/travel blog (1–2 câu, điểm nổi bật, trải nghiệm đặc biệt). KHÔNG ĐƯỢC viết "Gợi ý khám phá tại X".
+- **Fix ảnh mất khi load khách sạn** (`itineraryPersistence.ts` `updateTripAfterOtaPricing`):
+  - Nguyên nhân: khi OTA pricing hoàn tất, ghi đè toàn bộ `itinerary_json` bằng object mới (chưa có `image_preview_url` do ảnh được enrich riêng/sớm hơn) → ảnh đã có bị xóa.
+  - Sửa: trước khi write, đọc `itinerary_json` hiện tại từ DB → merge giữ lại `image_preview_url`/`image_preview_urls` cho mỗi slot theo title. Ảnh không bị mất nữa.
+- **Test:** backend `tsc` exit 0. Deploy Cloud Run thành công (build `05079c5a`).
