@@ -114,18 +114,18 @@ struct MetricCard: View {
     }
 
     private func imageCard(_ bgImage: String) -> some View {
-        ZStack {
+        ZStack(alignment: .trailing) {
             Image(bgImage)
                 .resizable()
                 .aspectRatio(contentMode: .fill)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            VStack(spacing: 2) {
+            VStack(alignment: .trailing, spacing: 1) {
                 Text(label)
-                    .font(.system(size: 14, weight: .bold))
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(labelColor ?? PremiumTheme.ink)
                 Text(value)
-                    .font(.system(size: 24, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(PremiumTheme.ink)
                 if let sub = subtitle {
                     Text(sub)
@@ -133,7 +133,7 @@ struct MetricCard: View {
                         .foregroundStyle(PremiumTheme.textMuted)
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(.trailing, 16)
         }
         .frame(height: 100)
         .clipShape(RoundedRectangle(cornerRadius: 16))
