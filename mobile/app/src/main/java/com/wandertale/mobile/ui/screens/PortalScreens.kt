@@ -1280,6 +1280,38 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                     }.onFailure { actionMessage = it.message }
                 }
             },
+            onUpdateVoucher = { id, input ->
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminUpdatePromotionVoucher(id, input)
+                        load()
+                    }.onFailure { actionMessage = it.message }
+                }
+            },
+            onDeleteVoucher = { id ->
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminDeletePromotionVoucher(id)
+                        load()
+                    }.onFailure { actionMessage = it.message }
+                }
+            },
+            onUpdatePost = { id, input ->
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminUpdatePromotionPost(id, input)
+                        load()
+                    }.onFailure { actionMessage = it.message }
+                }
+            },
+            onDeletePost = { id ->
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminDeletePromotionPost(id)
+                        load()
+                    }.onFailure { actionMessage = it.message }
+                }
+            },
         )
     }
     }
@@ -1504,8 +1536,14 @@ private fun AdminPromotionManagerDialog(
     onDismiss: () -> Unit,
     onCreateVoucher: (PromotionVoucherCreate) -> Unit,
     onCreatePost: (PromotionPostCreate) -> Unit,
+    onUpdateVoucher: (String, PromotionVoucherCreate) -> Unit,
+    onDeleteVoucher: (String) -> Unit,
+    onUpdatePost: (String, PromotionPostCreate) -> Unit,
+    onDeletePost: (String) -> Unit,
 ) {
     var tab by remember { mutableIntStateOf(0) }
+    var selectedVoucherId by remember { mutableStateOf<String?>(null) }
+    var selectedPostId by remember { mutableStateOf<String?>(null) }
     var code by remember { mutableStateOf("") }
     var voucherTitle by remember { mutableStateOf("") }
     var voucherDesc by remember { mutableStateOf("") }
@@ -1518,7 +1556,40 @@ private fun AdminPromotionManagerDialog(
     var postBody by remember { mutableStateOf("") }
     var coverUrl by remember { mutableStateOf("") }
     var postType by remember { mutableStateOf("main") }
-    var selectedVoucherId by remember { mutableStateOf("") }
+    var attachedVoucherId by remember { mutableStateOf("") }
+
+    fun resetVoucherForm() {
+        selectedVoucherId = null
+        code = ""; voucherTitle = ""; voucherDesc = ""; percent = ""; amount = ""
+    }
+
+    fun resetPostForm() {
+        selectedPostId = null
+        postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; postType = "main"; attachedVoucherId = ""
+    }
+
+    fun fillVoucher(voucher: Promotion) {
+        tab = 0
+        selectedVoucherId = voucher.id
+        code = voucher.code
+        voucherTitle = voucher.title
+        voucherDesc = voucher.description ?: ""
+        percent = voucher.discount_percent?.toInt()?.toString() ?: ""
+        amount = voucher.discount_amount?.toInt()?.toString() ?: ""
+        validFrom = voucher.valid_from ?: validFrom
+        validUntil = voucher.valid_until ?: validUntil
+    }
+
+    fun fillPost(post: PromotionPost) {
+        tab = 1
+        selectedPostId = post.id
+        postTitle = post.title
+        postSubtitle = post.subtitle ?: ""
+        postBody = post.body ?: ""
+        coverUrl = post.cover_image_url
+        postType = post.post_type
+        attachedVoucherId = post.voucher_id ?: ""
+    }
 
     Dialog(onDismissRequest = onDismiss) {
         Column(
@@ -1545,6 +1616,10 @@ private fun AdminPromotionManagerDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (tab == 0) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (selectedVoucherId == null) "Tạo voucher" else "Sửa voucher", color = portalText(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (selectedVoucherId != null) TextButton(onClick = { resetVoucherForm() }) { Text("Tạo mới") }
+                    }
                     PortalTextInput("Mã voucher", code) { code = it.uppercase(Locale.ROOT) }
                     PortalTextInput("Tiêu đề", voucherTitle) { voucherTitle = it }
                     PortalTextInput("Mô tả", voucherDesc) { voucherDesc = it }
@@ -1554,23 +1629,39 @@ private fun AdminPromotionManagerDialog(
                     PortalTextInput("Ngày kết thúc yyyy-mm-dd", validUntil) { validUntil = it }
                     Button(
                         onClick = {
-                            onCreateVoucher(
-                                PromotionVoucherCreate(
-                                    code = code,
-                                    title = voucherTitle,
-                                    description = voucherDesc.ifBlank { null },
-                                    discount_percent = percent.toDoubleOrNull(),
-                                    discount_amount = amount.replace(".", "").toDoubleOrNull(),
-                                    valid_from = validFrom,
-                                    valid_until = validUntil,
-                                ),
+                            val input = PromotionVoucherCreate(
+                                code = code,
+                                title = voucherTitle,
+                                description = voucherDesc.ifBlank { null },
+                                discount_percent = percent.toDoubleOrNull(),
+                                discount_amount = amount.replace(".", "").toDoubleOrNull(),
+                                valid_from = validFrom,
+                                valid_until = validUntil,
                             )
-                            code = ""; voucherTitle = ""; voucherDesc = ""; percent = ""; amount = ""
+                            selectedVoucherId?.let { onUpdateVoucher(it, input) } ?: onCreateVoucher(input)
+                            resetVoucherForm()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PortalPurple),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Tạo voucher") }
+                    ) { Text(if (selectedVoucherId == null) "Tạo voucher" else "Cập nhật voucher") }
+                    selectedVoucherId?.let { id ->
+                        OutlinedButton(onClick = { onDeleteVoucher(id); resetVoucherForm() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Xoá voucher")
+                        }
+                    }
+                    Text("Voucher hiện có", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    if (vouchers.isEmpty()) {
+                        Text("Chưa có voucher.", color = portalMuted(), fontSize = 13.sp)
+                    } else {
+                        vouchers.forEach { voucher ->
+                            PromotionVoucherAdminRow(voucher, selected = selectedVoucherId == voucher.id, onClick = { fillVoucher(voucher) })
+                        }
+                    }
                 } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (selectedPostId == null) "Tạo bài viết" else "Sửa bài viết", color = portalText(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                        if (selectedPostId != null) TextButton(onClick = { resetPostForm() }) { Text("Tạo mới") }
+                    }
                     PortalTextInput("Tiêu đề", postTitle) { postTitle = it }
                     PortalTextInput("Phụ đề", postSubtitle) { postSubtitle = it }
                     PortalTextInput("URL ảnh bìa", coverUrl) { coverUrl = it }
@@ -1580,33 +1671,44 @@ private fun AdminPromotionManagerDialog(
                     }
                     Text("Voucher đính kèm", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        PortalChip("Không có", selectedVoucherId.isEmpty()) { selectedVoucherId = "" }
+                        PortalChip("Không có", attachedVoucherId.isEmpty()) { attachedVoucherId = "" }
                         vouchers.forEach { voucher ->
-                            PortalChip(voucher.code, selectedVoucherId == voucher.id) { selectedVoucherId = voucher.id }
+                            PortalChip(voucher.code, attachedVoucherId == voucher.id) { attachedVoucherId = voucher.id }
                         }
                     }
                     PortalTextInput("Nội dung", postBody) { postBody = it }
                     Button(
                         onClick = {
-                            onCreatePost(
-                                PromotionPostCreate(
-                                    title = postTitle,
-                                    subtitle = postSubtitle.ifBlank { null },
-                                    body = postBody.ifBlank { null },
-                                    cover_image_url = coverUrl,
-                                    post_type = postType,
-                                    voucher_id = selectedVoucherId.ifBlank { null },
-                                    status = "published",
-                                    sort_order = if (postType == "main") 10 else 0,
-                                ),
+                            val input = PromotionPostCreate(
+                                title = postTitle,
+                                subtitle = postSubtitle.ifBlank { null },
+                                body = postBody.ifBlank { null },
+                                cover_image_url = coverUrl,
+                                post_type = postType,
+                                voucher_id = attachedVoucherId.ifBlank { null },
+                                status = "published",
+                                sort_order = if (postType == "main") 10 else 0,
                             )
-                            postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; selectedVoucherId = ""
+                            selectedPostId?.let { onUpdatePost(it, input) } ?: onCreatePost(input)
+                            resetPostForm()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = PortalGreen),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Tạo bài viết") }
+                    ) { Text(if (selectedPostId == null) "Tạo bài viết" else "Cập nhật bài viết") }
+                    selectedPostId?.let { id ->
+                        OutlinedButton(onClick = { onDeletePost(id); resetPostForm() }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Xoá bài viết")
+                        }
+                    }
+                    Text("Bài viết hiện có", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    if (posts.isEmpty()) {
+                        Text("Chưa có bài viết.", color = portalMuted(), fontSize = 13.sp)
+                    } else {
+                        posts.forEach { post ->
+                            PromotionPostAdminRow(post, selected = selectedPostId == post.id, onClick = { fillPost(post) })
+                        }
+                    }
                 }
-                Text("${vouchers.size} voucher · ${posts.size} bài viết đang có", color = portalMuted(), fontSize = 12.sp)
             }
         }
     }
@@ -1622,6 +1724,55 @@ private fun PortalTextInput(label: String, value: String, keyboardType: Keyboard
         singleLine = false,
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+@Composable
+private fun PromotionVoucherAdminRow(voucher: Promotion, selected: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) PortalPurple.copy(alpha = 0.14f) else portalCard())
+            .border(1.dp, if (selected) PortalPurple else portalStroke(), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(voucher.code, color = portalText(), fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Text(promotionAdminDiscount(voucher), color = PortalPurple, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+        Text(voucher.title, color = portalText(), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+        Text("${voucher.valid_from ?: "—"} → ${voucher.valid_until ?: "—"}", color = portalMuted(), fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun PromotionPostAdminRow(post: PromotionPost, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) PortalGreen.copy(alpha = 0.14f) else portalCard())
+            .border(1.dp, if (selected) PortalGreen else portalStroke(), RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .padding(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Filled.Campaign, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(26.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(post.title, color = portalText(), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(if (post.post_type == "main") "Bài chính 3:4" else "Bài phụ 1:1", color = portalMuted(), fontSize = 12.sp)
+            post.voucher?.let { Text("Voucher: ${it.code}", color = PortalPurple, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+}
+
+private fun promotionAdminDiscount(voucher: Promotion): String {
+    voucher.discount_percent?.takeIf { it > 0 }?.let { return "Giảm ${it.toInt()}%" }
+    voucher.discount_amount?.takeIf { it > 0 }?.let { return formatPlatformVnd(it) }
+    return "Ưu đãi"
 }
 
 @Composable

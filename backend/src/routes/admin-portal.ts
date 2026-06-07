@@ -27,8 +27,12 @@ import { listAdminPayouts } from "../services/payoutService.js";
 import {
   adminCreatePromotionPost,
   adminCreatePromotionVoucher,
+  adminDeletePromotionPost,
+  adminDeletePromotionVoucher,
   adminListPromotionPosts,
   adminListPromotionVouchers,
+  adminUpdatePromotionPost,
+  adminUpdatePromotionVoucher,
 } from "../services/promotionService.js";
 
 export async function adminPortalRoutes(app: FastifyInstance) {
@@ -282,6 +286,26 @@ export async function adminPortalRoutes(app: FastifyInstance) {
     }
   });
 
+  app.patch<{ Params: { voucherId: string }; Body: Record<string, unknown> }>(
+    "/admin/promotion-vouchers/:voucherId",
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      try {
+        return await adminUpdatePromotionVoucher(req.params.voucherId, req.body as never);
+      } catch (e) {
+        return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
+      }
+    },
+  );
+
+  app.delete<{ Params: { voucherId: string } }>("/admin/promotion-vouchers/:voucherId", { preHandler: requireAdmin }, async (req, reply) => {
+    try {
+      return await adminDeletePromotionVoucher(req.params.voucherId);
+    } catch (e) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
   app.get("/admin/promotion-posts", { preHandler: requireAdmin }, async (_req, reply) => {
     try {
       return { items: await adminListPromotionPosts() };
@@ -293,6 +317,26 @@ export async function adminPortalRoutes(app: FastifyInstance) {
   app.post<{ Body: Record<string, unknown> }>("/admin/promotion-posts", { preHandler: requireAdmin }, async (req, reply) => {
     try {
       return await adminCreatePromotionPost(req.userId!, req.body as never);
+    } catch (e) {
+      return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
+  app.patch<{ Params: { postId: string }; Body: Record<string, unknown> }>(
+    "/admin/promotion-posts/:postId",
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      try {
+        return await adminUpdatePromotionPost(req.params.postId, req.body as never);
+      } catch (e) {
+        return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
+      }
+    },
+  );
+
+  app.delete<{ Params: { postId: string } }>("/admin/promotion-posts/:postId", { preHandler: requireAdmin }, async (req, reply) => {
+    try {
+      return await adminDeletePromotionPost(req.params.postId);
     } catch (e) {
       return reply.code(400).send({ error: e instanceof Error ? e.message : "error" });
     }

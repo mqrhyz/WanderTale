@@ -285,6 +285,15 @@ extension ApiService {
         return try await request(path: "/api/admin/promotion-vouchers", method: "POST", body: data)
     }
 
+    static func adminUpdatePromotionVoucher(id: String, input: PromotionVoucherCreate) async throws -> Promotion {
+        let data = try JSONEncoder().encode(input)
+        return try await request(path: "/api/admin/promotion-vouchers/\(id)", method: "PATCH", body: data)
+    }
+
+    static func adminDeletePromotionVoucher(id: String) async throws {
+        let _: ApiOkResponse = try await request(path: "/api/admin/promotion-vouchers/\(id)", method: "DELETE")
+    }
+
     static func adminPromotionPosts() async throws -> PromotionPostList {
         try await request(path: "/api/admin/promotion-posts")
     }
@@ -292,6 +301,15 @@ extension ApiService {
     static func adminCreatePromotionPost(_ input: PromotionPostCreate) async throws -> PromotionPost {
         let data = try JSONEncoder().encode(input)
         return try await request(path: "/api/admin/promotion-posts", method: "POST", body: data)
+    }
+
+    static func adminUpdatePromotionPost(id: String, input: PromotionPostCreate) async throws -> PromotionPost {
+        let data = try JSONEncoder().encode(input)
+        return try await request(path: "/api/admin/promotion-posts/\(id)", method: "PATCH", body: data)
+    }
+
+    static func adminDeletePromotionPost(id: String) async throws {
+        let _: ApiOkResponse = try await request(path: "/api/admin/promotion-posts/\(id)", method: "DELETE")
     }
 }
 

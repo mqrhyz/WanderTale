@@ -313,9 +313,17 @@ object ApiClient {
     suspend fun adminPromotionVouchers(): PromotionList = portalGet("/api/admin/promotion-vouchers")
     suspend fun adminCreatePromotionVoucher(body: PromotionVoucherCreate): Promotion =
         portalPost("/api/admin/promotion-vouchers", body)
+    suspend fun adminUpdatePromotionVoucher(id: String, body: PromotionVoucherCreate): Promotion =
+        portalPatch("/api/admin/promotion-vouchers/$id", body)
+    suspend fun adminDeletePromotionVoucher(id: String): Map<String, Boolean> =
+        portalDelete("/api/admin/promotion-vouchers/$id")
     suspend fun adminPromotionPosts(): PromotionPostList = portalGet("/api/admin/promotion-posts")
     suspend fun adminCreatePromotionPost(body: PromotionPostCreate): PromotionPost =
         portalPost("/api/admin/promotion-posts", body)
+    suspend fun adminUpdatePromotionPost(id: String, body: PromotionPostCreate): PromotionPost =
+        portalPatch("/api/admin/promotion-posts/$id", body)
+    suspend fun adminDeletePromotionPost(id: String): Map<String, Boolean> =
+        portalDelete("/api/admin/promotion-posts/$id")
 
     suspend fun adminUpdateUserRole(userId: String, patch: UserRolePatch): AdminUserRow =
         portalPatch("/api/admin/users/$userId/role", patch)

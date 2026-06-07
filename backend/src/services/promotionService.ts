@@ -174,6 +174,43 @@ export async function adminCreatePromotionVoucher(body: {
   return mapVoucher(data as VoucherRow);
 }
 
+export async function adminUpdatePromotionVoucher(voucherId: string, body: {
+  code?: string;
+  title?: string;
+  description?: string | null;
+  discount_percent?: number | null;
+  discount_amount?: number | null;
+  valid_from?: string;
+  valid_until?: string;
+}) {
+  const patch: Record<string, unknown> = {};
+  if (body.code !== undefined) patch.code = body.code.trim().toUpperCase();
+  if (body.title !== undefined) patch.title = body.title.trim();
+  if (body.description !== undefined) patch.description = body.description?.trim() || null;
+  if (body.discount_percent !== undefined) patch.discount_percent = n(body.discount_percent);
+  if (body.discount_amount !== undefined) patch.discount_amount = n(body.discount_amount);
+  if (body.valid_from !== undefined) patch.valid_from = body.valid_from;
+  if (body.valid_until !== undefined) patch.valid_until = body.valid_until;
+  if (!Object.keys(patch).length) throw new Error("empty_update");
+  const { data, error } = await getSupabaseAdmin()
+    .from("vouchers")
+    .update(patch)
+    .eq("id", voucherId)
+    .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,created_at,partners(name)")
+    .single();
+  if (error) throw error;
+  return mapVoucher(data as VoucherRow);
+}
+
+export async function adminDeletePromotionVoucher(voucherId: string) {
+  const sb = getSupabaseAdmin();
+  await sb.from("promotion_posts").update({ voucher_id: null }).eq("voucher_id", voucherId);
+  await sb.from("user_saved_vouchers").delete().eq("voucher_id", voucherId);
+  const { error } = await sb.from("vouchers").delete().eq("id", voucherId);
+  if (error) throw error;
+  return { ok: true };
+}
+
 export async function adminListPromotionPosts() {
   const { data, error } = await getSupabaseAdmin()
     .from("promotion_posts")
@@ -220,4 +257,44 @@ export async function adminCreatePromotionPost(userId: string, body: {
     .single();
   if (error) throw error;
   return mapPost(data as PostRow);
+}
+
+export async function adminUpdatePromotionPost(postId: string, body: {
+  title?: string;
+  subtitle?: string | null;
+  body?: string | null;
+  cover_image_url?: string;
+  post_type?: string;
+  voucher_id?: string | null;
+  status?: string;
+  sort_order?: number;
+  starts_at?: string | null;
+  ends_at?: string | null;
+}) {
+  const patch: Record<string, unknown> = {};
+  if (body.title !== undefined) patch.title = body.title.trim();
+  if (body.subtitle !== undefined) patch.subtitle = body.subtitle?.trim() || null;
+  if (body.body !== undefined) patch.body = body.body?.trim() || null;
+  if (body.cover_image_url !== undefined) patch.cover_image_url = body.cover_image_url.trim();
+  if (body.post_type !== undefined) patch.post_type = body.post_type === "main" ? "main" : "secondary";
+  if (body.voucher_id !== undefined) patch.voucher_id = body.voucher_id || null;
+  if (body.status !== undefined) patch.status = ["draft", "published", "archived"].includes(body.status) ? body.status : "published";
+  if (body.sort_order !== undefined) patch.sort_order = n(body.sort_order) ?? 0;
+  if (body.starts_at !== undefined) patch.starts_at = body.starts_at || null;
+  if (body.ends_at !== undefined) patch.ends_at = body.ends_at || null;
+  if (!Object.keys(patch).length) throw new Error("empty_update");
+  const { data, error } = await getSupabaseAdmin()
+    .from("promotion_posts")
+    .update(patch)
+    .eq("id", postId)
+    .select("*,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,partners(name))")
+    .single();
+  if (error) throw error;
+  return mapPost(data as PostRow);
+}
+
+export async function adminDeletePromotionPost(postId: string) {
+  const { error } = await getSupabaseAdmin().from("promotion_posts").delete().eq("id", postId);
+  if (error) throw error;
+  return { ok: true };
 }
