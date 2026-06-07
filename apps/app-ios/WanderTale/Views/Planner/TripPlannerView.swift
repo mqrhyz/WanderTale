@@ -49,8 +49,8 @@ struct TripPlannerView: View {
                                 .overlay(alignment: .top) {
                                     suggestionsView
                                         .offset(y: 6)
-                                        .zIndex(50)
                                 }
+                                .zIndex(50)
 
                             dateRangePicker
 

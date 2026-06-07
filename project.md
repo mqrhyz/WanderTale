@@ -27,6 +27,12 @@
 
 ## Lịch sử thay đổi (Changelog)
 
+### 2026-06-07 — Fix hiển thị gợi ý tên thành phố (iOS Planner)
+
+- **Yêu cầu:** Sửa lỗi danh sách gợi ý điểm đến (geocode autocomplete) không hiển thị đúng trong `TripPlannerView`.
+- **Thay đổi:** `apps/app-ios/.../Views/Planner/TripPlannerView.swift` — chuyển `.zIndex(50)` từ trong `overlay` (chỉ ảnh hưởng thứ tự của con duy nhất) ra ngoài `Color.clear` chứa dropdown, để cả lớp gợi ý nổi trên `dateRangePicker` thay vì bị che/không bắt được tap.
+- **Ghi chú:** Build `xcodebuild ... WanderTale` PASS. Không đổi logic fetch (`fetchSuggestions`) hay model `GeocodeAutocompleteItem`.
+
 ### 2026-06-07 — Fix voucher Android + icon/UI business portal đẹp hơn (giống iOS)
 
 - **Voucher Android không tạo được:** model gửi sai schema — thiếu `title` (backend bắt buộc → `voucher_title_required`), dùng `condition_label/starts_at/ends_at` thay vì `audience/valid_from/valid_until`, và map "Miễn phí" → `free_shipping` (sai CHECK, đúng là `free`).
