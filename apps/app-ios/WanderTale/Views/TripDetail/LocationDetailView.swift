@@ -60,14 +60,23 @@ struct LocationDetailView: View {
     private func content(_ d: LocationDetail) -> some View {
         VStack(alignment: .leading, spacing: 16) {
             ZStack {
-                if !d.images.isEmpty {
-                    ImageCarousel(images: d.images, alt: d.name, fallback: String(d.name.prefix(1)))
+                if d.images.isEmpty {
+                    RemoteImage(url: nil, fallback: d.name, contentMode: .fill)
+                } else if d.images.count == 1 {
+                    RemoteImage(url: d.images[0], fallback: d.name, contentMode: .fill)
                 } else {
-                    RemoteImage(url: nil, fallback: d.name)
+                    TabView {
+                        ForEach(d.images, id: \.self) { url in
+                            RemoteImage(url: url, fallback: d.name, contentMode: .fill)
+                                .clipped()
+                        }
+                    }
+                    .tabViewStyle(.page(indexDisplayMode: .automatic))
                 }
             }
             .frame(maxWidth: .infinity)
             .frame(height: 240)
+            .clipped()
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
             VStack(alignment: .leading, spacing: 8) {

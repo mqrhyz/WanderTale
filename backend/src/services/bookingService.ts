@@ -71,7 +71,7 @@ export async function createBooking(userId: string, input: CreateBookingInput) {
     })
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) throw new Error(error.message || error.code || "booking_insert_failed");
 
   await logSystemEvent({
     title: "Booking created",
@@ -217,7 +217,7 @@ export async function payBooking(bookingId: string, actorUserId: string) {
       })
       .select("*")
       .single();
-    if (payErr) throw payErr;
+    if (payErr) throw new Error(payErr.message || payErr.code || "payment_tx_insert_failed");
 
     try {
       const link = await createPaymentLink({
