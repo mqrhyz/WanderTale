@@ -25,10 +25,10 @@ struct DashboardView: View {
                 }
 
                 LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                    MetricCard(label: "Chuyến đi", value: "\(appState.stats?.total_trips ?? 0)", backgroundImage: "MetricH1")
-                    MetricCard(label: "Điểm đến", value: "\(appState.stats?.unique_destinations ?? 0)", backgroundImage: "MetricH2")
-                    MetricCard(label: "Ngân sách", value: FormatUtils.formatCompactVnd(appState.stats?.total_budget_planned), backgroundImage: "MetricH3")
-                    MetricCard(label: "Hoạt động", value: "\(appState.stats?.places_in_itineraries ?? 0)", backgroundImage: "MetricH4")
+                    MetricCard(label: "Chuyến đi", value: "\(appState.stats?.total_trips ?? 0)", backgroundImage: "MetricH1", subtitle: "Hành trình", labelColor: Color(red: 0.85, green: 0.35, blue: 0.15))
+                    MetricCard(label: "Điểm đến", value: "\(appState.stats?.unique_destinations ?? 0)", backgroundImage: "MetricH2", subtitle: "Đã khám phá", labelColor: Color(red: 0.18, green: 0.55, blue: 0.34))
+                    MetricCard(label: "Ngân sách", value: FormatUtils.formatCompactVnd(appState.stats?.total_budget_planned), backgroundImage: "MetricH3", subtitle: "Tổng chi tiêu", labelColor: Color(red: 0.75, green: 0.50, blue: 0.10))
+                    MetricCard(label: "Hoạt động", value: "\(appState.stats?.places_in_itineraries ?? 0)", backgroundImage: "MetricH4", subtitle: "Đã trải nghiệm", labelColor: Color(red: 0.42, green: 0.35, blue: 0.72))
                 }
 
                 TripGallerySection(

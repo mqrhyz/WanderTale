@@ -102,43 +102,73 @@ struct MetricCard: View {
     var iconBg: Color = .clear
     var iconTint: Color = .clear
     var backgroundImage: String?
+    var subtitle: String?
+    var labelColor: Color?
 
     var body: some View {
-        ZStack(alignment: .leading) {
-            if let bgImage = backgroundImage {
-                Image(bgImage)
-                    .resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .clipShape(RoundedRectangle(cornerRadius: PremiumTheme.inputRadius))
-            } else {
-                PremiumSurfaceCard { Color.clear.frame(height: 0) }
-            }
+        if let bgImage = backgroundImage {
+            imageCard(bgImage)
+        } else {
+            iconCard
+        }
+    }
 
-            HStack(spacing: 12) {
-                if backgroundImage == nil {
-                    Image(systemName: icon)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(iconTint)
-                        .frame(width: 40, height: 40)
-                        .background(iconBg)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+    private func imageCard(_ bgImage: String) -> some View {
+        ZStack {
+            Image(bgImage)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            HStack {
+                Spacer()
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text(label)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(labelColor ?? PremiumTheme.ink)
+                    Text(value)
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundStyle(PremiumTheme.ink)
+                    if let sub = subtitle {
+                        Text(sub)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(PremiumTheme.textMuted)
+                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(PremiumTheme.textMuted)
+                        .frame(width: 22, height: 22)
+                        .background(Color.white.opacity(0.8))
+                        .clipShape(Circle())
                 }
+                .padding(.trailing, 14)
+                .padding(.vertical, 10)
+            }
+        }
+        .frame(height: 100)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    private var iconCard: some View {
+        PremiumSurfaceCard {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(iconTint)
+                    .frame(width: 40, height: 40)
+                    .background(iconBg)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
                 VStack(alignment: .leading, spacing: 2) {
                     Text(label)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(backgroundImage != nil ? .white.opacity(0.85) : PremiumTheme.textMuted)
+                        .font(.system(size: 12))
+                        .foregroundStyle(PremiumTheme.textMuted)
                     Text(value)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(backgroundImage != nil ? .white : PremiumTheme.ink)
+                        .foregroundStyle(PremiumTheme.ink)
                 }
                 Spacer()
             }
-            .padding(backgroundImage != nil ? 14 : 0)
         }
-        .frame(height: 72)
-        .clipShape(RoundedRectangle(cornerRadius: PremiumTheme.inputRadius))
-        .overlay(RoundedRectangle(cornerRadius: PremiumTheme.inputRadius).stroke(PremiumTheme.border))
     }
 }
 
