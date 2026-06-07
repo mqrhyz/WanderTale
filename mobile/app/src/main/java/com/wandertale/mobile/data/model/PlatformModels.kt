@@ -596,3 +596,16 @@ data class LocationReviewCreate(
     val rating: Int,
     val comment: String? = null,
 )
+
+@Serializable
+data class BusinessNotification(
+    val id: String,
+    val type: String,
+    val title: String,
+    val message: String,
+    val status: String,
+    val created_at: String? = null,
+)
+
+@Serializable
+data class BusinessNotificationList(val items: List<BusinessNotification> = emptyList())

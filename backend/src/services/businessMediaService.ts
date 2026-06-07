@@ -89,3 +89,64 @@ export async function adminUpdateMediaStatus(
   });
   return data;
 }
+
+export type BusinessNotification = {
+  id: string;
+  type: "media" | "booking";
+  title: string;
+  message: string;
+  status: string;
+  created_at: string;
+};
+
+/** Thông báo cho doanh nghiệp: media được duyệt/từ chối + booking mới. */
+export async function getBusinessNotifications(businessId: string): Promise<BusinessNotification[]> {
+  const sb = getSupabaseAdmin();
+  const [{ data: media }, { data: bookings }] = await Promise.all([
+    sb.from("business_media")
+      .select("id,url,type,status,reviewed_at,rejection_reason,created_at")
+      .eq("business_id", businessId)
+      .in("status", ["approved", "rejected"])
+      .not("reviewed_at", "is", null)
+      .order("reviewed_at", { ascending: false })
+      .limit(20),
+    sb.from("bookings")
+      .select("id,status,total_amount,payment_mode,created_at")
+      .eq("business_id", businessId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  ]);
+
+  const items: BusinessNotification[] = [];
+
+  for (const m of media ?? []) {
+    const approved = m.status === "approved";
+    items.push({
+      id: `media-${m.id}`,
+      type: "media",
+      status: m.status,
+      title: approved ? "Media đã được duyệt" : "Media bị từ chối",
+      message: approved
+        ? `${m.type === "video" ? "Video" : "Ảnh"} của bạn đã được duyệt và hiển thị.`
+        : `${m.type === "video" ? "Video" : "Ảnh"} bị từ chối${m.rejection_reason ? `: ${m.rejection_reason}` : "."}`,
+      created_at: m.reviewed_at ?? m.created_at,
+    });
+  }
+
+  for (const b of bookings ?? []) {
+    const paid = b.status === "paid" || b.status === "confirmed";
+    items.push({
+      id: `booking-${b.id}`,
+      type: "booking",
+      status: b.status ?? "pending",
+      title: paid
+        ? (b.payment_mode === "pay_later" ? "Đặt chỗ mới (trả sau)" : "Đặt chỗ đã thanh toán")
+        : "Đặt chỗ mới",
+      message: `Đơn ${Math.round(Number(b.total_amount) || 0).toLocaleString("vi-VN")}đ — ${b.status}.`,
+      created_at: b.created_at,
+    });
+  }
+
+  items.sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+  return items.slice(0, 30);
+}

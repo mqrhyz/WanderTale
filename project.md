@@ -321,3 +321,15 @@
 - **Android**: model tương ứng; `LocationDetailScreen` + `SponsoredLocationCard` + `BookingPaymentDialog` + `ReviewDialog`; TripDetail tab Đề xuất hiện sponsored (overlay detail, không sửa NavGraph). Form `BusinessLocationDialog` thêm giá/thành phố/mô tả.
 - **Luồng**: business mua gói → đăng ký địa điểm (giá + thành phố + ảnh duyệt) → user tạo trip cùng thành phố thấy ở tab Đề xuất → bấm xem chi tiết + review → đặt trả trước (PayOS QR) hoặc trả sau.
 - **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — đều pass. Migration đã push. Backend đã deploy (build `fab29253`).
+
+## [2026-06-07] Thông báo media duyệt/từ chối + gộp form địa điểm+ảnh + real-time business
+- **Backend** (`businessMediaService.ts` + `business-portal.ts`): `getBusinessNotifications(businessId)` → media được duyệt/từ chối (reviewed_at) + booking gần đây, dạng {type, title, message, status}. Route `GET /api/business/notifications`.
+- **iOS** (`BusinessPortalView.swift` + `BusinessNotificationsSheet.swift`):
+  - Bell icon ở top bar + badge số lượng → mở sheet thông báo (icon xanh duyệt / đỏ từ chối / cam booking).
+  - Form "Thêm địa điểm" thêm ô **URL ảnh** → tạo địa điểm + upload media (gắn location_id) trong 1 lần.
+  - Real-time: `.task` poll mỗi 15s gọi `refreshLight()` (media + notifications + overview) → trạng thái duyệt cập nhật mà không cần thoát ra vào.
+- **Android** (`PortalScreens.kt` + `LocationDetailScreen.kt`):
+  - `ApiClient.businessNotifications()`; nút chuông (Dashboard tab) mở `BusinessNotificationsDialog`.
+  - `BusinessLocationDialog` thêm ô URL ảnh → tạo location + media cùng lúc.
+  - Poll 15s làm mới media + notifications + overview.
+- **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — đều pass. Backend deploy thành công (build `bdf57708`).

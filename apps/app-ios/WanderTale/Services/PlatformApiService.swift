@@ -196,6 +196,10 @@ extension ApiService {
         try await request(path: "/api/business/payouts")
     }
 
+    static func businessNotifications() async throws -> BusinessNotificationList {
+        try await request(path: "/api/business/notifications")
+    }
+
     // MARK: - Marketplace: admin media / ad-packages / AI rules / payouts
 
     static func adminMedia(status: String? = nil) async throws -> BusinessMediaList {

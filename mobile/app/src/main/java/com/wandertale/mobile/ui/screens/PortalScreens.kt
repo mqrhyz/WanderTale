@@ -186,6 +186,8 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     var replyTarget by remember { mutableStateOf<BusinessReviewRow?>(null) }
     var showBusinessMenu by remember { mutableStateOf(false) }
     var showBusinessAccountInfo by remember { mutableStateOf(false) }
+    var notifications by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BusinessNotification>>(emptyList()) }
+    var showNotifications by remember { mutableStateOf(false) }
     var voucherFilter by remember { mutableStateOf("active") }
     var reviewFilter by remember { mutableStateOf("all") }
     val scope = rememberCoroutineScope()
@@ -205,6 +207,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                 val r = async { ApiClient.businessReviews() }
                 val pay = async { ApiClient.businessPayouts() }
                 val med = async { ApiClient.businessMedia() }
+                val notif = async { runCatching { ApiClient.businessNotifications() }.getOrDefault(emptyList()) }
                 overview = o.await()
                 transactions = t.await().items
                 packages = p.await().items
@@ -214,6 +217,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                 reviews = r.await().items
                 payouts = pay.await().items
                 media = med.await().items
+                notifications = notif.await()
             }
         }.onFailure {
             error = it.message ?: "Không tải được dữ liệu doanh nghiệp"
@@ -222,6 +226,18 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     }
 
     LaunchedEffect(Unit) { load() }
+
+    // Real-time nhẹ: làm mới media + notifications + overview mỗi 15s.
+    LaunchedEffect("biz-poll") {
+        while (true) {
+            kotlinx.coroutines.delay(15000)
+            runCatching {
+                media = ApiClient.businessMedia().items
+                notifications = ApiClient.businessNotifications()
+                overview = ApiClient.businessOverview()
+            }
+        }
+    }
 
     CompositionLocalProvider(LocalPortalPalette provides if (darkTheme) PortalDarkPalette else PortalLightPalette) {
     Column(
@@ -249,7 +265,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                     1 -> showCampaignForm = true
                     2 -> showVoucherForm = true
                     3 -> showLocationForm = true
-                    else -> purchaseMessage = reviews.firstOrNull { it.reply.isNullOrBlank() }?.content ?: "Chưa có thông báo mới."
+                    else -> showNotifications = true
                 }
             },
             onMenu = { showBusinessMenu = true },
@@ -449,10 +465,19 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     if (showLocationForm) {
         BusinessLocationDialog(
             onDismiss = { showLocationForm = false },
-            onSave = { body ->
+            onSave = { body, imageUrl ->
                 scope.launch {
                     runCatching {
-                        ApiClient.createBusinessLocation(body)
+                        val loc = ApiClient.createBusinessLocation(body)
+                        if (!imageUrl.isNullOrBlank()) {
+                            runCatching {
+                                ApiClient.uploadBusinessMedia(
+                                    com.wandertale.mobile.data.model.BusinessMediaCreate(
+                                        url = imageUrl, type = "image", location_id = loc.id, thumbnail_url = null,
+                                    )
+                                )
+                            }
+                        }
                         showLocationForm = false
                         load()
                     }.onFailure { error = it.message }
@@ -488,6 +513,9 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                 }
             },
         )
+    }
+    if (showNotifications) {
+        BusinessNotificationsDialog(notifications) { showNotifications = false }
     }
     if (showBusinessMenu) {
         PortalAccountMenuDialog(
@@ -1908,13 +1936,14 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
 }
 
 @Composable
-private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocationCreate) -> Unit) {
+private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocationCreate, String?) -> Unit) {
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Chi nhánh") }
     var city by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var imageUrl by remember { mutableStateOf("") }
     PortalInputDialog(
         title = "Thêm địa điểm",
         onDismiss = onDismiss,
@@ -1927,7 +1956,8 @@ private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocat
                     city = city.trim().ifBlank { null },
                     price_vnd = price.filter { it.isDigit() }.toDoubleOrNull(),
                     description = description.trim().ifBlank { null },
-                )
+                ),
+                imageUrl.trim().ifBlank { null },
             )
         },
     ) {
@@ -1937,6 +1967,7 @@ private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocat
         PortalTextField("Loại hình", category) { category = it }
         PortalTextField("Giá niêm yết (VND)", price) { price = it.filter { c -> c.isDigit() } }
         PortalTextField("Mô tả ngắn", description) { description = it }
+        PortalTextField("URL ảnh địa điểm", imageUrl) { imageUrl = it }
     }
 }
 

@@ -307,3 +307,48 @@ fun SponsoredLocationCard(loc: com.wandertale.mobile.data.model.SponsoredLocatio
         }
     }
 }
+
+@Composable
+fun BusinessNotificationsDialog(
+    notifications: List<com.wandertale.mobile.data.model.BusinessNotification>,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Đóng", fontWeight = FontWeight.Bold, color = PremiumColors.Accent) } },
+        title = { Text("Thông báo", fontWeight = FontWeight.Bold) },
+        text = {
+            if (notifications.isEmpty()) {
+                Text("Chưa có thông báo.", fontSize = 14.sp, color = PremiumColors.Muted)
+            } else {
+                Column(
+                    Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    notifications.forEach { n ->
+                        val approved = n.type == "media" && n.status == "approved"
+                        val rejected = n.type == "media" && n.status == "rejected"
+                        val tint = when {
+                            approved -> Color(0xFF1B8E5A)
+                            rejected -> PremiumColors.LogoutRed
+                            else -> PremiumColors.Accent
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(PremiumColors.Surface).padding(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        ) {
+                            Icon(
+                                if (n.type == "media") Icons.Default.CheckCircle else Icons.Default.Star,
+                                null, tint = tint, modifier = Modifier.size(22.dp),
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(n.title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+                                Text(n.message, fontSize = 12.sp, color = PremiumColors.Muted)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+    )
+}

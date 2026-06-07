@@ -74,3 +74,16 @@ struct LocationReviewCreate: Codable {
     var rating: Int
     var comment: String?
 }
+
+struct BusinessNotification: Codable, Identifiable {
+    let id: String
+    var type: String
+    var title: String
+    var message: String
+    var status: String
+    var created_at: String?
+}
+
+struct BusinessNotificationList: Codable {
+    var items: [BusinessNotification] = []
+}

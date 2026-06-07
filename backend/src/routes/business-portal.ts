@@ -19,7 +19,7 @@ import {
   updateBusinessLocation,
   updateBusinessProfile,
 } from "../services/platformPortalService.js";
-import { createBusinessMedia, listBusinessMedia } from "../services/businessMediaService.js";
+import { createBusinessMedia, getBusinessNotifications, listBusinessMedia } from "../services/businessMediaService.js";
 import { listBusinessPayouts } from "../services/payoutService.js";
 
 export async function businessPortalRoutes(app: FastifyInstance) {
@@ -262,6 +262,15 @@ export async function businessPortalRoutes(app: FastifyInstance) {
   app.get("/business/payouts", { preHandler: requireBusinessOwner }, async (req, reply) => {
     try {
       return { items: await listBusinessPayouts(req.businessId!) };
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "error";
+      return reply.code(500).send({ error: msg });
+    }
+  });
+
+  app.get("/business/notifications", { preHandler: requireBusinessOwner }, async (req, reply) => {
+    try {
+      return { items: await getBusinessNotifications(req.businessId!) };
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
       return reply.code(500).send({ error: msg });

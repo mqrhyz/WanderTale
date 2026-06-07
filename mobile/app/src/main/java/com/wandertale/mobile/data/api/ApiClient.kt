@@ -328,6 +328,8 @@ object ApiClient {
     suspend fun uploadBusinessMedia(body: BusinessMediaCreate): BusinessMediaRow =
         portalPost("/api/business/media", body)
     suspend fun businessPayouts(): PayoutList = portalGet("/api/business/payouts")
+    suspend fun businessNotifications(): List<com.wandertale.mobile.data.model.BusinessNotification> =
+        portalGet<com.wandertale.mobile.data.model.BusinessNotificationList>("/api/business/notifications").items
     suspend fun purchasePackage(packageId: String): AdPurchaseResponse =
         portalPost("/api/business/packages/purchase", PackagePurchaseRequest(packageId))
 

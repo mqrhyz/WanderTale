@@ -26,6 +26,8 @@ struct BusinessPortalView: View {
     @State private var purchaseLoading = false
     @State private var voucherFilter = "active"
     @State private var reviewFilter = "all"
+    @State private var notifications: [BusinessNotification] = []
+    @State private var showNotifications = false
 
     private let sections = ["Dashboard", "Quảng cáo", "Voucher", "Hồ sơ"]
 
@@ -59,6 +61,13 @@ struct BusinessPortalView: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 15_000_000_000)
+                if Task.isCancelled { break }
+                await refreshLight()
+            }
+        }
         .sheet(isPresented: $showingCampaignForm) {
             BusinessCampaignForm { input in
                 try await ApiService.createBusinessCampaign(input)
@@ -72,8 +81,14 @@ struct BusinessPortalView: View {
             }
         }
         .sheet(isPresented: $showingLocationForm) {
-            BusinessLocationForm { input in
-                try await ApiService.createBusinessLocation(input)
+            BusinessLocationForm { input, imageURL in
+                let loc = try await ApiService.createBusinessLocation(input)
+                if let imageURL, !imageURL.isEmpty {
+                    _ = try? await ApiService.uploadBusinessMedia(
+                        BusinessMediaCreate(url: imageURL, type: "image", location_id: loc.id, thumbnail_url: nil)
+                    )
+                    purchaseMessage = "Đã thêm địa điểm + ảnh. Ảnh chờ admin duyệt."
+                }
                 await load()
             }
         }
@@ -89,6 +104,9 @@ struct BusinessPortalView: View {
                 adPayResponse = nil
                 Task { await load() }
             }
+        }
+        .sheet(isPresented: $showNotifications) {
+            BusinessNotificationsSheet(notifications: notifications)
         }
     }
 
@@ -112,6 +130,28 @@ struct BusinessPortalView: View {
                 .font(.system(size: 24, weight: .bold))
                 .foregroundStyle(BusinessPortalStyle.text)
             Spacer()
+            Button {
+                showNotifications = true
+            } label: {
+                ZStack(alignment: .topTrailing) {
+                    Image(systemName: "bell")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundStyle(BusinessPortalStyle.text)
+                        .frame(width: 48, height: 48)
+                        .background(BusinessPortalStyle.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(BusinessPortalStyle.stroke))
+                    if !notifications.isEmpty {
+                        Text("\(min(notifications.count, 9))")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 16, height: 16)
+                            .background(Color.red)
+                            .clipShape(Circle())
+                            .offset(x: -4, y: 4)
+                    }
+                }
+            }
             Button { handleTopBarAction() } label: {
                 Image(systemName: topBarIcon)
                     .font(.system(size: 18, weight: .semibold))
@@ -1183,10 +1223,21 @@ struct BusinessPortalView: View {
             reviews = try await r.items
             media = try await m.items
             payouts = try await pay.items
+            notifications = (try? await ApiService.businessNotifications())?.items ?? []
         } catch {
             self.error = formatApiError(error, fallback: "Không tải được dữ liệu doanh nghiệp")
         }
         loading = false
+    }
+
+    /// Làm mới nhẹ (không hiện loading) — dùng cho real-time poll: media duyệt, booking, notifications.
+    private func refreshLight() async {
+        async let m = ApiService.businessMedia()
+        async let n = ApiService.businessNotifications()
+        async let o = ApiService.businessOverview()
+        if let mm = try? await m { media = mm.items }
+        if let nn = try? await n { notifications = nn.items }
+        if let oo = try? await o { overview = oo }
     }
 
     private func purchase(_ id: String) async {
@@ -1637,8 +1688,9 @@ private struct BusinessLocationForm: View {
     @State private var city = ""
     @State private var price = ""
     @State private var locationDescription = ""
+    @State private var imageUrl = ""
     @State private var error: String?
-    let onSave: (BusinessLocationCreate) async throws -> Void
+    let onSave: (BusinessLocationCreate, String?) async throws -> Void
 
     var body: some View {
         PortalFormShell(title: "Thêm địa điểm", error: error) {
@@ -1648,6 +1700,7 @@ private struct BusinessLocationForm: View {
             field("Loại hình", text: $category)
             field("Giá niêm yết (VND)", text: $price)
             field("Mô tả ngắn", text: $locationDescription)
+            field("URL ảnh địa điểm", text: $imageUrl)
             saveButton("Thêm địa điểm") {
                 try await onSave(BusinessLocationCreate(
                     name: name,
@@ -1656,7 +1709,7 @@ private struct BusinessLocationForm: View {
                     city: city.isEmpty ? nil : city,
                     price_vnd: Double(price.filter(\.isNumber)),
                     description: locationDescription.isEmpty ? nil : locationDescription
-                ))
+                ), imageUrl.trimmingCharacters(in: .whitespaces).isEmpty ? nil : imageUrl.trimmingCharacters(in: .whitespaces))
                 dismiss()
             }
         }
