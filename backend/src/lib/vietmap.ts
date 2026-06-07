@@ -137,9 +137,13 @@ function addressCitySegment(address: string): string {
 }
 
 function isCityLevelHit(hit: VietmapSearchHit, cityLabel: string): boolean {
-  const display = normalizeLoc(hit.display);
-  const label = normalizeLoc(cityLabel);
-  return display.includes(label) && (display.includes("thanh pho") || display.includes("tinh"));
+  const nameRaw = hit.name && hit.name.trim().length > 0 ? hit.name : (hit.display.split(",")[0] ?? "");
+  const firstSeg = normalizeLoc(nameRaw);
+  const core = normalizeLoc(cityLabel).replace(/^thanh pho /, "").replace(/^tinh /, "").trim();
+  // Chỉ là cấp thành phố/tỉnh khi ĐOẠN ĐẦU (tên) chính là đơn vị hành chính,
+  // tránh nhầm POI như "Vườn Hoa Thành Phố Đà Lạt" thành cấp thành phố.
+  const isAdminFirst = /^(thanh pho|tinh|thi xa|quan|huyen)\b/.test(firstSeg);
+  return isAdminFirst && core.length > 0 && firstSeg.includes(core);
 }
 
 /** POI phải thuộc đúng thành phố (theo đoạn cuối địa chỉ), tránh "Phở Hà Nội" ở Đà Nẵng. */
@@ -188,15 +192,21 @@ export async function autocompleteTripDestination(
 
     const qNorm = normalizeLoc(q);
     const labelNorm = normalizeLoc(cityFocus.label);
-    const looksLikeCityPick =
-      qNorm.includes(labelNorm) ||
-      qNorm.includes("thanh pho") ||
-      qNorm.includes(normalizeLoc(resolveCityKey(q)));
+    const keyNorm = normalizeLoc(resolveCityKey(q));
 
-    if (looksLikeCityPick) {
+    // Nếu user chỉ nhập tên thành phố đơn giản (ít token ≈ tên thành phố),
+    // chỉ trả city-level hits hoặc rỗng — không đề xuất POI con.
+    const queryTokens = q.split(/[\s,]+/).filter(Boolean).length;
+    const labelTokens = cityFocus.label.split(/[\s,]+/).filter(Boolean).length;
+    const isSimpleCityQuery =
+      queryTokens <= labelTokens + 1 &&
+      (qNorm.includes(labelNorm) || qNorm.includes(keyNorm) ||
+       qNorm.includes("thanh pho") || qNorm.startsWith("tp ") || qNorm.startsWith("tp."));
+
+    if (isSimpleCityQuery) {
       const cityHits = hits.filter((h) => isCityLevelHit(h, cityFocus.label));
-      if (cityHits.length > 0) return cityHits.slice(0, 6);
-      if (qNorm.includes(labelNorm) && q.length >= cityFocus.label.length - 1) return [];
+      if (cityHits.length > 0) return cityHits.slice(0, 4);
+      return [];
     }
   }
 

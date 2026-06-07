@@ -16,6 +16,7 @@ struct TripPlannerView: View {
     @State private var loading = false
     @State private var error: String?
     @State private var suggestions: [GeocodeAutocompleteItem] = []
+    @State private var suppressSuggestions = false
     @State private var stableViewportWidth: CGFloat?
 
     var body: some View {
@@ -47,7 +48,13 @@ struct TripPlannerView: View {
                                 placeholder: "Bạn muốn đến đâu?",
                                 icon: "mappin.and.ellipse"
                             )
-                            .onChange(of: destination) { _, new in Task { await fetchSuggestions(new) } }
+                            .onChange(of: destination) { _, new in
+                                if suppressSuggestions {
+                                    suppressSuggestions = false
+                                } else {
+                                    Task { await fetchSuggestions(new) }
+                                }
+                            }
 
                             suggestionsView
 
@@ -105,7 +112,6 @@ struct TripPlannerView: View {
                     }
                 }
                 .padding(.bottom, 92)
-                .fixedSize(horizontal: false, vertical: true)
             }
             .safeAreaInset(edge: .top, spacing: 0) {
                 plannerHeader
@@ -165,6 +171,7 @@ struct TripPlannerView: View {
                 VStack(spacing: 0) {
                     ForEach(suggestions.prefix(4)) { item in
                         Button {
+                            suppressSuggestions = true
                             destination = item.name.isEmpty ? item.display : item.name
                             suggestions = []
                         } label: {
@@ -310,7 +317,6 @@ struct TripPlannerView: View {
         .clipShape(RoundedRectangle(cornerRadius: 18))
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(PremiumTheme.border))
         .shadow(color: .black.opacity(0.04), radius: 10, y: 3)
-        .fixedSize(horizontal: false, vertical: true)
     }
 
     private func plannerTextField(

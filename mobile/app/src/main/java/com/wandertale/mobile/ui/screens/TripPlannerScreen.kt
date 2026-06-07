@@ -607,7 +607,7 @@ private fun DestinationAutocompleteField(
     var suppressSearch by remember { mutableStateOf(false) }
     var committedDestination by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(value, suppressSearch, committedDestination) {
+    LaunchedEffect(value, committedDestination) {
         if (suppressSearch) {
             suppressSearch = false
             return@LaunchedEffect

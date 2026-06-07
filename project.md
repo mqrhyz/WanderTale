@@ -247,3 +247,14 @@
 - **Dùng lại deep link** `wandertale://login-callback` đã cấu hình sẵn → không cần đổi manifest/Info.plist.
 - **CẦN THAO TÁC (user):** tạo Facebook App tại developers.facebook.com → Facebook Login → lấy App ID + App Secret; Valid OAuth Redirect URI = `https://bdtilpfskhrylwebnliu.supabase.co/auth/v1/callback`. Sau đó đưa App ID + Secret để bật provider Facebook trên Supabase qua Management API.
 - **Test:** Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED.
+
+## [2026-06-07] Fix autocomplete "Điểm đến": bỏ gợi ý POI khi nhập thành phố + fix bấm 2 lần + fix layout co giãn iOS
+- **Backend** (`lib/vietmap.ts`):
+  - `isCityLevelHit`: chỉ tính là cấp thành phố khi tên (segment đầu) bắt đầu bằng đơn vị hành chính (thanh pho/tinh/thi xa…), tránh nhầm POI "Vườn Hoa Thành Phố Đà Lạt" thành cấp thành phố.
+  - `autocompleteTripDestination`: logic `isSimpleCityQuery` kiểm tra số token query ≤ token tên thành phố + 1 → nếu true chỉ trả city-level hoặc rỗng (không đề xuất POI con như vườn hoa, bưu điện…). User muốn gợi ý chi tiết phải nhập thêm (tên đường, quận, phường…).
+- **iOS** (`TripPlannerView.swift`):
+  - Thêm `suppressSuggestions` flag: khi chọn 1 gợi ý → set flag → onChange kế tiếp skip fetch → không hiện lại lần 2.
+  - Bỏ `.fixedSize(horizontal: false, vertical: true)` trên content VStack và plannerSection → fix layout co giãn khi keyboard xuất hiện.
+- **Android** (`TripPlannerScreen.kt`):
+  - `LaunchedEffect` bỏ `suppressSearch` khỏi key (chỉ còn `value, committedDestination`) → tránh effect trigger lại lần 2 khi flag toggle false → fix bấm 2 lần mới tắt gợi ý.
+- **Test:** backend `tsc` exit 0, Android `compileDebugKotlin` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `d89b0c24`).
