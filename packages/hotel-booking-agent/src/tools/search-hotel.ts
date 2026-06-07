@@ -267,17 +267,15 @@ async function searchHotelUnsafe(input: SearchHotelInput): Promise<SearchHotelOu
   }
 
   if ((input.retry ?? env.HOTEL_AGENT_SCAN_RETRY) && results.some((r) => r.offers.length === 0)) {
-    const retried: SiteScanResult[] = [];
-    for (const r of results) {
-      if (r.offers.length > 0) {
-        retried.push(r);
-      } else if (usesLiteScan(r.site)) {
-        retried.push(await retrySiteLite(r.site, input.criteria));
-      } else {
-        retried.push(await retrySiteLegacy(r.site, input.criteria));
-      }
-    }
-    results = retried;
+    // Retry SONG SONG các site trống (trước đây tuần tự → rất chậm khi 1 site fail).
+    results = await Promise.all(
+      results.map(async (r) => {
+        if (r.offers.length > 0) return r;
+        return usesLiteScan(r.site)
+          ? retrySiteLite(r.site, input.criteria)
+          : retrySiteLegacy(r.site, input.criteria);
+      })
+    );
   }
 
   const offers: HotelOffer[] = [];

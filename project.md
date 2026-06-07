@@ -293,3 +293,12 @@
 - **Nguyên nhân**: logic `isSimpleCityQuery` đếm token query "Thành Phố Đà Lạt" = 4, label "Đà Lạt" = 2 → `4 <= 2+1` false → không coi là city query → trả POI rác (Đại Lý..., ở Đà Nẵng). Prefix "Thành Phố" làm lệch đếm token.
 - **Sửa** (`lib/vietmap.ts`): bỏ từ hành chính (thanh pho/tinh/thi xa/tp/quan/huyen/phuong/xa) khỏi query + label trước khi đếm token lõi. "Thành Phố Đà Lạt" → lõi "da lat" (2 token) ≤ label lõi "da lat" + 1 → là city query → chỉ trả city-level hoặc rỗng.
 - **Test:** backend `tsc` exit 0. Deploy Cloud Run thành công (build `dbacd9ce`).
+
+## [2026-06-07] Tối ưu tốc độ quét giá khách sạn OTA
+- **Nguyên nhân chậm:** sau pha quét song song, các site trống (đặc biệt Booking bị chặn) được retry TUẦN TỰ → cộng dồn ~30-45s mỗi site. Per-site timeout cao (agoda 45s), hard deadline 90s.
+- **Sửa:**
+  - `search-hotel.ts`: retry các site trống chạy SONG SONG (`Promise.all`) thay vì tuần tự.
+  - `site-scan-timeouts.ts`: giảm per-site timeout (booking 30→22s, agoda 45→30s, vntrip 35→26s).
+  - `cloud-run.env.yaml`: `TRIP_OTA_HARD_DEADLINE_MS` 90000 → 60000.
+- **Về Booking.com không hoạt động trên server:** Booking chặn IP datacenter của Cloud Run (redirect homepage/consent) → `gotoOtaSearch` throw. Đây là giới hạn cơ bản, không fix triệt để được nếu không có residential proxy. App vẫn lấy giá từ Agoda/Vntrip. Anti-bot context (UA thật, locale vi-VN, webdriver=false) đã có sẵn.
+- **Test:** package build OK, backend `tsc` exit 0. Deploy Cloud Run thành công (build `95973e1c`).
