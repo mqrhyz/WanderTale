@@ -41,7 +41,7 @@ struct WanderTaleBottomNav: View {
                 navItem(.dashboard, icon: "square.grid.2x2", filledIcon: "square.grid.2x2.fill", label: "Home")
                 navItem(.trips, icon: "map", filledIcon: "map.fill", label: "Chuyến")
                 createButton
-                navItem(.favorites, icon: "heart", filledIcon: "heart.fill", label: "Yêu thích")
+                navItem(.favorites, icon: "ticket", filledIcon: "ticket.fill", label: "Đặt chỗ")
                 navItem(.profile, icon: "person", filledIcon: "person.fill", label: "Hồ sơ")
             }
             .zIndex(1)

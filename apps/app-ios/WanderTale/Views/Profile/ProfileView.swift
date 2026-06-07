@@ -41,8 +41,6 @@ struct ProfileView: View {
                 VStack(spacing: 0) {
                     settingsRow("Cài đặt", icon: "gearshape.fill") { path.append(Route.settings) }
                     divider
-                    settingsRow("Đặt chỗ & thanh toán", icon: "cart.fill") { path.append(Route.booking) }
-                    divider
                     settingsRow("Thông báo", icon: "bell.fill") { }
                     divider
                     settingsRow("Trợ giúp & FAQ", icon: "questionmark.circle.fill") { }

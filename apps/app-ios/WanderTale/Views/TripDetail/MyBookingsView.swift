@@ -5,30 +5,41 @@ struct MyBookingsView: View {
     @State private var loading = true
 
     var body: some View {
-        ScrollView {
-            if loading && bookings.isEmpty {
-                ProgressView().padding(.top, 60)
-            } else if bookings.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "ticket").font(.system(size: 40)).foregroundStyle(PremiumTheme.muted)
-                    Text("Chưa có đặt chỗ nào").font(.system(size: 15, weight: .medium)).foregroundStyle(PremiumTheme.muted)
-                }
-                .frame(maxWidth: .infinity).padding(.top, 60)
-            } else {
-                VStack(spacing: 12) {
-                    ForEach(bookings) { b in
-                        card(b)
-                    }
-                }
-                .padding(PremiumTheme.screenPadding)
+        VStack(spacing: 0) {
+            HStack {
+                Text("Đặt chỗ")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundStyle(PremiumTheme.ink)
+                Spacer()
             }
+            .padding(.horizontal, PremiumTheme.screenPadding)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            ScrollView {
+                if loading && bookings.isEmpty {
+                    ProgressView().padding(.top, 60)
+                } else if bookings.isEmpty {
+                    VStack(spacing: 12) {
+                        Image(systemName: "ticket").font(.system(size: 40)).foregroundStyle(PremiumTheme.muted)
+                        Text("Chưa có đặt chỗ nào").font(.system(size: 15, weight: .medium)).foregroundStyle(PremiumTheme.muted)
+                    }
+                    .frame(maxWidth: .infinity).padding(.top, 60)
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(bookings) { b in
+                            card(b)
+                        }
+                    }
+                    .padding(PremiumTheme.screenPadding)
+                }
+            }
+            .scrollIndicators(.hidden)
+            .refreshable { await load() }
         }
-        .scrollIndicators(.hidden)
-        .background(Color.white)
-        .navigationTitle("Đặt chỗ & Thanh toán")
-        .navigationBarTitleDisplayMode(.inline)
+        .background(PremiumTheme.bg)
+        .appTabRoot()
         .task { await load() }
-        .refreshable { await load() }
     }
 
     private func card(_ b: BookingRecord) -> some View {

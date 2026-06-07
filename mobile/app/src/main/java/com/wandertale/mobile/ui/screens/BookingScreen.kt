@@ -315,3 +315,43 @@ private fun BookingStatusPill(status: String) {
         modifier = Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.12f)).padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
+
+/** Tab "Đặt chỗ" trong bottom bar — danh sách booking của user. */
+@Composable
+fun MyBookingsTab(
+    modifier: Modifier = Modifier,
+    contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+) {
+    var bookings by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BookingRecord>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+
+    suspend fun load() {
+        loading = true
+        bookings = runCatching { ApiClient.myBookings() }.getOrDefault(emptyList())
+        loading = false
+    }
+    LaunchedEffect(Unit) { load() }
+
+    Column(modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = PremiumDesign.ScreenPadding)
+                .padding(top = contentPadding.calculateTopPadding() + 12.dp, bottom = 8.dp),
+        ) {
+            Text("Đặt chỗ", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Ink)
+            Text("Các đặt chỗ & thanh toán của bạn.", fontSize = 14.sp, color = PremiumColors.Muted)
+        }
+        when {
+            loading && bookings.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { OrangeLoadingSpinner() }
+            bookings.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("Chưa có đặt chỗ nào.", color = PremiumColors.Muted)
+            }
+            else -> LazyColumn(
+                Modifier.fillMaxSize().padding(horizontal = PremiumDesign.ScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = contentPadding.calculateBottomPadding() + 16.dp),
+            ) {
+                items(bookings, key = { it.id }) { b -> MyBookingCard(b) }
+            }
+        }
+    }
+}

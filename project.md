@@ -341,3 +341,9 @@
 - **Luồng**: bấm "thanh toán trước" → áp voucher → tạo booking + PayOS QR (auto-poll) → thành công → booking lưu lại, xem ở "Đặt chỗ & Thanh toán".
 - **Test:** backend tsc, Android compileDebugKotlin, iOS xcodebuild — pass. Backend deploy thành công (build `91d996e4`).
 - **Ghi chú:** thông báo thanh toán phía user hiện là màn success + lưu vào My Bookings (chưa có bell riêng cho user — có thể bổ sung sau).
+
+## [2026-06-07] Đổi tab Yêu thích → "Đặt chỗ" ở bottom bar
+- **iOS**: `BottomNavBar.swift` đổi item favorites → icon `ticket`, label "Đặt chỗ". `MainTabView` render `MyBookingsView()` cho tab này. `MyBookingsView` chuyển sang dạng tab (header trong nội dung "Đặt chỗ" + `appTabRoot()`, bỏ navigationTitle). Bỏ row trùng "Đặt chỗ & thanh toán" trong Profile.
+- **Android**: `WanderTaleNavLight.kt` đổi nav item "favorites" → label "Đặt chỗ", icon `ConfirmationNumber`. `NavGraph` MainShell tab "favorites" render `MyBookingsTab` (composable mới trong BookingScreen.kt, header "Đặt chỗ" + danh sách booking).
+- FavoritesScreen/FavoritesView vẫn còn trong code nhưng không còn trên bottom bar.
+- **Test:** Android compileDebugKotlin, iOS xcodebuild — pass. Không đổi backend.

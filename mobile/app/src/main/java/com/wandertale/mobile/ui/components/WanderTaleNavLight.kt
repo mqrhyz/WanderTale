@@ -23,10 +23,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.outlined.ConfirmationNumber
 import androidx.compose.material.icons.outlined.Dashboard
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Person
@@ -58,7 +60,7 @@ data class WanderTaleNavItem(
 val wanderTaleNavItems = listOf(
     WanderTaleNavItem("home", "Home", Icons.Outlined.Dashboard, Icons.Filled.Dashboard),
     WanderTaleNavItem("trips", "Chuyến", Icons.Outlined.Place, Icons.Filled.Place),
-    WanderTaleNavItem("favorites", "Yêu thích", Icons.Outlined.FavoriteBorder, Icons.Filled.Favorite),
+    WanderTaleNavItem("favorites", "Đặt chỗ", Icons.Outlined.ConfirmationNumber, Icons.Filled.ConfirmationNumber),
     WanderTaleNavItem("profile", "Hồ sơ", Icons.Outlined.Person, Icons.Filled.Person),
 )
 

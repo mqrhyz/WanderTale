@@ -87,7 +87,7 @@ struct MainTabView: View {
                 TripsListView(path: $path)
                     .visibleTab(effectiveTab == .trips)
 
-                FavoritesView(path: $path)
+                MyBookingsView()
                     .visibleTab(effectiveTab == .favorites)
 
                 ProfileView(path: $path)

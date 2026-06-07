@@ -30,6 +30,7 @@ import androidx.navigation.navArgument
 import com.wandertale.mobile.ui.screens.AdminPortalScreen
 import com.wandertale.mobile.ui.screens.BookingScreen
 import com.wandertale.mobile.ui.screens.MyBookingsScreen
+import com.wandertale.mobile.ui.screens.MyBookingsTab
 import com.wandertale.mobile.ui.screens.BusinessPortalScreen
 import com.wandertale.mobile.ui.screens.DashboardScreen
 import com.wandertale.mobile.ui.screens.FavoritesScreen
@@ -273,12 +274,9 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                             navController.navigate(Routes.tripDetail(id))
                         },
                     )
-                        "favorites" -> FavoritesScreen(
+                        "favorites" -> MyBookingsTab(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = scrollPadding,
-                        trips = trips,
-                        onOpenTrip = { navController.navigate(Routes.tripDetail(it)) },
-                        onCreateTrip = { openCreateTab() },
                     )
                         "profile" -> ProfileScreen(
                         modifier = Modifier.fillMaxSize(),
