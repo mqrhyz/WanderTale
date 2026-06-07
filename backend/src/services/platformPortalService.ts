@@ -12,6 +12,21 @@ function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
+function monthStartISO(): string {
+  const d = new Date();
+  d.setDate(1);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
+}
+
+function isCapturedRevenueStatus(status: unknown): boolean {
+  return ["captured", "settled", "completed"].includes(String(status ?? "").toLowerCase());
+}
+
+function rowGrossOrNet(row: { gross_amount?: unknown; net_amount?: unknown }): number {
+  return n(row.gross_amount) || n(row.net_amount);
+}
+
 export async function getBusinessIdForOwner(ownerId: string): Promise<string | null> {
   const { data } = await getSupabaseAdmin()
     .from("businesses")
@@ -393,10 +408,14 @@ export async function adminOverview() {
   const sb = getSupabaseAdmin();
   const startToday = new Date();
   startToday.setHours(0, 0, 0, 0);
+  const startMonth = monthStartISO();
 
   const [txResult, userResult, businessResult, bookingResult, tripsTodayResult, pendingResult, bannedResult] =
     await Promise.all([
-      sb.from("platform_transactions").select("kind,commission_amount,gross_amount,net_amount,status").eq("status", "completed"),
+      sb.from("platform_transactions")
+        .select("kind,commission_amount,gross_amount,net_amount,status,created_at")
+        .gte("created_at", startMonth)
+        .in("status", ["captured", "settled", "completed"]),
       sb.from("profiles").select("id", { count: "exact", head: true }),
       sb.from("businesses").select("id", { count: "exact", head: true }),
       sb.from("bookings").select("id", { count: "exact", head: true }).eq("status", "confirmed"),
@@ -407,16 +426,21 @@ export async function adminOverview() {
 
   const rows = txResult.data ?? [];
   const commissionRevenue = rows
-    .filter((r) => r.kind === "booking_commission" || r.kind === "commission")
+    .filter((r) => isCapturedRevenueStatus(r.status) && (r.kind === "booking_commission" || r.kind === "commission"))
     .reduce((s, r) => s + n(r.commission_amount), 0);
-  const adRevenue = rows
-    .filter((r) => r.kind === "ad_purchase")
-    .reduce((s, r) => s + n(r.gross_amount), 0);
+  const businessSubscriptionRevenue = rows
+    .filter((r) => isCapturedRevenueStatus(r.status) && (r.kind === "ad_purchase" || r.kind === "business_subscription"))
+    .reduce((s, r) => s + rowGrossOrNet(r), 0);
+  const userSubscriptionRevenue = rows
+    .filter((r) => isCapturedRevenueStatus(r.status) && r.kind === "user_subscription")
+    .reduce((s, r) => s + rowGrossOrNet(r), 0);
+  const subscriptionRevenue = businessSubscriptionRevenue + userSubscriptionRevenue;
 
   return {
     commission_revenue_vnd: commissionRevenue,
-    ad_revenue_vnd: adRevenue,
-    total_revenue_vnd: commissionRevenue + adRevenue,
+    ad_revenue_vnd: businessSubscriptionRevenue,
+    subscription_revenue_vnd: subscriptionRevenue,
+    total_revenue_vnd: commissionRevenue + subscriptionRevenue,
     user_count: userResult.count ?? 0,
     business_count: businessResult.count ?? 0,
     booking_count: bookingResult.count ?? 0,

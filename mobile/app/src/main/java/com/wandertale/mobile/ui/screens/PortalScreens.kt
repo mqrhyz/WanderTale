@@ -1009,7 +1009,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                 item {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         overview?.let {
-                                            PortalMetricCard("Doanh thu tháng", compactVnd(it.commission_revenue_vnd), "đã đồng bộ", Modifier.weight(1f))
+                                            PortalMetricCard("Doanh thu tháng", compactVnd(it.total_revenue_vnd), "đã đồng bộ", Modifier.weight(1f))
                                             PortalMetricCard("Business hoạt động", "${it.business_count}", "${it.pending_business_count} chờ duyệt", Modifier.weight(1f))
                                         }
                                     }
@@ -1370,8 +1370,12 @@ private fun RevenueBars(transactions: List<PlatformTransaction>) {
         val raw = tx.created_at?.take(10) ?: return@forEach
         val date = runCatching { java.time.LocalDate.parse(raw) }.getOrNull() ?: return@forEach
         val idx = days.indexOf(date)
-        if (idx >= 0 && (tx.kind == "booking_commission" || tx.kind == "commission")) {
-            values[idx] += tx.commission_amount ?: 0.0
+        if (idx >= 0) {
+            values[idx] += when (tx.kind) {
+                "booking_commission", "commission" -> tx.commission_amount ?: 0.0
+                "ad_purchase", "business_subscription", "user_subscription" -> tx.gross_amount ?: tx.net_amount ?: 0.0
+                else -> 0.0
+            }
         }
     }
     val max = values.maxOrNull()?.takeIf { it > 0.0 } ?: 1.0

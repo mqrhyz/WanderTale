@@ -33,6 +33,7 @@ data class ActiveAdPackage(
 data class AdminOverview(
     val commission_revenue_vnd: Double = 0.0,
     val ad_revenue_vnd: Double = 0.0,
+    val subscription_revenue_vnd: Double = 0.0,
     val total_revenue_vnd: Double = 0.0,
     val user_count: Int = 0,
     val business_count: Int = 0,

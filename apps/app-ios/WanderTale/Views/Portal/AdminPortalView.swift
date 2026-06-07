@@ -194,7 +194,7 @@ struct AdminPortalView: View {
                     metricCard("Trips tạo hôm nay", "\(o.trips_today)", subtitle: trendSubtitle(o.trips_today, label: "so hôm qua"))
                 }
                 HStack(spacing: 12) {
-                    metricCard("Doanh thu tháng", formatCompactVnd(o.commission_revenue_vnd), subtitle: trendSubtitle(o.commission_revenue_vnd.isFinite ? Int(o.commission_revenue_vnd / 1_000_000) : 0, label: "vs tháng trước"))
+                    metricCard("Doanh thu tháng", formatCompactVnd(o.total_revenue_vnd), subtitle: trendSubtitle(o.total_revenue_vnd.isFinite ? Int(o.total_revenue_vnd / 1_000_000) : 0, label: "vs tháng trước"))
                     metricCard("Business hoạt động", "\(o.business_count)", subtitle: "\(o.pending_business_count) chờ duyệt")
                 }
                 adminSectionTitle("DOANH THU 7 NGÀY")
@@ -963,8 +963,14 @@ struct AdminPortalView: View {
                 let date = parsePortalDate(rawDate),
                 let index = days.firstIndex(of: calendar.startOfDay(for: date))
             else { continue }
-            guard transaction.kind == "booking_commission" || transaction.kind == "commission" else { continue }
-            totals[index] += transaction.commission_amount ?? 0
+            switch transaction.kind {
+            case "booking_commission", "commission":
+                totals[index] += transaction.commission_amount ?? 0
+            case "ad_purchase", "business_subscription", "user_subscription":
+                totals[index] += transaction.gross_amount ?? transaction.net_amount ?? 0
+            default:
+                continue
+            }
         }
 
         return totals

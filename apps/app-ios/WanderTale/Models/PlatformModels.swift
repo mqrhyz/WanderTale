@@ -25,6 +25,7 @@ struct ActiveAdPackage: Codable {
 struct AdminOverview: Codable {
     var commission_revenue_vnd: Double = 0
     var ad_revenue_vnd: Double = 0
+    var subscription_revenue_vnd: Double = 0
     var total_revenue_vnd: Double = 0
     var user_count: Int = 0
     var business_count: Int = 0
