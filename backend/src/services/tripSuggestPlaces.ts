@@ -4,6 +4,22 @@ import { searchPlacesOptional } from "../lib/placesProvider.js";
 import type { TripGenerateInput } from "../schemas/trip.js";
 import type { TripGenerationContext } from "./tripGenerationContext.js";
 
+/** Từ khóa đánh dấu địa điểm KHÔNG phải du lịch — lọc kết quả VietMap/Google Places. */
+const NON_TOURIST_KEYWORDS = [
+  "công an", "ubnd", "ủy ban", "hội trường", "bưu điện", "trung tâm hành chính",
+  "trường", "đại học", "bệnh viện", "phòng khám", "nhà máy", "khu công nghiệp",
+  "nghĩa trang", "nghĩa địa", "sửa chữa", "xe máy", "ô tô", "gara", "garage",
+  "công ty", "chi nhánh", "đại lý", "cửa hàng gia dụng", "siêu thị mini",
+  "trang điểm", "dự tiệc", "mua bán nhà đất", "bất động sản", "địa điểm giao dịch",
+  "kính", "glass", "nội thất", "vật liệu xây dựng", "phân bón", "thuốc trừ sâu",
+  "xăng dầu", "cây xăng", "trạm xăng", "ngân hàng", "atm",
+];
+
+function isNonTouristPlace(name: string): boolean {
+  const lower = name.toLowerCase();
+  return NON_TOURIST_KEYWORDS.some((kw) => lower.includes(kw));
+}
+
 const suggestedPlaceSchema = z.object({
   name: z.string().min(1),
   type: z.enum(["attraction", "restaurant", "activity"]),
@@ -64,6 +80,7 @@ async function suggestPlacesFromVietMap(
               : "";
         const key = name.toLocaleLowerCase("vi-VN");
         if (!name || seen.has(key)) continue;
+        if (isNonTouristPlace(name)) continue;
         seen.add(key);
         places.push({
           name,

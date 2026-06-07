@@ -274,3 +274,11 @@
   - Nguyên nhân: khi OTA pricing hoàn tất, ghi đè toàn bộ `itinerary_json` bằng object mới (chưa có `image_preview_url` do ảnh được enrich riêng/sớm hơn) → ảnh đã có bị xóa.
   - Sửa: trước khi write, đọc `itinerary_json` hiện tại từ DB → merge giữ lại `image_preview_url`/`image_preview_urls` cho mỗi slot theo title. Ảnh không bị mất nữa.
 - **Test:** backend `tsc` exit 0. Deploy Cloud Run thành công (build `05079c5a`).
+
+## [2026-06-07] Filter địa điểm phi du lịch (source) + fix ảnh mất client-side + text lazy load + summary marketing
+- **Backend** (`tripSuggestPlaces.ts`): thêm blacklist `NON_TOURIST_KEYWORDS` (30+ từ khóa: công an, UBND, sửa chữa xe máy, công ty, bất động sản, trang điểm...) — lọc kết quả VietMap/Google Places TRƯỚC khi đưa vào `SUGGESTED_PLACES_JSON` cho AI. Đây là nguồn gốc thực sự của các địa điểm phi du lịch (AI bê từ danh sách places nhận được).
+- **Backend** (`openaiItinerary.ts`): đổi fallback summary từ "Gợi ý khám phá tại X." → "Trải nghiệm không thể bỏ lỡ khi đến X — khám phá điều thú vị ngay!" (marketing).
+- **iOS** (`TripDetailView.swift`): khi nhận trip update từ SSE (`prices_ready`, `hotel_images_ready`...), dùng `TripUtils.mergingSlotImages(from: old, into: new)` giữ lại ảnh đã có ở client → ảnh không nhấp nháy mất.
+- **iOS** (`TripUtils.swift`): thêm `mergingSlotImages` merge `image_preview_url` từ trip cũ vào trip mới khi trip mới thiếu.
+- **iOS** (`TripDetailView.swift`): đổi text pending từ "Đang cập nhật giá OTA & ảnh Maps…" → "AI đang tìm khách sạn phù hợp ngân sách…" / "AI đang hoàn thiện lịch trình cho bạn…".
+- **Test:** backend `tsc` exit 0, iOS `xcodebuild` BUILD SUCCEEDED. Deploy Cloud Run thành công (build `2ecc7083`).

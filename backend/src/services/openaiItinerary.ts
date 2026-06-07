@@ -213,7 +213,7 @@ function fallbackActivity(
 ): Record<string, unknown> {
   return {
     title,
-    summary: `Gợi ý khám phá tại ${destination}.`,
+    summary: `Trải nghiệm không thể bỏ lỡ khi đến ${destination} — khám phá điều thú vị ngay!`,
     start_time: start,
     end_time: end,
     estimated_cost: cost,

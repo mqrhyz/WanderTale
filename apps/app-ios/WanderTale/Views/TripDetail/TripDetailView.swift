@@ -289,9 +289,9 @@ struct TripDetailView: View {
     }
 
     private func pendingMessage(for trip: TripRecord) -> String? {
-        if let p = imageProgress, p.0 < p.1 { return "Đang lấy ảnh \(p.0)/\(p.1)…" }
-        if TripUtils.tripNeedsOtaPolling(trip) { return "Đang cập nhật giá OTA & ảnh Maps…" }
-        if TripUtils.tripNeedsPolling(trip) { return "Đang cập nhật ảnh Maps…" }
+        if let p = imageProgress, p.0 < p.1 { return "AI đang tìm ảnh đẹp nhất cho lịch trình (\(p.0)/\(p.1))…" }
+        if TripUtils.tripNeedsOtaPolling(trip) { return "AI đang tìm khách sạn phù hợp ngân sách…" }
+        if TripUtils.tripNeedsPolling(trip) { return "AI đang hoàn thiện lịch trình cho bạn…" }
         return nil
     }
 
@@ -389,7 +389,7 @@ struct TripDetailView: View {
         case "skeleton_ready", "prices_ready", "images_ready", "hotel_images_ready",
              "coords_ready", "complete", "trip_update":
             if let updated = try? await ApiService.getTrip(id: tripId) {
-                trip = updated
+                trip = TripUtils.mergingSlotImages(from: trip, into: updated)
                 if !TripUtils.tripNeedsMediaPolling(updated) {
                     imageProgress = nil
                 }

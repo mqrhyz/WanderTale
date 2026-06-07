@@ -163,6 +163,44 @@ enum TripUtils {
         return updated
     }
 
+    /// Merge: giữ lại image_preview_url đã có ở trip cũ khi trip mới thiếu.
+    static func mergingSlotImages(from old: TripRecord?, into new: TripRecord) -> TripRecord {
+        guard let oldItinerary = old?.itinerary_json else { return new }
+        guard var newItinerary = new.itinerary_json else { return new }
+
+        // Build map title → image from old
+        var imageMap: [String: (String?, [String]?)] = [:]
+        for day in oldItinerary.days {
+            for slot in (day.activities ?? []) + [day.morning, day.afternoon, day.evening].compactMap({ $0 }) {
+                let title = slot.title?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                guard !title.isEmpty else { continue }
+                if let url = slot.image_preview_url, !url.isEmpty {
+                    imageMap[title] = (slot.image_preview_url, slot.image_preview_urls)
+                }
+            }
+        }
+
+        guard !imageMap.isEmpty else { return new }
+
+        newItinerary.days = newItinerary.days.map { day in
+            var patched = day
+            patched.activities = day.activities?.map { slot in
+                var s = slot
+                let title = s.title?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+                if (s.image_preview_url ?? "").isEmpty, let cached = imageMap[title] {
+                    s.image_preview_url = cached.0
+                    if (s.image_preview_urls ?? []).isEmpty { s.image_preview_urls = cached.1 }
+                }
+                return s
+            }
+            return patched
+        }
+
+        var result = new
+        result.itinerary_json = newItinerary
+        return result
+    }
+
     static func parseHotelRating(_ reason: String?, _ priceLevel: Int?) -> Int {
         if let reason, let range = reason.range(of: #"★([\d.]+)"#, options: .regularExpression) {
             let num = reason[range].dropFirst()
