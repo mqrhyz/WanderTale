@@ -25,6 +25,15 @@ extension ApiService {
         try await request(path: "/api/business/ad-orders/\(id)")
     }
 
+    static func userSubscription() async throws -> UserSubscriptionOverview {
+        try await request(path: "/api/user/subscription")
+    }
+
+    static func purchaseUserSubscription(packageId: String, voucherId: String?) async throws -> AdPurchaseResponse {
+        let data = try JSONEncoder().encode(UserSubscriptionPurchaseRequest(package_id: packageId, voucher_id: voucherId))
+        return try await request(path: "/api/user/subscription/purchase", method: "POST", body: data)
+    }
+
     static func businessCampaigns() async throws -> BusinessCampaignList {
         try await request(path: "/api/business/campaigns")
     }

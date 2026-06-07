@@ -95,6 +95,34 @@ data class AdOrder(
 )
 
 @Serializable
+data class UserSubscriptionPackage(
+    val id: String,
+    val name: String,
+    val tier: String? = null,
+    val billing_cycle: String? = null,
+    val price_vnd: Double = 0.0,
+    val duration_days: Int? = null,
+    val benefits: List<String> = emptyList(),
+)
+
+@Serializable
+data class UserSubscriptionOverview(
+    val is_premium: Boolean = false,
+    val tier: String = "free",
+    val subscription_expires_at: String? = null,
+    val monthly_trip_count: Int = 0,
+    val monthly_trip_limit: Int? = null,
+    val packages: List<UserSubscriptionPackage> = emptyList(),
+    val vouchers: List<Promotion> = emptyList(),
+)
+
+@Serializable
+data class UserSubscriptionPurchaseRequest(
+    val package_id: String,
+    val voucher_id: String? = null,
+)
+
+@Serializable
 data class AdminUserRow(
     val id: String,
     val display_name: String? = null,

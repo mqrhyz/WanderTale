@@ -85,6 +85,31 @@ struct AdOrder: Codable, Identifiable {
     var ends_at: String?
 }
 
+struct UserSubscriptionPackage: Codable, Identifiable {
+    let id: String
+    var name: String
+    var tier: String?
+    var billing_cycle: String?
+    var price_vnd: Double
+    var duration_days: Int?
+    var benefits: [String] = []
+}
+
+struct UserSubscriptionOverview: Codable {
+    var is_premium: Bool = false
+    var tier: String = "free"
+    var subscription_expires_at: String?
+    var monthly_trip_count: Int = 0
+    var monthly_trip_limit: Int?
+    var packages: [UserSubscriptionPackage] = []
+    var vouchers: [Promotion] = []
+}
+
+struct UserSubscriptionPurchaseRequest: Codable {
+    var package_id: String
+    var voucher_id: String?
+}
+
 struct AdminUserRow: Codable, Identifiable {
     let id: String
     var display_name: String?

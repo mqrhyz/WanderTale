@@ -7,6 +7,7 @@ struct ProfileView: View {
     @State private var phone = ""
     @State private var saved = false
     @State private var saveError: String?
+    @State private var showUpgrade = false
 
     var body: some View {
         VStack(spacing: 10) {
@@ -93,6 +94,23 @@ struct ProfileView: View {
                 .lineLimit(1)
 
             Spacer(minLength: 0)
+
+            Button { showUpgrade = true } label: {
+                Image("UpgradeIcon")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 42, height: 42)
+                    .padding(6)
+                    .background(PremiumTheme.surface)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(PremiumTheme.border))
+            }
+            .buttonStyle(.plain)
+        }
+        .sheet(isPresented: $showUpgrade) {
+            UserUpgradeSheet {
+                await appState.loadAccountInfo()
+            }
         }
     }
 
@@ -189,6 +207,174 @@ struct ProfileView: View {
     private var divider: some View {
         Rectangle().fill(PremiumTheme.divider).frame(height: 1)
     }
+}
+
+private struct UserUpgradeSheet: View {
+    let onPurchased: () async -> Void
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
+    @State private var overview: UserSubscriptionOverview?
+    @State private var selectedPackageId = "pro_monthly"
+    @State private var selectedVoucherId = ""
+    @State private var loading = true
+    @State private var paying = false
+    @State private var message: String?
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    if loading {
+                        ProgressView().frame(maxWidth: .infinity).padding(.top, 30)
+                    } else if let overview {
+                        planHeader(overview)
+                        packagePicker(overview)
+                        voucherPicker(overview)
+                        benefits(overview)
+                        Button {
+                            Task { await purchase() }
+                        } label: {
+                            Text(paying ? "Đang tạo thanh toán..." : "Thanh toán / nâng cấp")
+                                .font(.system(size: 15, weight: .bold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 48)
+                                .background(PremiumTheme.accent)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                        }
+                        .disabled(paying)
+                    }
+                    if let message {
+                        Text(message)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(PremiumTheme.accent)
+                    }
+                }
+                .padding(20)
+            }
+            .background(PremiumTheme.bg.ignoresSafeArea())
+            .navigationTitle("WanderTale Pro")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Đóng") { dismiss() } } }
+            .task { await load() }
+        }
+    }
+
+    private func planHeader(_ overview: UserSubscriptionOverview) -> some View {
+        PremiumSurfaceCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(overview.is_premium ? "Bạn đang dùng Pro" : "Bạn đang dùng Free")
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(PremiumTheme.ink)
+                Text(overview.is_premium
+                     ? "Tạo chuyến đi AI không giới hạn."
+                     : "Free còn \(max(0, (overview.monthly_trip_limit ?? 5) - overview.monthly_trip_count))/\(overview.monthly_trip_limit ?? 5) chuyến trong tháng này.")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(PremiumTheme.muted)
+                if let expires = overview.subscription_expires_at {
+                    Text("Hết hạn: \(expires.prefix(10))")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(PremiumTheme.accent)
+                }
+            }
+        }
+    }
+
+    private func packagePicker(_ overview: UserSubscriptionOverview) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Chọn gói").font(.system(size: 15, weight: .bold))
+            ForEach(overview.packages) { pkg in
+                Button { selectedPackageId = pkg.id } label: {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(pkg.name).font(.system(size: 15, weight: .bold))
+                            Text("\(FormatUtils.formatVnd(pkg.price_vnd)) · \(pkg.billing_cycle == "yearly" ? "theo năm" : "theo tháng")")
+                                .font(.system(size: 13)).foregroundStyle(PremiumTheme.muted)
+                        }
+                        Spacer()
+                        Image(systemName: selectedPackageId == pkg.id ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(PremiumTheme.accent)
+                    }
+                    .padding(14)
+                    .background(PremiumTheme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(selectedPackageId == pkg.id ? PremiumTheme.accent : PremiumTheme.border))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func voucherPicker(_ overview: UserSubscriptionOverview) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Voucher của bạn").font(.system(size: 15, weight: .bold))
+            if overview.vouchers.isEmpty {
+                Text("Chưa có voucher subscription/Pro đã lưu.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(PremiumTheme.muted)
+            } else {
+                Picker("Voucher", selection: $selectedVoucherId) {
+                    Text("Không áp dụng").tag("")
+                    ForEach(overview.vouchers) { voucher in
+                        Text("\(voucher.code) · \(upgradeDiscountText(voucher))").tag(voucher.id)
+                    }
+                }
+                .pickerStyle(.menu)
+            }
+        }
+    }
+
+    private func benefits(_ overview: UserSubscriptionOverview) -> some View {
+        let selected = overview.packages.first(where: { $0.id == selectedPackageId }) ?? overview.packages.first
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Quyền lợi").font(.system(size: 15, weight: .bold))
+            ForEach(selected?.benefits ?? [], id: \.self) { item in
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(PremiumTheme.accent)
+                    Text(item).font(.system(size: 14)).foregroundStyle(PremiumTheme.ink)
+                }
+            }
+        }
+        .padding(14)
+        .background(PremiumTheme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(PremiumTheme.border))
+    }
+
+    private func load() async {
+        loading = true
+        defer { loading = false }
+        do {
+            overview = try await ApiService.userSubscription()
+            selectedPackageId = overview?.packages.first?.id ?? "pro_monthly"
+        } catch {
+            message = formatApiError(error, fallback: "Không tải được gói Pro")
+        }
+    }
+
+    private func purchase() async {
+        paying = true; message = nil
+        defer { paying = false }
+        do {
+            let result = try await ApiService.purchaseUserSubscription(packageId: selectedPackageId, voucherId: selectedVoucherId.isEmpty ? nil : selectedVoucherId)
+            if let url = result.checkout_url, let parsed = URL(string: url) {
+                openURL(parsed)
+                message = "Đã mở cổng thanh toán. Sau khi thanh toán xong, quay lại app để kiểm tra Pro."
+            } else {
+                message = "Đã nâng cấp Pro."
+                await onPurchased()
+                await load()
+            }
+        } catch {
+            message = formatApiError(error, fallback: "Không tạo được thanh toán")
+        }
+    }
+}
+
+private func upgradeDiscountText(_ promo: Promotion) -> String {
+    if let pct = promo.discount_percent, pct > 0 { return "Giảm \(Int(pct))%" }
+    if let amt = promo.discount_amount, amt > 0 { return "Giảm \(FormatUtils.formatVnd(amt))" }
+    return "Ưu đãi"
 }
 
 struct SettingsView: View {

@@ -136,6 +136,9 @@ struct ProfileRow: Codable {
     var phone: String?
     var is_admin: Bool = false
     var is_business: Bool = false
+    var is_premium: Bool?
+    var subscription_tier: String?
+    var subscription_expires_at: String?
 }
 
 struct AccountInfo {

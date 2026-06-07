@@ -15,6 +15,7 @@ import { streamTripGeneration } from "../services/tripStream.js";
 import { previewTripDestination } from "../services/tripPreview.js";
 import { getTripProgressSnapshot } from "../services/tripEnrichmentJobService.js";
 import { processTripEnrichment } from "../services/tripGenerationPipeline.js";
+import { assertCanCreateTrip } from "../services/userSubscriptionService.js";
 import { env } from "../lib/env.js";
 
 const previewQuery = z.object({
@@ -38,6 +39,7 @@ export async function tripsRoutes(app: FastifyInstance) {
     const parsed = tripGenerateSchema.safeParse(req.body);
     if (!parsed.success) return reply.code(400).send({ error: parsed.error.flatten() });
     try {
+      await assertCanCreateTrip(req.userId!);
       const result = await generateTrip(req.userId!, parsed.data);
       if (result.staged && result.status === "pricing_pending") {
         return reply.code(202).send(result);
@@ -45,6 +47,13 @@ export async function tripsRoutes(app: FastifyInstance) {
       return result;
     } catch (e) {
       const msg = e instanceof Error ? e.message : "generate_failed";
+      if (msg === "free_trip_limit_reached") {
+        return reply.code(402).send({
+          error: "free_trip_limit_reached",
+          message: "Tài khoản Free chỉ tạo được 5 chuyến đi mỗi tháng. Nâng cấp Pro để tạo không giới hạn.",
+          details: (e as Error & { details?: unknown }).details,
+        });
+      }
       const quota = /quota|rate limit|hết quota|limit:\s*0/i.test(msg);
       const overloaded =
         /quá tải|high demand|503|429|try again later|resource exhausted|Ollama timeout/i.test(msg);
@@ -82,6 +91,7 @@ export async function tripsRoutes(app: FastifyInstance) {
     }, 3000);
 
     try {
+      await assertCanCreateTrip(req.userId!);
       for await (const ev of streamTripGeneration(req.userId!, parsed.data)) {
         if (ev.type === "error") {
           send("error", { message: ev.message });
@@ -91,7 +101,13 @@ export async function tripsRoutes(app: FastifyInstance) {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "generate_failed";
-      send("error", { message: msg });
+      send("error", {
+        message: msg === "free_trip_limit_reached"
+          ? "Tài khoản Free chỉ tạo được 5 chuyến đi mỗi tháng. Nâng cấp Pro để tạo không giới hạn."
+          : msg,
+        error: msg,
+        details: (e as Error & { details?: unknown }).details,
+      });
     } finally {
       clearInterval(keepalive);
       reply.raw.end();

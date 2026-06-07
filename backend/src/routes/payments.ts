@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { verifyWebhook } from "../lib/payos.js";
 import { getSupabaseAdmin } from "../lib/auth.js";
 import { finalizeBookingPaymentByOrderCode } from "../services/bookingService.js";
+import { finalizeUserSubscriptionByOrderCode } from "../services/userSubscriptionService.js";
 import { logSystemEvent } from "../lib/auditLog.js";
 
 /**
@@ -60,10 +61,13 @@ export async function paymentsRoutes(app: FastifyInstance) {
       }
       if (data.code === "00" || body.success === true) {
         try {
-          // Try booking first, then ad package.
+          // Try booking first, then ad package, then user subscription.
           const bookingResult = await finalizeBookingPaymentByOrderCode(data.orderCode, data.reference);
           if (!bookingResult) {
-            await finalizeAdPackageByOrderCode(data.orderCode, data.reference);
+            const adResult = await finalizeAdPackageByOrderCode(data.orderCode, data.reference);
+            if (!adResult) {
+              await finalizeUserSubscriptionByOrderCode(data.orderCode, data.reference);
+            }
           }
         } catch (e) {
           await logSystemEvent({

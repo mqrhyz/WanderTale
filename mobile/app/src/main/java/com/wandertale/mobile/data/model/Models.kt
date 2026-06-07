@@ -230,6 +230,9 @@ data class ProfileRow(
     val phone: String? = null,
     val is_admin: Boolean = false,
     val is_business: Boolean = false,
+    val is_premium: Boolean? = null,
+    val subscription_tier: String? = null,
+    val subscription_expires_at: String? = null,
 )
 
 @Serializable

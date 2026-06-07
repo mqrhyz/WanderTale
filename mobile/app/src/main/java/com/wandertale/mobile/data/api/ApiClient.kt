@@ -62,6 +62,8 @@ import com.wandertale.mobile.data.model.PromotionVoucherCreate
 import com.wandertale.mobile.data.model.ReviewReplyPatch
 import com.wandertale.mobile.data.model.SystemLogList
 import com.wandertale.mobile.data.model.TripRecord
+import com.wandertale.mobile.data.model.UserSubscriptionOverview
+import com.wandertale.mobile.data.model.UserSubscriptionPurchaseRequest
 import com.wandertale.mobile.data.model.UserRolePatch
 import com.wandertale.mobile.data.model.UserStatusPatch
 import io.ktor.client.HttpClient
@@ -266,6 +268,10 @@ object ApiClient {
     suspend fun promotionPost(id: String): PromotionPost = portalGet("/api/promotions/posts/$id")
     suspend fun savePromotionVoucher(id: String): Map<String, Boolean> = portalPost("/api/promotions/vouchers/$id/save")
     suspend fun unsavePromotionVoucher(id: String): Map<String, Boolean> = portalDelete("/api/promotions/vouchers/$id/save")
+
+    suspend fun userSubscription(): UserSubscriptionOverview = portalGet("/api/user/subscription")
+    suspend fun purchaseUserSubscription(packageId: String, voucherId: String?): AdPurchaseResponse =
+        portalPost("/api/user/subscription/purchase", UserSubscriptionPurchaseRequest(packageId, voucherId))
 
     suspend fun businessOverview(): BusinessOverview = portalGet("/api/business/overview")
     suspend fun businessTransactions(): PlatformTransactionList = portalGet("/api/business/transactions")
