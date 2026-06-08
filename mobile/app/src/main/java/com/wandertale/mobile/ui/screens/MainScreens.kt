@@ -139,6 +139,7 @@ fun MainShell(
     onCreateTrip: () -> Unit,
     content: @Composable (PaddingValues) -> Unit,
 ) {
+    PremiumColors.darkModeEnabled = false
     val currentRoute = Routes.tabToNavRoute(currentTab)
     val showNav = currentTab != "create"
     val navBgColor by animateColorAsState(
@@ -617,17 +618,6 @@ fun TripsListScreen(
     val activeTrips = trips.filter { getTripPhase(it.start_date, it.end_date) != TripPhase.COMPLETED }
     val pastTrips = trips.filter { getTripPhase(it.start_date, it.end_date) == TripPhase.COMPLETED }
     var segmentIndex by remember { mutableStateOf(0) }
-    var promotionHome by remember { mutableStateOf<PromotionHomePayload?>(null) }
-    var selectedPromotionPost by remember { mutableStateOf<PromotionPost?>(null) }
-    val scope = rememberCoroutineScope()
-
-    suspend fun loadPromotions() {
-        promotionHome = runCatching { ApiClient.promotionHome() }.getOrNull()
-    }
-
-    LaunchedEffect(Unit) {
-        loadPromotions()
-    }
 
     val segmentTrips = when (segmentIndex) {
         0 -> activeTrips
@@ -693,22 +683,6 @@ fun TripsListScreen(
                             )
                         }
                     }
-                    item {
-                        PromotionHomeSection(
-                            payload = promotionHome,
-                            onPostClick = { selectedPromotionPost = it },
-                            onToggleVoucher = { voucher ->
-                                scope.launch {
-                                    if (voucher.is_saved == true) {
-                                        runCatching { ApiClient.unsavePromotionVoucher(voucher.id) }
-                                    } else {
-                                        runCatching { ApiClient.savePromotionVoucher(voucher.id) }
-                                    }
-                                    loadPromotions()
-                                }
-                            },
-                        )
-                    }
                     item { Spacer(Modifier.height(8.dp)) }
                 }
             }
@@ -722,20 +696,6 @@ fun TripsListScreen(
         ) { content() }
     } else {
         Box(modifier) { content() }
-    }
-
-    selectedPromotionPost?.let { post ->
-        PromotionPostDialog(
-            post = post,
-            onDismiss = { selectedPromotionPost = null },
-            onSaveVoucher = { voucher ->
-                scope.launch {
-                    runCatching { ApiClient.savePromotionVoucher(voucher.id) }
-                    loadPromotions()
-                    selectedPromotionPost = selectedPromotionPost?.copy(voucher = voucher.copy(is_saved = true))
-                }
-            },
-        )
     }
 }
 
@@ -1199,16 +1159,8 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
-    val dark by WanderTaleApp.instance.preferencesStore.darkMode.collectAsState(initial = false)
-    val scope = rememberCoroutineScope()
-
     com.wandertale.mobile.ui.components.AppScaffold(title = "Cài đặt", onBack = onBack) { padding ->
         Column(padding.padding(PremiumDesign.ScreenPadding)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Giao diện tối")
-                androidx.compose.material3.Switch(checked = dark, onCheckedChange = { scope.launch { WanderTaleApp.instance.preferencesStore.setDarkMode(it) } })
-            }
-            Spacer(Modifier.height(16.dp))
             Text("Thông báo chuyến đi — sắp ra mắt", style = MaterialTheme.typography.bodyMedium)
         }
     }

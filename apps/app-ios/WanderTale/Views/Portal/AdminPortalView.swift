@@ -1,4 +1,7 @@
 import SwiftUI
+import PhotosUI
+import UIKit
+import PhotosUI
 
 struct AdminPortalView: View {
     @Environment(\.dismiss) private var dismiss
@@ -1217,6 +1220,8 @@ private struct AdminPromotionManagerSheet: View {
     @State private var postSubtitle = ""
     @State private var postBody = ""
     @State private var coverUrl = ""
+    @State private var coverPickerItem: PhotosPickerItem?
+    @State private var coverPreview: UIImage?
     @State private var postType = "main"
     @State private var attachedVoucherId = ""
     @State private var error: String?
@@ -1269,9 +1274,20 @@ private struct AdminPromotionManagerSheet: View {
                     Section(selectedPostId == nil ? "Tạo bài viết" : "Sửa bài viết") {
                         TextField("Tiêu đề", text: $postTitle)
                         TextField("Phụ đề", text: $postSubtitle)
-                        TextField("URL ảnh bìa", text: $coverUrl)
-                            .textInputAutocapitalization(.never)
-                            .keyboardType(.URL)
+                        PhotosPicker(selection: $coverPickerItem, matching: .images) {
+                            Label(coverUrl.isEmpty && coverPreview == nil ? "Chọn ảnh bìa từ thiết bị" : "Đổi ảnh bìa", systemImage: "photo.on.rectangle")
+                        }
+                        if let coverPreview {
+                            Image(uiImage: coverPreview)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(height: 160)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        } else if !coverUrl.isEmpty {
+                            RemoteImage(url: coverUrl, fallback: postTitle, contentMode: .fill)
+                                .frame(height: 160)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        }
                         Picker("Loại bài viết", selection: $postType) {
                             Text("Chính 3:4").tag("main")
                             Text("Phụ 1:1").tag("secondary")
@@ -1316,6 +1332,15 @@ private struct AdminPromotionManagerSheet: View {
                 ToolbarItem(placement: .confirmationAction) {
                     Button(saving ? "Đang lưu..." : (isEditing ? "Cập nhật" : "Tạo")) { Task { await submit() } }
                         .disabled(saving)
+                }
+            }
+            .onChange(of: coverPickerItem) { _, item in
+                guard let item else { return }
+                Task {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        coverPreview = image
+                    }
                 }
             }
         }
@@ -1376,6 +1401,8 @@ private struct AdminPromotionManagerSheet: View {
         postSubtitle = post.subtitle ?? ""
         postBody = post.body ?? ""
         coverUrl = post.cover_image_url
+        coverPickerItem = nil
+        coverPreview = nil
         postType = post.post_type
         attachedVoucherId = post.voucher_id ?? ""
     }
@@ -1388,8 +1415,18 @@ private struct AdminPromotionManagerSheet: View {
             voucherApplicability = "hotel_places"; voucherBillingCycle = "both"
         } else {
             selectedPostId = nil
-            postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; attachedVoucherId = ""; postType = "main"
+            postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; coverPickerItem = nil; coverPreview = nil; attachedVoucherId = ""; postType = "main"
         }
+    }
+
+    private func resolvedCoverUrl() async throws -> String {
+        if let item = coverPickerItem,
+           let data = try? await item.loadTransferable(type: Data.self) {
+            return try await ApiService.uploadImage(data: data, filename: "cover.jpg")
+        }
+        let trimmed = coverUrl.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { throw ApiError(message: "Chọn ảnh bìa.") }
+        return trimmed
     }
 
     private func submit() async {
@@ -1414,7 +1451,7 @@ private struct AdminPromotionManagerSheet: View {
                     title: postTitle,
                     subtitle: postSubtitle.isEmpty ? nil : postSubtitle,
                     body: postBody.isEmpty ? nil : postBody,
-                    cover_image_url: coverUrl,
+                    cover_image_url: try await resolvedCoverUrl(),
                     post_type: postType,
                     voucher_id: attachedVoucherId.isEmpty ? nil : attachedVoucherId,
                     status: "published",

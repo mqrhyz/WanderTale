@@ -215,7 +215,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                     },
                 )
                 else -> MainShell(
-                    darkTheme = darkTheme,
+                    darkTheme = false,
                     currentTab = tab,
                     onTab = { tab = it },
                     onNavigate = { route ->

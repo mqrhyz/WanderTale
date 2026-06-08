@@ -1,18 +1,17 @@
 import SwiftUI
 
 enum PremiumTheme {
-    private static var darkMode: Bool { UserDefaults.standard.bool(forKey: "dark_mode") }
-    static var bg: Color { darkMode ? Color(red: 0.08, green: 0.08, blue: 0.07) : Color(red: 0.96, green: 0.95, blue: 0.93) }
-    static var surface: Color { darkMode ? Color(red: 0.13, green: 0.13, blue: 0.12) : Color.white }
-    static var ink: Color { darkMode ? Color(red: 0.95, green: 0.94, blue: 0.90) : Color(red: 0.10, green: 0.09, blue: 0.08) }
-    static var muted: Color { darkMode ? Color(red: 0.68, green: 0.66, blue: 0.60) : Color(red: 0.42, green: 0.41, blue: 0.38) }
-    static var textMuted: Color { darkMode ? Color(red: 0.56, green: 0.54, blue: 0.49) : Color(red: 0.67, green: 0.66, blue: 0.65) }
+    static var bg: Color { Color(red: 0.96, green: 0.95, blue: 0.93) }
+    static var surface: Color { Color.white }
+    static var ink: Color { Color(red: 0.10, green: 0.09, blue: 0.08) }
+    static var muted: Color { Color(red: 0.42, green: 0.41, blue: 0.38) }
+    static var textMuted: Color { Color(red: 0.67, green: 0.66, blue: 0.65) }
     static let accent = Color(red: 0.91, green: 0.36, blue: 0.02)
-    static var accentLight: Color { darkMode ? Color(red: 0.25, green: 0.13, blue: 0.07) : Color(red: 1.0, green: 0.96, blue: 0.94) }
+    static var accentLight: Color { Color(red: 1.0, green: 0.96, blue: 0.94) }
     static let accentEnd = Color(red: 1.0, green: 0.44, blue: 0.13)
-    static var border: Color { darkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.08) }
-    static var divider: Color { darkMode ? Color.white.opacity(0.08) : Color.black.opacity(0.07) }
-    static var inputBg: Color { darkMode ? Color(red: 0.17, green: 0.17, blue: 0.16) : Color(red: 0.97, green: 0.97, blue: 0.96) }
+    static var border: Color { Color.black.opacity(0.08) }
+    static var divider: Color { Color.black.opacity(0.07) }
+    static var inputBg: Color { Color(red: 0.97, green: 0.97, blue: 0.96) }
     static let logoutRed = Color(red: 0.87, green: 0.0, blue: 0.0)
 
     static let statTripBg = Color(red: 1.0, green: 0.94, blue: 0.91)

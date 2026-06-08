@@ -186,6 +186,9 @@ final class AppState {
                     profile: profile
                 )
                 displayName = accountInfo?.displayName ?? displayName
+                if !profile.is_admin && !profile.is_business {
+                    setDarkMode(false)
+                }
             }
         } catch {
             if isCancellationError(error) { return }

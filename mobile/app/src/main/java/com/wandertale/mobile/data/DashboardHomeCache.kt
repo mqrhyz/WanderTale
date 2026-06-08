@@ -1,5 +1,6 @@
 package com.wandertale.mobile.data
 
+import com.wandertale.mobile.WanderTaleApp
 import com.wandertale.mobile.data.model.AccountInfo
 import com.wandertale.mobile.data.model.DashboardStats
 import com.wandertale.mobile.data.model.TripRecord
@@ -73,6 +74,7 @@ object DashboardHomeCache {
 
         val role = accountInfo?.profile
         if (role != null && !role.is_admin && !role.is_business) {
+            WanderTaleApp.instance.preferencesStore.setDarkMode(false)
             val statsJob = async {
                 runCatching { dashboard.stats() }
                     .onSuccess { stats = it }

@@ -112,6 +112,39 @@ enum ApiService {
         try await request(path: "/api/dashboard")
     }
 
+    struct UploadImageResponse: Decodable {
+        let url: String
+    }
+
+    static func uploadImage(data: Data, filename: String, mimeType: String = "image/jpeg") async throws -> String {
+        let boundary = "Boundary-\(UUID().uuidString)"
+        guard let url = URL(string: "\(AppConfig.apiURL)/api/upload/image") else {
+            throw ApiError(message: "URL API không hợp lệ")
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(try await token())", forHTTPHeaderField: "Authorization")
+        req.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+
+        var body = Data()
+        body.append("--\(boundary)\r\n".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n".data(using: .utf8)!)
+        body.append("Content-Type: \(mimeType)\r\n\r\n".data(using: .utf8)!)
+        body.append(data)
+        body.append("\r\n--\(boundary)--\r\n".data(using: .utf8)!)
+        req.httpBody = body
+
+        let (responseData, response) = try await session.data(for: req)
+        guard let http = response as? HTTPURLResponse else { throw ApiError(message: "Phản hồi không hợp lệ") }
+        if http.statusCode >= 400 {
+            let msg = (try? decoder.decode(ApiErrorBody.self, from: responseData))?.message
+                ?? String(data: responseData, encoding: .utf8)
+                ?? "HTTP \(http.statusCode)"
+            throw ApiError(message: msg, statusCode: http.statusCode)
+        }
+        return try decoder.decode(UploadImageResponse.self, from: responseData).url
+    }
+
     static func streamTripUpdates(tripId: String, onEvent: @escaping (String) -> Void) async throws {
         guard let url = URL(string: "\(AppConfig.apiURL)/api/trips/\(tripId)/stream") else { return }
         var req = URLRequest(url: url)

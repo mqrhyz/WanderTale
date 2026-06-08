@@ -1,5 +1,10 @@
 package com.wandertale.mobile.ui.screens
 
+import android.content.Context
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
@@ -119,7 +124,12 @@ import com.wandertale.mobile.ui.theme.PremiumColors
 import com.wandertale.mobile.ui.theme.PremiumDesign
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonPrimitive
 import java.text.NumberFormat
 import java.time.LocalDate
@@ -470,15 +480,15 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     if (showLocationForm) {
         BusinessLocationDialog(
             onDismiss = { showLocationForm = false },
-            onSave = { body, imageUrl ->
+            onSave = { body, imageUrls ->
                 scope.launch {
                     runCatching {
                         val loc = ApiClient.createBusinessLocation(body)
-                        if (!imageUrl.isNullOrBlank()) {
+                        imageUrls.take(6).forEach { url ->
                             runCatching {
                                 ApiClient.uploadBusinessMedia(
                                     com.wandertale.mobile.data.model.BusinessMediaCreate(
-                                        url = imageUrl, type = "image", location_id = loc.id, thumbnail_url = null,
+                                        url = url, type = "image", location_id = loc.id, thumbnail_url = null,
                                     )
                                 )
                             }
@@ -493,12 +503,12 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     if (showMediaForm) {
         BusinessMediaDialog(
             onDismiss = { showMediaForm = false },
-            onSave = { body ->
+            onSave = { bodies ->
                 scope.launch {
                     runCatching {
-                        ApiClient.uploadBusinessMedia(body)
+                        bodies.take(6).forEach { ApiClient.uploadBusinessMedia(it) }
                         showMediaForm = false
-                        purchaseMessage = "Đã gửi media. Chờ admin duyệt."
+                        purchaseMessage = "Đã gửi ${bodies.size.coerceAtMost(6)} media. Chờ admin duyệt."
                         load()
                     }.onFailure { error = it.message }
                 }
@@ -1557,8 +1567,15 @@ private fun AdminPromotionManagerDialog(
     var postSubtitle by remember { mutableStateOf("") }
     var postBody by remember { mutableStateOf("") }
     var coverUrl by remember { mutableStateOf("") }
+    var coverUri by remember { mutableStateOf<Uri?>(null) }
+    var coverUploading by remember { mutableStateOf(false) }
     var postType by remember { mutableStateOf("main") }
     var attachedVoucherId by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        coverUri = uri
+    }
 
     fun resetVoucherForm() {
         selectedVoucherId = null
@@ -1568,7 +1585,7 @@ private fun AdminPromotionManagerDialog(
 
     fun resetPostForm() {
         selectedPostId = null
-        postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; postType = "main"; attachedVoucherId = ""
+        postTitle = ""; postSubtitle = ""; postBody = ""; coverUrl = ""; coverUri = null; postType = "main"; attachedVoucherId = ""
     }
 
     fun fillVoucher(voucher: Promotion) {
@@ -1592,6 +1609,7 @@ private fun AdminPromotionManagerDialog(
         postSubtitle = post.subtitle ?: ""
         postBody = post.body ?: ""
         coverUrl = post.cover_image_url
+        coverUri = null
         postType = post.post_type
         attachedVoucherId = post.voucher_id ?: ""
     }
@@ -1685,7 +1703,29 @@ private fun AdminPromotionManagerDialog(
                     }
                     PortalTextInput("Tiêu đề", postTitle) { postTitle = it }
                     PortalTextInput("Phụ đề", postSubtitle) { postSubtitle = it }
-                    PortalTextInput("URL ảnh bìa", coverUrl) { coverUrl = it }
+                    OutlinedButton(
+                        onClick = {
+                            coverPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (coverUri != null || coverUrl.isNotBlank()) "Đổi ảnh bìa từ thiết bị" else "Chọn ảnh bìa từ thiết bị")
+                    }
+                    coverUri?.let { uri ->
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = postTitle,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)),
+                        )
+                    } ?: if (coverUrl.isNotBlank()) {
+                        AsyncImage(
+                            model = coverUrl,
+                            contentDescription = postTitle,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)),
+                        )
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         PortalChip("Chính 3:4", postType == "main") { postType = "main" }
                         PortalChip("Phụ 1:1", postType == "secondary") { postType = "secondary" }
@@ -1700,22 +1740,34 @@ private fun AdminPromotionManagerDialog(
                     PortalTextInput("Nội dung", postBody) { postBody = it }
                     Button(
                         onClick = {
-                            val input = PromotionPostCreate(
-                                title = postTitle,
-                                subtitle = postSubtitle.ifBlank { null },
-                                body = postBody.ifBlank { null },
-                                cover_image_url = coverUrl,
-                                post_type = postType,
-                                voucher_id = attachedVoucherId.ifBlank { null },
-                                status = "published",
-                                sort_order = if (postType == "main") 10 else 0,
-                            )
-                            selectedPostId?.let { onUpdatePost(it, input) } ?: onCreatePost(input)
-                            resetPostForm()
+                            scope.launch {
+                                coverUploading = true
+                                try {
+                                    val finalCover = coverUri?.let { uri ->
+                                        val bytes = readUriBytes(context, uri) ?: return@launch
+                                        ApiClient.uploadImage(bytes, "cover.jpg")
+                                    } ?: coverUrl.takeIf { it.isNotBlank() } ?: return@launch
+                                    val input = PromotionPostCreate(
+                                        title = postTitle,
+                                        subtitle = postSubtitle.ifBlank { null },
+                                        body = postBody.ifBlank { null },
+                                        cover_image_url = finalCover,
+                                        post_type = postType,
+                                        voucher_id = attachedVoucherId.ifBlank { null },
+                                        status = "published",
+                                        sort_order = if (postType == "main") 10 else 0,
+                                    )
+                                    selectedPostId?.let { onUpdatePost(it, input) } ?: onCreatePost(input)
+                                    resetPostForm()
+                                } finally {
+                                    coverUploading = false
+                                }
+                            }
                         },
+                        enabled = !coverUploading,
                         colors = ButtonDefaults.buttonColors(containerColor = PortalGreen),
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text(if (selectedPostId == null) "Tạo bài viết" else "Cập nhật bài viết") }
+                    ) { Text(if (coverUploading) "Đang tải ảnh..." else if (selectedPostId == null) "Tạo bài viết" else "Cập nhật bài viết") }
                     selectedPostId?.let { id ->
                         OutlinedButton(onClick = { onDeletePost(id); resetPostForm() }, modifier = Modifier.fillMaxWidth()) {
                             Text("Xoá bài viết")
@@ -2312,29 +2364,46 @@ private fun BusinessVoucherDialog(onDismiss: () -> Unit, onSave: (BusinessVouche
 }
 
 @Composable
-private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocationCreate, String?) -> Unit) {
+private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocationCreate, List<String>) -> Unit) {
     var name by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var category by remember { mutableStateOf("Chi nhánh") }
     var city by remember { mutableStateOf("") }
     var price by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var imageUrl by remember { mutableStateOf("") }
+    var imageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var uploading by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(6)) { uris ->
+        imageUris = uris.take(6)
+    }
     PortalInputDialog(
         title = "Thêm địa điểm",
         onDismiss = onDismiss,
         onSave = {
-            onSave(
-                BusinessLocationCreate(
-                    name = name.trim(),
-                    address = address.trim(),
-                    category = category.trim(),
-                    city = city.trim().ifBlank { null },
-                    price_vnd = price.filter { it.isDigit() }.toDoubleOrNull(),
-                    description = description.trim().ifBlank { null },
-                ),
-                imageUrl.trim().ifBlank { null },
-            )
+            scope.launch {
+                uploading = true
+                try {
+                    val urls = imageUris.mapIndexedNotNull { index, uri ->
+                        val bytes = readUriBytes(context, uri) ?: return@mapIndexedNotNull null
+                        ApiClient.uploadImage(bytes, "location-$index.jpg")
+                    }
+                    onSave(
+                        BusinessLocationCreate(
+                            name = name.trim(),
+                            address = address.trim(),
+                            category = category.trim(),
+                            city = city.trim().ifBlank { null },
+                            price_vnd = price.filter { it.isDigit() }.toDoubleOrNull(),
+                            description = description.trim().ifBlank { null },
+                        ),
+                        urls,
+                    )
+                } finally {
+                    uploading = false
+                }
+            }
         },
     ) {
         PortalTextField("Tên địa điểm", name) { name = it }
@@ -2343,7 +2412,25 @@ private fun BusinessLocationDialog(onDismiss: () -> Unit, onSave: (BusinessLocat
         PortalTextField("Loại hình", category) { category = it }
         PortalTextField("Giá niêm yết (VND)", price) { price = it.filter { c -> c.isDigit() } }
         PortalTextField("Mô tả ngắn", description) { description = it }
-        PortalTextField("URL ảnh địa điểm", imageUrl) { imageUrl = it }
+        OutlinedButton(
+            onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Chọn ảnh từ thiết bị (tối đa 6)") }
+        if (imageUris.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(imageUris) { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)),
+                    )
+                }
+            }
+        }
+        if (uploading) {
+            Text("Đang tải ảnh...", color = portalMuted(), fontSize = 12.sp)
+        }
     }
 }
 
@@ -2360,24 +2447,65 @@ private fun ReviewReplyDialog(onDismiss: () -> Unit, onSave: (String) -> Unit) {
 }
 
 @Composable
-private fun BusinessMediaDialog(onDismiss: () -> Unit, onSave: (BusinessMediaCreate) -> Unit) {
-    var url by remember { mutableStateOf("") }
+private fun BusinessMediaDialog(onDismiss: () -> Unit, onSave: (List<BusinessMediaCreate>) -> Unit) {
+    var imageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var type by remember { mutableStateOf("Ảnh") }
     var validationError by remember { mutableStateOf<String?>(null) }
+    var uploading by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(6)) { uris ->
+        imageUris = uris.take(6)
+        validationError = null
+    }
     PortalInputDialog(
         title = "Thêm media",
         onDismiss = onDismiss,
         onSave = {
-            if (url.trim().isBlank()) {
-                validationError = "Nhập URL ảnh/video."
+            if (imageUris.isEmpty()) {
+                validationError = "Chọn ít nhất 1 ảnh."
                 return@PortalInputDialog
             }
-            onSave(BusinessMediaCreate(url = url.trim(), type = if (type == "Video") "video" else "image"))
+            scope.launch {
+                uploading = true
+                try {
+                    val bodies = imageUris.mapIndexedNotNull { index, uri ->
+                        val bytes = readUriBytes(context, uri) ?: return@mapIndexedNotNull null
+                        val url = ApiClient.uploadImage(bytes, "media-$index.jpg")
+                        BusinessMediaCreate(url = url, type = if (type == "Video") "video" else "image")
+                    }
+                    if (bodies.isEmpty()) {
+                        validationError = "Không tải được ảnh."
+                        return@launch
+                    }
+                    onSave(bodies)
+                } finally {
+                    uploading = false
+                }
+            }
         },
     ) {
         validationError?.let { Text(it, color = PremiumColors.LogoutRed, fontSize = 12.sp) }
-        PortalTextField("URL ảnh/video", url, "https://...") { url = it }
+        OutlinedButton(
+            onClick = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("Chọn ảnh từ thiết bị (tối đa 6)") }
+        if (imageUris.isNotEmpty()) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(imageUris) { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)),
+                    )
+                }
+            }
+        }
         PortalChoiceGroup("Loại", listOf("Ảnh", "Video"), type) { type = it }
+        if (uploading) {
+            Text("Đang tải ảnh...", color = portalMuted(), fontSize = 12.sp)
+        }
     }
 }
 
@@ -2923,4 +3051,8 @@ private fun jsonElementText(el: kotlinx.serialization.json.JsonElement): String 
         else -> el.content
     }
     else -> el.toString()
+}
+
+private suspend fun readUriBytes(context: Context, uri: Uri): ByteArray? = withContext(Dispatchers.IO) {
+    runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
 }

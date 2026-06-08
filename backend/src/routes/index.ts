@@ -14,6 +14,7 @@ import { placesRoutes } from "./places.js";
 import { tripsRoutes } from "./trips.js";
 import { userSubscriptionRoutes } from "./user-subscription.js";
 import { vouchersRoutes } from "./vouchers.js";
+import { uploadRoutes } from "./upload.js";
 import { weatherRoutes } from "./weather.js";
 
 export async function registerApiRoutes(app: FastifyInstance) {
@@ -33,4 +34,5 @@ export async function registerApiRoutes(app: FastifyInstance) {
   await app.register(payoutsRoutes);
   await app.register(paymentsRoutes);
   await app.register(userSubscriptionRoutes);
+  await app.register(uploadRoutes);
 }

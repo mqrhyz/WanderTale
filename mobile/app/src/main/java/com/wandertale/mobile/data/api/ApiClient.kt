@@ -88,9 +88,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
-import okhttp3.OkHttpClient
+import com.wandertale.mobile.data.model.UploadImageResponse
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
 import okhttp3.Request
-import java.util.concurrent.TimeUnit
+import okhttp3.RequestBody.Companion.toRequestBody
 
 class ApiException(message: String, val statusCode: Int? = null) : Exception(message)
 
@@ -361,6 +363,35 @@ object ApiClient {
     suspend fun businessMedia(): BusinessMediaList = portalGet("/api/business/media")
     suspend fun uploadBusinessMedia(body: BusinessMediaCreate): BusinessMediaRow =
         portalPost("/api/business/media", body)
+
+    suspend fun uploadImage(bytes: ByteArray, filename: String, mimeType: String = "image/jpeg"): String =
+        authorized { token ->
+            withContext(Dispatchers.IO) {
+                val body = MultipartBody.Builder()
+                    .setType(MultipartBody.FORM)
+                    .addFormDataPart("file", filename, bytes.toRequestBody(mimeType.toMediaType()))
+                    .build()
+                val client = OkHttpClient.Builder()
+                    .connectTimeout(60, TimeUnit.SECONDS)
+                    .readTimeout(120, TimeUnit.SECONDS)
+                    .build()
+                val request = Request.Builder()
+                    .url("${baseUrl()}/api/upload/image")
+                    .header("Authorization", "Bearer $token")
+                    .post(body)
+                    .build()
+                client.newCall(request).execute().use { response ->
+                    val text = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) {
+                        val msg = runCatching { json.decodeFromString<ApiErrorBody>(text).message }
+                            .getOrNull() ?: text.ifBlank { "HTTP ${response.code}" }
+                        throw ApiException(msg, response.code)
+                    }
+                    json.decodeFromString<UploadImageResponse>(text).url
+                }
+            }
+        }
+
     suspend fun businessPayouts(): PayoutList = portalGet("/api/business/payouts")
     suspend fun businessNotifications(): List<com.wandertale.mobile.data.model.BusinessNotification> =
         portalGet<com.wandertale.mobile.data.model.BusinessNotificationList>("/api/business/notifications").items

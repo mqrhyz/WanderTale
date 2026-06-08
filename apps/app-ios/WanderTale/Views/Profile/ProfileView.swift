@@ -374,19 +374,12 @@ private func upgradeDiscountText(_ promo: Promotion) -> String {
 }
 
 struct SettingsView: View {
-    @Environment(AppState.self) private var appState
-
     var body: some View {
         PremiumSurfaceCard {
-            Toggle("Giao diện tối", isOn: Binding(
-                get: { appState.darkMode },
-                set: { appState.setDarkMode($0) }
-            ))
-            .padding(.vertical, 8)
             Text("Thông báo chuyến đi — sắp ra mắt")
                 .font(.system(size: 14))
                 .foregroundStyle(PremiumTheme.textMuted)
-                .padding(.top, 8)
+                .padding(.vertical, 8)
         }
         .padding(PremiumTheme.screenPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

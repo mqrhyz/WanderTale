@@ -709,6 +709,9 @@ data class PromotionVoucherCreate(
 )
 
 @Serializable
+data class UploadImageResponse(val url: String)
+
+@Serializable
 data class PromotionPostCreate(
     val title: String,
     val subtitle: String? = null,

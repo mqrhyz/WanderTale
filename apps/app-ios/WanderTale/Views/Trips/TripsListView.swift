@@ -35,7 +35,6 @@ struct TripsListView: View {
                     }
                 }
 
-                PromotionsSection()
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {

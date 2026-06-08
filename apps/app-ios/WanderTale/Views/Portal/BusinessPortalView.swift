@@ -1,4 +1,5 @@
 import SwiftUI
+import PhotosUI
 import CoreImage.CIFilterBuiltins
 import UIKit
 
@@ -81,21 +82,25 @@ struct BusinessPortalView: View {
             }
         }
         .sheet(isPresented: $showingLocationForm) {
-            BusinessLocationForm { input, imageURL in
+            BusinessLocationForm { input, imageURLs in
                 let loc = try await ApiService.createBusinessLocation(input)
-                if let imageURL, !imageURL.isEmpty {
+                for url in imageURLs.prefix(6) {
                     _ = try? await ApiService.uploadBusinessMedia(
-                        BusinessMediaCreate(url: imageURL, type: "image", location_id: loc.id, thumbnail_url: nil)
+                        BusinessMediaCreate(url: url, type: "image", location_id: loc.id, thumbnail_url: nil)
                     )
-                    purchaseMessage = "Đã thêm địa điểm + ảnh. Ảnh chờ admin duyệt."
+                }
+                if !imageURLs.isEmpty {
+                    purchaseMessage = "Đã thêm địa điểm + \(min(imageURLs.count, 6)) ảnh. Ảnh chờ admin duyệt."
                 }
                 await load()
             }
         }
         .sheet(isPresented: $showingMediaForm) {
-            BusinessMediaForm { input in
-                _ = try await ApiService.uploadBusinessMedia(input)
-                purchaseMessage = "Đã gửi media. Chờ admin duyệt."
+            BusinessMediaForm { inputs in
+                for input in inputs.prefix(6) {
+                    _ = try await ApiService.uploadBusinessMedia(input)
+                }
+                purchaseMessage = "Đã gửi \(min(inputs.count, 6)) media. Chờ admin duyệt."
                 await load()
             }
         }
@@ -1688,9 +1693,11 @@ private struct BusinessLocationForm: View {
     @State private var city = ""
     @State private var price = ""
     @State private var locationDescription = ""
-    @State private var imageUrl = ""
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var previewImages: [UIImage] = []
+    @State private var uploading = false
     @State private var error: String?
-    let onSave: (BusinessLocationCreate, String?) async throws -> Void
+    let onSave: (BusinessLocationCreate, [String]) async throws -> Void
 
     var body: some View {
         PortalFormShell(title: "Thêm địa điểm", error: error) {
@@ -1700,8 +1707,32 @@ private struct BusinessLocationForm: View {
             field("Loại hình", text: $category)
             field("Giá niêm yết (VND)", text: $price)
             field("Mô tả ngắn", text: $locationDescription)
-            field("URL ảnh địa điểm", text: $imageUrl)
-            saveButton("Thêm địa điểm") {
+            PhotosPicker(selection: $pickerItems, maxSelectionCount: 6, matching: .images) {
+                Label("Chọn ảnh từ thiết bị (tối đa 6)", systemImage: "photo.on.rectangle")
+            }
+            if !previewImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(previewImages.enumerated()), id: \.offset) { _, image in
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                }
+            }
+            saveButton(uploading ? "Đang tải ảnh..." : "Thêm địa điểm") {
+                uploading = true
+                defer { uploading = false }
+                var urls: [String] = []
+                for (index, item) in pickerItems.prefix(6).enumerated() {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        let url = try await ApiService.uploadImage(data: data, filename: "location-\(index).jpg")
+                        urls.append(url)
+                    }
+                }
                 try await onSave(BusinessLocationCreate(
                     name: name,
                     address: address,
@@ -1709,8 +1740,20 @@ private struct BusinessLocationForm: View {
                     city: city.isEmpty ? nil : city,
                     price_vnd: Double(price.filter(\.isNumber)),
                     description: locationDescription.isEmpty ? nil : locationDescription
-                ), imageUrl.trimmingCharacters(in: .whitespaces).isEmpty ? nil : imageUrl.trimmingCharacters(in: .whitespaces))
+                ), urls)
                 dismiss()
+            }
+        }
+        .onChange(of: pickerItems) { _, items in
+            Task {
+                var images: [UIImage] = []
+                for item in items.prefix(6) {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        images.append(image)
+                    }
+                }
+                previewImages = images
             }
         }
     }
@@ -1718,22 +1761,69 @@ private struct BusinessLocationForm: View {
 
 private struct BusinessMediaForm: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var url = ""
+    @State private var pickerItems: [PhotosPickerItem] = []
+    @State private var previewImages: [UIImage] = []
     @State private var type = "Ảnh"
+    @State private var uploading = false
     @State private var error: String?
-    let onSave: (BusinessMediaCreate) async throws -> Void
+    let onSave: ([BusinessMediaCreate]) async throws -> Void
 
     var body: some View {
         PortalFormShell(title: "Thêm media", error: error) {
-            field("URL ảnh/video", text: $url)
+            PhotosPicker(selection: $pickerItems, maxSelectionCount: 6, matching: .images) {
+                Label("Chọn ảnh từ thiết bị (tối đa 6)", systemImage: "photo.on.rectangle")
+            }
+            if !previewImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(previewImages.enumerated()), id: \.offset) { _, image in
+                            Image(uiImage: image)
+                                .resizable()
+                                .scaledToFill()
+                                .frame(width: 72, height: 72)
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                    }
+                }
+            }
             darkChipGroup("Loại", options: ["Ảnh", "Video"], selection: $type)
-            saveButton("Gửi media") {
-                guard !url.trimmingCharacters(in: .whitespaces).isEmpty else {
-                    error = "Nhập URL ảnh/video."
+            saveButton(uploading ? "Đang tải ảnh..." : "Gửi media") {
+                guard !pickerItems.isEmpty else {
+                    error = "Chọn ít nhất 1 ảnh."
                     return
                 }
-                try await onSave(BusinessMediaCreate(url: url, type: type == "Video" ? "video" : "image", location_id: nil, thumbnail_url: nil))
+                uploading = true
+                defer { uploading = false }
+                var inputs: [BusinessMediaCreate] = []
+                for (index, item) in pickerItems.prefix(6).enumerated() {
+                    if let data = try? await item.loadTransferable(type: Data.self) {
+                        let url = try await ApiService.uploadImage(data: data, filename: "media-\(index).jpg")
+                        inputs.append(BusinessMediaCreate(
+                            url: url,
+                            type: type == "Video" ? "video" : "image",
+                            location_id: nil,
+                            thumbnail_url: nil
+                        ))
+                    }
+                }
+                guard !inputs.isEmpty else {
+                    error = "Không tải được ảnh."
+                    return
+                }
+                try await onSave(inputs)
                 dismiss()
+            }
+        }
+        .onChange(of: pickerItems) { _, items in
+            Task {
+                var images: [UIImage] = []
+                for item in items.prefix(6) {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        images.append(image)
+                    }
+                }
+                previewImages = images
             }
         }
     }
