@@ -100,9 +100,10 @@ private struct PromotionPostMasonry: View {
 
     var body: some View {
         if primary.isEmpty || secondary.isEmpty {
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(posts) { post in
                     PromotionPostCard(post: post)
+                        .frame(minWidth: 0, maxWidth: .infinity)
                         .onTapGesture { onTap(post) }
                 }
             }
@@ -114,14 +115,15 @@ private struct PromotionPostMasonry: View {
                             .onTapGesture { onTap(post) }
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity)
+
                 VStack(spacing: 12) {
                     ForEach(secondary) { post in
                         PromotionPostCard(post: post)
                             .onTapGesture { onTap(post) }
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity)
             }
         }
     }
@@ -130,43 +132,20 @@ private struct PromotionPostMasonry: View {
 private struct PromotionPostCard: View {
     let post: PromotionPost
 
+    private var cardAspectRatio: CGFloat {
+        post.post_type == "main" ? 3.0 / 4.0 : 1.0
+    }
+
     var body: some View {
-        let isMain = post.post_type == "main"
-        ZStack(alignment: .bottomLeading) {
-            RemoteImage(url: post.cover_image_url, fallback: post.title, contentMode: .fill)
-                .frame(maxWidth: .infinity)
-                .aspectRatio(isMain ? 3.0 / 4.0 : 1.0, contentMode: .fit)
-                .clipped()
-            LinearGradient(
-                colors: [.clear, .black.opacity(0.68)],
-                startPoint: .center,
-                endPoint: .bottom
-            )
-            VStack(alignment: .leading, spacing: 6) {
-                if post.voucher != nil {
-                    Text("Có voucher")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(PremiumTheme.accent)
-                        .clipShape(Capsule())
-                }
-                Text(post.title)
-                    .font(.system(size: isMain ? 22 : 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                if let subtitle = post.subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.86))
-                        .lineLimit(2)
-                }
+        Color.clear
+            .aspectRatio(cardAspectRatio, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .overlay {
+                RemoteImage(url: post.cover_image_url, fallback: post.title, contentMode: .fill)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(16)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(PremiumTheme.border))
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .contentShape(RoundedRectangle(cornerRadius: 18))
     }
 }
 
@@ -179,27 +158,37 @@ private struct PromotionPostDetailSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    RemoteImage(url: post.cover_image_url, fallback: post.title, contentMode: .fill)
+                    let imageRatio = post.post_type == "main" ? 3.0 / 4.0 : 1.0
+                    Color.clear
+                        .aspectRatio(imageRatio, contentMode: .fit)
                         .frame(maxWidth: .infinity)
-                        .aspectRatio(post.post_type == "main" ? 3.0 / 4.0 : 1.0, contentMode: .fit)
+                        .overlay {
+                            RemoteImage(url: post.cover_image_url, fallback: post.title, contentMode: .fill)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                         .clipShape(RoundedRectangle(cornerRadius: 18))
 
                     VStack(alignment: .leading, spacing: 8) {
                         Text(post.title)
                             .font(.system(size: 26, weight: .bold))
                             .foregroundStyle(PremiumTheme.ink)
+                            .fixedSize(horizontal: false, vertical: true)
                         if let subtitle = post.subtitle, !subtitle.isEmpty {
                             Text(subtitle)
                                 .font(.system(size: 15, weight: .medium))
                                 .foregroundStyle(PremiumTheme.muted)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
                     if let body = post.body, !body.isEmpty {
                         Text(body)
                             .font(.system(size: 15))
                             .foregroundStyle(PremiumTheme.ink.opacity(0.86))
                             .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     if let voucher = post.voucher {
@@ -208,8 +197,10 @@ private struct PromotionPostDetailSheet: View {
                         }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(20)
             }
+            .scrollIndicators(.hidden)
             .background(PremiumTheme.bg.ignoresSafeArea())
             .navigationTitle("Ưu đãi")
             .navigationBarTitleDisplayMode(.inline)

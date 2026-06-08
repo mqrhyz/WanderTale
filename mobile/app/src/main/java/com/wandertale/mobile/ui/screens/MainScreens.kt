@@ -679,46 +679,16 @@ private fun voucherDetailText(voucher: Promotion): String {
 @Composable
 private fun PromotionPostCard(post: PromotionPost, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val ratio = if (post.post_type == "main") 3f / 4f else 1f
-    Box(
-        modifier
+    AsyncImage(
+        model = post.cover_image_url,
+        contentDescription = post.title,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(ratio)
             .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick),
-        contentAlignment = Alignment.BottomStart,
-    ) {
-        AsyncImage(
-            model = post.cover_image_url,
-            contentDescription = post.title,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(Color.Black.copy(alpha = 0.34f)),
-        )
-        Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            if (post.voucher != null) {
-                Text(
-                    "Có voucher",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier
-                        .background(PremiumColors.Accent, RoundedCornerShape(999.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-            }
-            Text(post.title, fontSize = if (post.post_type == "main") 22.sp else 18.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 2)
-            post.subtitle?.takeIf { it.isNotBlank() }?.let {
-                Text(it, fontSize = 13.sp, color = Color.White.copy(alpha = 0.88f), maxLines = 2)
-            }
-        }
-    }
+    )
 }
 
 @Composable
