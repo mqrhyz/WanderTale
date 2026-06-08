@@ -158,7 +158,7 @@ internal fun WanderTaleBottomNavBar(
                 imageVector = Icons.Default.Add,
                 contentDescription = "Tạo chuyến đi",
                 tint = Color.White,
-                modifier = Modifier.size(26.dp),
+                modifier = Modifier.size(28.dp),
             )
         }
     }

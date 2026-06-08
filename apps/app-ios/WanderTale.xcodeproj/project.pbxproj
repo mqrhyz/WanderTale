@@ -47,6 +47,10 @@
 		E7F6855676DBFBD5C705FF2E /* PremiumComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD78B35D9245BE0B52E2498C /* PremiumComponents.swift */; };
 		E857341AA3BE1134B4521128 /* SupabaseClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 996855210B9BD8BF9B827AAA /* SupabaseClient.swift */; };
 		EDDF62AD84770E9DABF18189 /* MyBookingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C562EC0667B17052469FEF9 /* MyBookingsView.swift */; };
+		AABBCCDD1122334455667702 /* JsonDecodeHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDD1122334455667701 /* JsonDecodeHelpers.swift */; };
+		AABBCCDD1122334455667704 /* SubscriptionPaymentSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = AABBCCDD1122334455667703 /* SubscriptionPaymentSheet.swift */; };
+		BB0011223344556677889903 /* PromotionVoucherComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0011223344556677889901 /* PromotionVoucherComponents.swift */; };
+		BB0011223344556677889904 /* SavedOffersView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB0011223344556677889902 /* SavedOffersView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -81,6 +85,10 @@
 		996855210B9BD8BF9B827AAA /* SupabaseClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseClient.swift; sourceTree = "<group>"; };
 		9E275C79AA36EFC416DA0110 /* AppScreenLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppScreenLayout.swift; sourceTree = "<group>"; };
 		AD99C1206F984C5BFF903E66 /* TripUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripUtils.swift; sourceTree = "<group>"; };
+		AABBCCDD1122334455667701 /* JsonDecodeHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JsonDecodeHelpers.swift; sourceTree = "<group>"; };
+		AABBCCDD1122334455667703 /* SubscriptionPaymentSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionPaymentSheet.swift; sourceTree = "<group>"; };
+		BB0011223344556677889901 /* PromotionVoucherComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PromotionVoucherComponents.swift; sourceTree = "<group>"; };
+		BB0011223344556677889902 /* SavedOffersView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SavedOffersView.swift; sourceTree = "<group>"; };
 		AFD865CBE0858D2158F84055 /* WanderTale.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = WanderTale.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B49F5FAC839D2C2FDA66B28B /* WanderTaleApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WanderTaleApp.swift; sourceTree = "<group>"; };
 		BAFCB6964E307A59ABC52739 /* TripDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TripDetailView.swift; sourceTree = "<group>"; };
@@ -231,6 +239,8 @@
 			isa = PBXGroup;
 			children = (
 				24844058E42B137035199C7E /* ProfileView.swift */,
+				AABBCCDD1122334455667703 /* SubscriptionPaymentSheet.swift */,
+				BB0011223344556677889902 /* SavedOffersView.swift */,
 			);
 			path = Profile;
 			sourceTree = "<group>";
@@ -253,11 +263,12 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
-		AB46FC0B53F5543D72818472 /* Dashboard */ = {
+        AB46FC0B53F5543D72818472 /* Dashboard */ = {
 			isa = PBXGroup;
 			children = (
 				4A7344B039304977143DA08C /* DashboardView.swift */,
 				7294C17B211CCD9EFB8113EE /* PromotionsSection.swift */,
+				BB0011223344556677889901 /* PromotionVoucherComponents.swift */,
 			);
 			path = Dashboard;
 			sourceTree = "<group>";
@@ -274,6 +285,7 @@
 			isa = PBXGroup;
 			children = (
 				0D7AA053D15DCD21926CE504 /* AppAssetPreloader.swift */,
+				AABBCCDD1122334455667701 /* JsonDecodeHelpers.swift */,
 				AD99C1206F984C5BFF903E66 /* TripUtils.swift */,
 			);
 			path = Utils;
@@ -403,6 +415,7 @@
 				23659AA7DC02DDCB073633A1 /* LiquidGlassBackground.swift in Sources */,
 				2C066E686734D4BEBD81084B /* LocationDetailView.swift in Sources */,
 				69E35B269B68F30403AC1BD6 /* MainTabView.swift in Sources */,
+				AABBCCDD1122334455667702 /* JsonDecodeHelpers.swift in Sources */,
 				72B5D7EF71AC23935F3F5BF1 /* MediaComponents.swift in Sources */,
 				71FC85680776423E8A18894E /* Models.swift in Sources */,
 				EDDF62AD84770E9DABF18189 /* MyBookingsView.swift in Sources */,
@@ -411,7 +424,10 @@
 				E7F6855676DBFBD5C705FF2E /* PremiumComponents.swift in Sources */,
 				50C2C563E39D975ED456A77F /* PremiumTheme.swift in Sources */,
 				5C9B9B7F38FC8CACE54A1043 /* ProfileView.swift in Sources */,
+				AABBCCDD1122334455667704 /* SubscriptionPaymentSheet.swift in Sources */,
+				BB0011223344556677889904 /* SavedOffersView.swift in Sources */,
 				40F6F46F9228BAB05AD7D636 /* PromotionsSection.swift in Sources */,
+				BB0011223344556677889903 /* PromotionVoucherComponents.swift in Sources */,
 				A852FE6A9BA8EA9AB138C22C /* RootView.swift in Sources */,
 				2AB0A8E2D60F29FA5AA2C125 /* SplashView.swift in Sources */,
 				ABC6E8B5F19DC2022CA85C00 /* SponsoredLocationModels.swift in Sources */,

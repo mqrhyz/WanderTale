@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { requireAuth } from "../lib/auth.js";
-import { getUserSubscriptionOverview, purchaseUserSubscription } from "../services/userSubscriptionService.js";
+import { getUserSubscriptionOverview, purchaseUserSubscription, updateUserSubscriptionAutoRenew } from "../services/userSubscriptionService.js";
 
 export async function userSubscriptionRoutes(app: FastifyInstance) {
   app.get("/user/subscription", { preHandler: requireAuth }, async (req, reply) => {
@@ -21,6 +21,21 @@ export async function userSubscriptionRoutes(app: FastifyInstance) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "subscription_purchase_failed";
         return reply.code(msg === "voucher_not_applicable" ? 400 : 500).send({ error: msg });
+      }
+    },
+  );
+
+  app.patch<{ Body: { auto_renew?: boolean } }>(
+    "/user/subscription/auto-renew",
+    { preHandler: requireAuth },
+    async (req, reply) => {
+      try {
+        if (typeof req.body?.auto_renew !== "boolean") {
+          return reply.code(400).send({ error: "auto_renew_required" });
+        }
+        return await updateUserSubscriptionAutoRenew(req.userId!, req.body.auto_renew);
+      } catch (e) {
+        return reply.code(500).send({ error: e instanceof Error ? e.message : "auto_renew_update_failed" });
       }
     },
   );

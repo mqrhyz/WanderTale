@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.calculateEndPadding
 import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -68,6 +69,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
@@ -80,6 +82,17 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Button
@@ -95,7 +108,14 @@ import com.wandertale.mobile.data.model.Promotion
 import com.wandertale.mobile.data.model.PromotionHomePayload
 import com.wandertale.mobile.data.model.PromotionPost
 import com.wandertale.mobile.data.model.TripRecord
+import android.graphics.Bitmap
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 import com.wandertale.mobile.data.model.UserSubscriptionOverview
+import com.wandertale.mobile.data.model.UserSubscriptionPurchaseResponse
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import com.wandertale.mobile.R
 import com.wandertale.mobile.ui.components.AppScaffold
 import com.wandertale.mobile.ui.components.DashboardHeroCard
@@ -343,7 +363,8 @@ private fun PromotionHomeSection(
 ) {
     val vouchers = payload?.let { it.vouchers.ifEmpty { it.items } } ?: emptyList()
     val posts = payload?.posts.orEmpty()
-    if (vouchers.isEmpty() && posts.isEmpty()) return
+    val isPremium = DashboardHomeCache.accountInfo?.profile?.is_premium == true
+        || DashboardHomeCache.accountInfo?.profile?.subscription_tier.equals("pro", ignoreCase = true)
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
@@ -355,12 +376,24 @@ private fun PromotionHomeSection(
         if (vouchers.isNotEmpty()) {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 items(vouchers, key = { it.id }) { voucher ->
-                    PromotionVoucherCard(voucher = voucher, onToggle = { onToggleVoucher(voucher) })
+                    PromotionVoucherCard(
+                        voucher = voucher,
+                        carousel = true,
+                        onToggle = { onToggleVoucher(voucher) },
+                    )
                 }
             }
         }
         if (posts.isNotEmpty()) {
             PromotionPostMasonry(posts = posts, onPostClick = onPostClick)
+        }
+        if (vouchers.isEmpty() && posts.isEmpty() && isPremium) {
+            Text(
+                "Chưa có ưu đãi mới. Quay lại sau nhé!",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = PremiumColors.TextMuted,
+            )
         }
     }
 }
@@ -411,56 +444,236 @@ private fun PromotionPostMasonry(
 }
 
 @Composable
-private fun PromotionVoucherCard(voucher: Promotion, onToggle: () -> Unit) {
+private fun PromotionVoucherCard(voucher: Promotion, carousel: Boolean = false, onToggle: () -> Unit) {
+    val accent = PremiumColors.Accent
+    val cardWidth = if (carousel) 300.dp else Dp.Unspecified
+
     Box(
         modifier = Modifier
-            .width(226.dp)
-            .height(142.dp)
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(PremiumDesign.CardRadius))
-            .border(1.dp, PremiumColors.Border.copy(alpha = 0.5f), RoundedCornerShape(PremiumDesign.CardRadius))
-            .padding(14.dp),
+            .then(if (carousel) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
+            .shadow(4.dp, RoundedCornerShape(14.dp))
+            .clip(VoucherTicketShape())
+            .background(Color.White)
+            .border(1.dp, Color.Black.copy(alpha = 0.06f), VoucherTicketShape()),
     ) {
-        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                Icon(Icons.Filled.LocalOffer, contentDescription = null, tint = PremiumColors.Accent, modifier = Modifier.size(16.dp))
-                Text(voucher.code, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Accent, maxLines = 1)
-            }
-            Text(voucher.title, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface, maxLines = 2)
-            voucher.description?.takeIf { it.isNotBlank() }?.let {
-                Text(it, fontSize = 12.sp, color = PremiumColors.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            Text(
-                promotionApplicabilityText(voucher),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PremiumColors.Muted,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    promotionDiscountText(voucher),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    modifier = Modifier
-                        .background(PremiumColors.Accent, RoundedCornerShape(999.dp))
-                        .padding(horizontal = 9.dp, vertical = 4.dp),
-                )
-                Spacer(Modifier.weight(1f))
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .background(accent, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
                 Icon(
-                    imageVector = if (voucher.is_saved == true) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                    imageVector = voucherIcon(voucher),
                     contentDescription = null,
-                    tint = PremiumColors.Accent,
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clickable(onClick = onToggle)
-                        .padding(4.dp),
+                    tint = Color.White,
+                    modifier = Modifier.size(22.dp),
                 )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Text(
+                        voucherHeadline(voucher),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = PremiumColors.Ink,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(
+                        imageVector = if (voucher.is_saved == true) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                        contentDescription = null,
+                        tint = PremiumColors.TextMuted,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable(onClick = onToggle)
+                            .padding(2.dp),
+                    )
+                }
+                Text(
+                    voucherDetailText(voucher),
+                    fontSize = 12.sp,
+                    color = PremiumColors.Muted,
+                    lineHeight = 17.sp,
+                )
+                Canvas(Modifier.fillMaxWidth().height(1.dp)) {
+                    drawLine(
+                        color = Color(0xFFE8884A),
+                        start = Offset(0f, 0f),
+                        end = Offset(size.width, 0f),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f),
+                        strokeWidth = 2f,
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(voucher.code, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
+                    Text(" · ", fontSize = 11.sp, color = PremiumColors.TextMuted)
+                    Text(
+                        promotionApplicabilityText(voucher),
+                        fontSize = 11.sp,
+                        color = PremiumColors.TextMuted,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        promotionDiscountText(voucher),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = accent,
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+fun SavedOffersScreen(onBack: () -> Unit) {
+    var vouchers by remember { mutableStateOf<List<Promotion>>(emptyList()) }
+    var loading by remember { mutableStateOf(true) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun load() {
+        loading = true
+        runCatching { ApiClient.savedPromotionVouchers() }
+            .onSuccess {
+                vouchers = it
+                message = null
+            }
+            .onFailure { message = it.message ?: "Không tải được ưu đãi đã lưu" }
+        loading = false
+    }
+
+    LaunchedEffect(Unit) { load() }
+
+    AppScaffold(title = "Ưu đãi", onBack = onBack) { padding ->
+        when {
+            loading -> Box(
+                Modifier.fillMaxSize().padding(padding),
+                contentAlignment = Alignment.Center,
+            ) { OrangeLoadingSpinner() }
+            vouchers.isEmpty() -> Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(PremiumDesign.ScreenPadding),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Spacer(Modifier.height(48.dp))
+                Icon(Icons.Filled.LocalOffer, contentDescription = null, tint = PremiumColors.Accent.copy(alpha = 0.75f), modifier = Modifier.size(40.dp))
+                Text("Chưa lưu voucher nào", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Ink)
+                Text(
+                    "Khám phá ưu đãi trên Trang chủ và nhấn lưu để dùng khi đặt chỗ hoặc nâng cấp Pro.",
+                    fontSize = 14.sp,
+                    color = PremiumColors.Muted,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                )
+            }
+            else -> LazyColumn(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(PremiumDesign.ScreenPadding),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                items(vouchers, key = { it.id }) { voucher ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (promotionIsExpired(voucher)) {
+                            Text(
+                                "Đã hết hạn",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = PremiumColors.LogoutRed,
+                                modifier = Modifier
+                                    .background(PremiumColors.LogoutRed.copy(alpha = 0.08f), RoundedCornerShape(999.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                            )
+                        }
+                        PromotionVoucherCard(voucher = voucher, onToggle = {
+                            scope.launch {
+                                if (voucher.is_saved == true) {
+                                    runCatching { ApiClient.unsavePromotionVoucher(voucher.id) }
+                                } else {
+                                    runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                                }
+                                load()
+                            }
+                        })
+                    }
+                }
+                message?.let { item { Text(it, color = PremiumColors.Accent, fontWeight = FontWeight.Bold, fontSize = 13.sp) } }
+            }
+        }
+    }
+}
+
+private fun promotionIsExpired(voucher: Promotion): Boolean {
+    val until = voucher.valid_until?.trim().orEmpty()
+    if (until.isEmpty()) return false
+    val today = java.time.LocalDate.now().toString()
+    return until < today
+}
+
+private class VoucherTicketShape : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val corner = with(density) { 14.dp.toPx() }
+        val notch = with(density) { 9.dp.toPx() }
+        val path = Path().apply {
+            val w = size.width
+            val h = size.height
+            val midY = h / 2f
+            moveTo(corner, 0f)
+            lineTo(w - corner, 0f)
+            quadraticTo(w, 0f, w, corner)
+            lineTo(w, midY - notch)
+            arcTo(
+                rect = androidx.compose.ui.geometry.Rect(w - notch * 2f, midY - notch, w, midY + notch),
+                startAngleDegrees = -90f,
+                sweepAngleDegrees = 180f,
+                forceMoveTo = false,
+            )
+            lineTo(w, h - corner)
+            quadraticTo(w, h, w - corner, h)
+            lineTo(corner, h)
+            quadraticTo(0f, h, 0f, h - corner)
+            lineTo(0f, corner)
+            quadraticTo(0f, 0f, corner, 0f)
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
+
+private fun voucherIcon(voucher: Promotion): ImageVector {
+    return when (voucher.applicability ?: "hotel_places") {
+        "user_subscription", "pro_plan" -> Icons.Filled.Star
+        else -> Icons.Filled.Apartment
+    }
+}
+
+private fun voucherHeadline(voucher: Promotion): String {
+    val pct = voucher.discount_percent ?: 0.0
+    val amt = voucher.discount_amount ?: 0.0
+    return when {
+        pct > 0 -> "Giảm ${pct.toInt()}% · ${voucher.title}"
+        amt > 0 -> "Giảm đến ${FormatUtils.formatVnd(amt)} · ${voucher.title}"
+        else -> voucher.title
+    }
+}
+
+private fun voucherDetailText(voucher: Promotion): String {
+    val desc = voucher.description?.trim().orEmpty()
+    if (desc.isNotEmpty()) return desc
+    return "Mã ${voucher.code} · ${promotionApplicabilityText(voucher)}"
 }
 
 @Composable
@@ -807,7 +1020,24 @@ fun ProfileScreen(
     var saved by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
     var showUpgrade by remember { mutableStateOf(false) }
+    var isProMember by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    suspend fun refreshProStatus() {
+        runCatching { WanderTaleApp.instance.profileRepository.getAccountInfo() }
+            .onSuccess { info ->
+                DashboardHomeCache.accountInfo = info
+                profile = info.profile
+                name = info.displayName
+                email = info.email
+                phone = info.phone
+                if (info.displayName.isNotBlank()) {
+                    DashboardHomeCache.displayName = info.displayName
+                }
+            }
+        runCatching { ApiClient.userSubscription() }
+            .onSuccess { isProMember = it.is_premium }
+    }
 
     LaunchedEffect(Unit) {
         DashboardHomeCache.accountInfo?.let { info ->
@@ -827,6 +1057,7 @@ fun ProfileScreen(
                 DashboardHomeCache.displayName = info.displayName
             }
         }
+        refreshProStatus()
     }
 
     Column(
@@ -836,7 +1067,13 @@ fun ProfileScreen(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        ProfileCompactHeader(name = name.ifBlank { "Khách du lịch" }, onUpgrade = { showUpgrade = true })
+        ProfileCompactHeader(
+            name = name.ifBlank { "Khách du lịch" },
+            isPremium = profile?.is_premium == true
+                || profile?.subscription_tier.equals("pro", ignoreCase = true)
+                || isProMember,
+            onUpgrade = { showUpgrade = true },
+        )
 
         PremiumSurfaceCard {
             Column(
@@ -876,6 +1113,8 @@ fun ProfileScreen(
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 ProfileSettingsRow("Cài đặt", Icons.Filled.Settings) { onNavigate("settings") }
                 SettingsDivider()
+                ProfileSettingsRow("Ưu đãi", Icons.Filled.LocalOffer) { onNavigate("saved_offers") }
+                SettingsDivider()
                 ProfileSettingsRow("Đặt chỗ & thanh toán", Icons.Filled.ShoppingCart) { onNavigate("booking") }
                 SettingsDivider()
                 ProfileSettingsRow("Thông báo", Icons.Filled.Notifications) { }
@@ -914,45 +1153,72 @@ fun ProfileScreen(
         UserUpgradeDialog(
             onDismiss = { showUpgrade = false },
             onPurchased = {
-                scope.launch {
-                    runCatching { WanderTaleApp.instance.profileRepository.getAccountInfo() }
-                        .onSuccess { info ->
-                            DashboardHomeCache.accountInfo = info
-                            profile = info.profile
-                            name = info.displayName
-                            email = info.email
-                            phone = info.phone
-                        }
-                }
+                scope.launch { refreshProStatus() }
             },
         )
     }
 }
 
 @Composable
-private fun ProfileCompactHeader(name: String, onUpgrade: () -> Unit) {
+private fun ProfileCompactHeader(name: String, isPremium: Boolean, onUpgrade: () -> Unit) {
     Row(
         Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         ProfileAvatarCompact(name)
-        Text(
-            text = name,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.weight(1f),
-        )
-        Image(
-            painter = painterResource(id = R.drawable.up),
-            contentDescription = "Nâng cấp Pro",
-            modifier = Modifier
-                .size(62.dp)
-                .clickable(onClick = onUpgrade)
-                .padding(2.dp),
+        ) {
+            Text(
+                text = name,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (isPremium) {
+                ProMemberBadge()
+            }
+        }
+        if (!isPremium) {
+            Image(
+                painter = painterResource(id = R.drawable.up),
+                contentDescription = "Nâng cấp Pro",
+                modifier = Modifier
+                    .width(128.dp)
+                    .height(58.dp)
+                    .clickable(onClick = onUpgrade),
+                contentScale = ContentScale.Fit,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ProMemberBadge() {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color(0xFF7D52EB), Color(0xFF9461FA)),
+                ),
+            )
+            .border(0.8.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(50))
+            .padding(horizontal = 9.dp, vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text("👑", fontSize = 10.sp)
+        Text(
+            "PRO",
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.ExtraBold,
         )
     }
 }
@@ -1028,7 +1294,6 @@ private fun ProfilePhoneField(value: String, onChange: (String) -> Unit) {
 
 @Composable
 private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var overview by remember { mutableStateOf<UserSubscriptionOverview?>(null) }
     var selectedPackageId by remember { mutableStateOf("pro_monthly") }
@@ -1036,6 +1301,8 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
     var loading by remember { mutableStateOf(true) }
     var paying by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
+    var payInfo by remember { mutableStateOf<UserSubscriptionPurchaseResponse?>(null) }
+    var proActivated by remember { mutableStateOf(false) }
 
     suspend fun load() {
         loading = true
@@ -1043,114 +1310,185 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
             .onSuccess {
                 overview = it
                 selectedPackageId = it.packages.firstOrNull()?.id ?: "pro_monthly"
+                message = null
             }
-            .onFailure { message = "Không tải được gói Pro." }
+            .onFailure { message = it.message ?: "Không tải được gói Pro." }
         loading = false
     }
 
     LaunchedEffect(Unit) { load() }
+    LaunchedEffect(selectedPackageId) { selectedVoucherId = "" }
+
+    LaunchedEffect(payInfo) {
+        val info = payInfo ?: return@LaunchedEffect
+        var n = 0
+        while (isActive && n < 150 && !proActivated) {
+            delay(4000)
+            runCatching { ApiClient.userSubscription() }
+                .onSuccess { if (it.is_premium) proActivated = true }
+            n++
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = {},
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Đóng") }
+        },
         dismissButton = {},
         title = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Image(painter = painterResource(id = R.drawable.up), contentDescription = null, modifier = Modifier.size(34.dp))
+                Image(painter = painterResource(id = R.drawable.up), contentDescription = null, modifier = Modifier.size(38.dp))
                 Text("WanderTale Pro", fontWeight = FontWeight.Bold)
             }
         },
         text = {
-            if (loading) {
-                Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { OrangeLoadingSpinner() }
-            } else {
-                val data = overview
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.height(430.dp)) {
-                    if (data != null) {
-                        item {
-                            PremiumSurfaceCard {
-                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text(if (data.is_premium) "Bạn đang dùng Pro" else "Bạn đang dùng Free", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                    val limit = data.monthly_trip_limit ?: 5
-                                    val remaining = (limit - data.monthly_trip_count).coerceAtLeast(0)
-                                    Text(
-                                        if (data.is_premium) "Tạo chuyến đi AI không giới hạn."
-                                        else "Free còn $remaining/$limit chuyến trong tháng này.",
-                                        color = PremiumColors.Muted,
-                                        fontSize = 13.sp,
-                                    )
-                                    data.subscription_expires_at?.let { Text("Hết hạn: ${it.take(10)}", color = PremiumColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold) }
-                                }
-                            }
-                        }
-                        item { Text("Chọn gói", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) }
-                        items(data.packages, key = { it.id }) { pkg ->
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(14.dp))
-                                    .background(MaterialTheme.colorScheme.surface)
-                                    .border(1.dp, if (selectedPackageId == pkg.id) PremiumColors.Accent else PremiumColors.Border.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-                                    .clickable { selectedPackageId = pkg.id }
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Text(pkg.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                                Text("${FormatUtils.formatVnd(pkg.price_vnd)} · ${if (pkg.billing_cycle == "yearly") "theo năm" else "theo tháng"}", color = PremiumColors.Muted, fontSize = 13.sp)
-                            }
-                        }
-                        item {
-                            Text("Voucher của bạn", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
-                                FilterChip(selected = selectedVoucherId.isBlank(), onClick = { selectedVoucherId = "" }, label = { Text("Không áp dụng") })
-                                data.vouchers.forEach { voucher ->
-                                    FilterChip(
-                                        selected = selectedVoucherId == voucher.id,
-                                        onClick = { selectedVoucherId = voucher.id },
-                                        label = { Text("${voucher.code} · ${promotionDiscountText(voucher)}") },
-                                    )
-                                }
-                            }
-                        }
-                        val selectedPackage = data.packages.firstOrNull { it.id == selectedPackageId } ?: data.packages.firstOrNull()
-                        item {
-                            Text("Quyền lợi", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-                            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                selectedPackage?.benefits.orEmpty().forEach { benefit ->
-                                    Text("✓ $benefit", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
-                                }
-                            }
-                        }
-                        item {
-                            Button(
-                                onClick = {
-                                    scope.launch {
-                                        paying = true
-                                        message = null
-                                        runCatching {
-                                            ApiClient.purchaseUserSubscription(selectedPackageId, selectedVoucherId.ifBlank { null })
-                                        }.onSuccess { result ->
-                                            result.checkout_url?.let { url ->
-                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                                message = "Đã mở cổng thanh toán."
-                                            } ?: run {
-                                                message = "Đã nâng cấp Pro."
-                                                onPurchased()
-                                                load()
-                                            }
-                                        }.onFailure {
-                                            message = "Không tạo được thanh toán."
-                                        }
-                                        paying = false
+            when {
+                loading -> Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) { OrangeLoadingSpinner() }
+                payInfo != null -> SubscriptionPaymentContent(
+                    info = payInfo!!,
+                    activated = proActivated,
+                    onDone = {
+                        onPurchased()
+                        onDismiss()
+                    },
+                )
+                else -> {
+                    val data = overview
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.height(460.dp)) {
+                        if (data != null) {
+                            item {
+                                PremiumSurfaceCard {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(if (data.is_premium) "Bạn đang dùng Pro" else "Bạn đang dùng Free", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                        val limit = data.monthly_trip_limit ?: 5
+                                        val remaining = (limit - data.monthly_trip_count).coerceAtLeast(0)
+                                        Text(
+                                            if (data.is_premium) "Tạo chuyến đi AI không giới hạn."
+                                            else "Free còn $remaining/$limit chuyến trong tháng này.",
+                                            color = PremiumColors.Muted,
+                                            fontSize = 13.sp,
+                                        )
                                     }
-                                },
-                                enabled = !paying,
-                                colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent),
-                                modifier = Modifier.fillMaxWidth(),
-                            ) { Text(if (paying) "Đang tạo thanh toán..." else "Thanh toán / nâng cấp") }
+                                }
+                            }
+                            item { Text("Chọn gói", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface) }
+                            items(data.packages, key = { it.id }) { pkg ->
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(MaterialTheme.colorScheme.surface)
+                                        .border(1.dp, if (selectedPackageId == pkg.id) PremiumColors.Accent else PremiumColors.Border.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
+                                        .clickable { selectedPackageId = pkg.id }
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(pkg.name, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                    Text("${FormatUtils.formatVnd(pkg.price_vnd)} · ${if (pkg.billing_cycle == "yearly") "theo năm" else "theo tháng"}", color = PremiumColors.Muted, fontSize = 13.sp)
+                                }
+                            }
+                            item {
+                                Text("Voucher đã lưu", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    "Lưu voucher Pro ở mục Khám phá ưu đãi trên Trang chủ trước khi áp dụng.",
+                                    color = PremiumColors.TextMuted,
+                                    fontSize = 12.sp,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                                val applicable = applicableUpgradeVouchers(data, selectedPackageId)
+                                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 8.dp)) {
+                                    FilterChip(selected = selectedVoucherId.isBlank(), onClick = { selectedVoucherId = "" }, label = { Text("Không áp dụng") })
+                                    applicable.forEach { voucher ->
+                                        FilterChip(
+                                            selected = selectedVoucherId == voucher.id,
+                                            onClick = { selectedVoucherId = voucher.id },
+                                            label = { Text("${voucher.code} · ${promotionDiscountText(voucher)}") },
+                                        )
+                                    }
+                                }
+                            }
+                            val selectedPackage = data.packages.firstOrNull { it.id == selectedPackageId } ?: data.packages.firstOrNull()
+                            item {
+                                val original = selectedPackage?.price_vnd ?: 0.0
+                                val voucher = applicableUpgradeVouchers(data, selectedPackageId).firstOrNull { it.id == selectedVoucherId }
+                                val discount = upgradeDiscountAmount(voucher, original)
+                                val finalAmount = (original - discount).coerceAtLeast(0.0)
+                                PremiumSurfaceCard {
+                                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text("Tạm tính", fontWeight = FontWeight.Bold)
+                                        Row(Modifier.fillMaxWidth()) {
+                                            Text("Giá gói", fontSize = 13.sp, color = PremiumColors.Muted, modifier = Modifier.weight(1f))
+                                            Text(FormatUtils.formatVnd(original), fontSize = 13.sp)
+                                        }
+                                        if (discount > 0) {
+                                            Row(Modifier.fillMaxWidth()) {
+                                                Text("Voucher", fontSize = 13.sp, color = PremiumColors.Muted, modifier = Modifier.weight(1f))
+                                                Text("-${FormatUtils.formatVnd(discount)}", fontSize = 13.sp, color = PremiumColors.Accent)
+                                            }
+                                        }
+                                        Row(Modifier.fillMaxWidth()) {
+                                            Text("Thanh toán", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                            Text(
+                                                if (finalAmount <= 0) "Miễn phí" else FormatUtils.formatVnd(finalAmount),
+                                                fontWeight = FontWeight.Bold,
+                                                color = PremiumColors.Accent,
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            item {
+                                Text("Quyền lợi", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                                Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    selectedPackage?.benefits.orEmpty().forEach { benefit ->
+                                        Text("✓ $benefit", color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp)
+                                    }
+                                }
+                            }
+                            item {
+                                val selectedPackage = data.packages.firstOrNull { it.id == selectedPackageId }
+                                val voucher = applicableUpgradeVouchers(data, selectedPackageId).firstOrNull { it.id == selectedVoucherId }
+                                val finalAmount = ((selectedPackage?.price_vnd ?: 0.0) - upgradeDiscountAmount(voucher, selectedPackage?.price_vnd ?: 0.0)).coerceAtLeast(0.0)
+                                val buttonLabel = when {
+                                    paying -> "Đang xử lý..."
+                                    data.is_premium -> "Đang dùng Pro"
+                                    finalAmount <= 0 -> "Nâng cấp miễn phí"
+                                    else -> "Thanh toán / nâng cấp"
+                                }
+                                Button(
+                                    onClick = {
+                                        scope.launch {
+                                            paying = true
+                                            message = null
+                                            runCatching {
+                                                ApiClient.purchaseUserSubscription(selectedPackageId, selectedVoucherId.ifBlank { null })
+                                            }.onSuccess { result ->
+                                                when {
+                                                    result.payment_status == "paid" -> {
+                                                        message = "Đã nâng cấp Pro."
+                                                        onPurchased()
+                                                        load()
+                                                    }
+                                                    !result.qr_code.isNullOrBlank() || !result.account_number.isNullOrBlank() -> {
+                                                        payInfo = result
+                                                    }
+                                                    else -> message = "Không tạo được thông tin thanh toán."
+                                                }
+                                            }.onFailure {
+                                                message = it.message ?: "Không tạo được thanh toán."
+                                            }
+                                            paying = false
+                                        }
+                                    },
+                                    enabled = !paying && !data.is_premium,
+                                    colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent),
+                                    modifier = Modifier.fillMaxWidth(),
+                                ) { Text(buttonLabel) }
+                            }
                         }
+                        message?.let { item { Text(it, color = PremiumColors.Accent, fontWeight = FontWeight.Bold, fontSize = 13.sp) } }
                     }
-                    message?.let { item { Text(it, color = PremiumColors.Accent, fontWeight = FontWeight.Bold, fontSize = 13.sp) } }
                 }
             }
         },
@@ -1158,10 +1496,186 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
 }
 
 @Composable
+private fun SubscriptionPaymentContent(
+    info: UserSubscriptionPurchaseResponse,
+    activated: Boolean,
+    onDone: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        if (activated) {
+            Text("✅", fontSize = 44.sp)
+            Text("Nâng cấp Pro thành công!", fontWeight = FontWeight.Bold)
+            Button(onClick = onDone, colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent), modifier = Modifier.fillMaxWidth()) {
+                Text("Xong")
+            }
+        } else {
+            Text("Quét QR hoặc chuyển khoản trong app", fontWeight = FontWeight.SemiBold)
+            info.qr_code?.let { qr ->
+                subscriptionQrBitmap(qr)?.let { bmp ->
+                    Image(
+                        bmp.asImageBitmap(),
+                        contentDescription = "QR thanh toán",
+                        modifier = Modifier.size(200.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp),
+                    )
+                }
+            }
+            PremiumSurfaceCard(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    subscriptionInfoLine("Số tiền", FormatUtils.formatVnd(info.amount))
+                    info.original_amount?.takeIf { (info.discount_amount ?: 0.0) > 0 }?.let {
+                        subscriptionInfoLine("Giá gốc", FormatUtils.formatVnd(it))
+                        subscriptionInfoLine("Giảm giá", "-${FormatUtils.formatVnd(info.discount_amount)}")
+                    }
+                    info.account_number?.let { subscriptionInfoLine("Số tài khoản", it) }
+                    info.account_name?.let { subscriptionInfoLine("Chủ tài khoản", it) }
+                    info.transfer_content?.let { subscriptionInfoLine("Nội dung CK", it) }
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                OrangeLoadingSpinner()
+                Text("Đang chờ xác nhận thanh toán…", fontSize = 13.sp, color = PremiumColors.Muted)
+            }
+        }
+    }
+}
+
+@Composable
+private fun subscriptionInfoLine(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 13.sp, color = PremiumColors.TextMuted, modifier = Modifier.weight(1f))
+        Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink)
+    }
+}
+
+private fun subscriptionQrBitmap(content: String): Bitmap? = runCatching {
+    val size = 600
+    val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, size, size)
+    val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.RGB_565)
+    for (x in 0 until size) for (y in 0 until size) {
+        bmp.setPixel(x, y, if (matrix[x, y]) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+    }
+    bmp
+}.getOrNull()
+
+private fun applicableUpgradeVouchers(overview: UserSubscriptionOverview, packageId: String): List<Promotion> {
+    val cycle = overview.packages.firstOrNull { it.id == packageId }?.billing_cycle
+    return overview.vouchers.filter { voucherAppliesToUpgradePackage(it, cycle) }
+}
+
+private fun voucherAppliesToUpgradePackage(voucher: Promotion, billingCycle: String?): Boolean {
+    return when (voucher.applicability ?: "hotel_places") {
+        "user_subscription" -> true
+        "pro_plan" -> {
+            val cycle = voucher.billing_cycle ?: "both"
+            cycle == "both" || cycle == billingCycle
+        }
+        else -> false
+    }
+}
+
+private fun upgradeDiscountAmount(voucher: Promotion?, original: Double): Double {
+    if (voucher == null) return 0.0
+    val byPercent = if ((voucher.discount_percent ?: 0.0) > 0) original * (voucher.discount_percent ?: 0.0) / 100 else 0.0
+    val byAmount = voucher.discount_amount ?: 0.0
+    return minOf(original, maxOf(byPercent, byAmount))
+}
+
+@Composable
 fun SettingsScreen(onBack: () -> Unit) {
+    var overview by remember { mutableStateOf<UserSubscriptionOverview?>(null) }
+    var autoRenew by remember { mutableStateOf(true) }
+    var loading by remember { mutableStateOf(true) }
+    var saving by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun load() {
+        loading = true
+        runCatching { ApiClient.userSubscription() }
+            .onSuccess {
+                overview = it
+                autoRenew = it.auto_renew
+            }
+        loading = false
+    }
+
+    LaunchedEffect(Unit) { load() }
+
     com.wandertale.mobile.ui.components.AppScaffold(title = "Cài đặt", onBack = onBack) { padding ->
-        Column(padding.padding(PremiumDesign.ScreenPadding)) {
-            Text("Thông báo chuyến đi — sắp ra mắt", style = MaterialTheme.typography.bodyMedium)
+        Column(
+            modifier = Modifier
+                .padding(padding)
+                .padding(PremiumDesign.ScreenPadding),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            PremiumSurfaceCard {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Gói WanderTale Pro", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    when {
+                        loading -> OrangeLoadingSpinner()
+                        overview?.is_premium == true -> {
+                            Text("Bạn đang dùng Pro.", color = PremiumColors.Muted, fontSize = 14.sp)
+                            overview?.subscription_expires_at?.let {
+                                Text(
+                                    "Hết hạn: ${it.take(10)}",
+                                    color = PremiumColors.Accent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                            }
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text("Tự động gia hạn", fontSize = 15.sp)
+                                androidx.compose.material3.Switch(
+                                    checked = autoRenew,
+                                    onCheckedChange = { enabled ->
+                                        scope.launch {
+                                            saving = true
+                                            message = null
+                                            val previous = autoRenew
+                                            autoRenew = enabled
+                                            runCatching { ApiClient.updateUserSubscriptionAutoRenew(enabled) }
+                                                .onSuccess {
+                                                    autoRenew = it.auto_renew
+                                                    message = if (enabled) "Đã bật tự động gia hạn." else "Đã tắt tự động gia hạn."
+                                                }
+                                                .onFailure {
+                                                    autoRenew = previous
+                                                    message = it.message ?: "Không cập nhật được gia hạn"
+                                                }
+                                            saving = false
+                                        }
+                                    },
+                                    enabled = !saving,
+                                )
+                            }
+                            Text(
+                                "Khi bật, gói sẽ tự gia hạn khi hết hạn. Tắt nếu bạn không muốn gia hạn thêm.",
+                                color = PremiumColors.TextMuted,
+                                fontSize = 13.sp,
+                            )
+                        }
+                        else -> Text(
+                            "Bạn đang dùng gói Free. Nâng cấp Pro tại tab Hồ sơ.",
+                            color = PremiumColors.Muted,
+                            fontSize = 14.sp,
+                        )
+                    }
+                    message?.let {
+                        Text(it, color = PremiumColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            PremiumSurfaceCard {
+                Text("Thông báo chuyến đi — sắp ra mắt", style = MaterialTheme.typography.bodyMedium)
+            }
         }
     }
 }

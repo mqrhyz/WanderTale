@@ -85,7 +85,7 @@ struct AdOrder: Codable, Identifiable {
     var ends_at: String?
 }
 
-struct UserSubscriptionPackage: Codable, Identifiable {
+struct UserSubscriptionPackage: Decodable, Identifiable {
     let id: String
     var name: String
     var tier: String?
@@ -93,21 +93,105 @@ struct UserSubscriptionPackage: Codable, Identifiable {
     var price_vnd: Double
     var duration_days: Int?
     var benefits: [String] = []
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, tier, billing_cycle, price_vnd, duration_days, benefits
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        tier = try c.decodeIfPresent(String.self, forKey: .tier)
+        billing_cycle = try c.decodeIfPresent(String.self, forKey: .billing_cycle)
+        price_vnd = try c.decodeLossyDouble(forKey: .price_vnd)
+        duration_days = try c.decodeLossyIntIfPresent(forKey: .duration_days)
+        benefits = try c.decodeIfPresent([String].self, forKey: .benefits) ?? []
+    }
 }
 
-struct UserSubscriptionOverview: Codable {
+struct UserSubscriptionOverview: Decodable {
     var is_premium: Bool = false
     var tier: String = "free"
     var subscription_expires_at: String?
+    var auto_renew: Bool = true
     var monthly_trip_count: Int = 0
     var monthly_trip_limit: Int?
     var packages: [UserSubscriptionPackage] = []
     var vouchers: [Promotion] = []
+
+    enum CodingKeys: String, CodingKey {
+        case is_premium, tier, subscription_expires_at, auto_renew
+        case monthly_trip_count, monthly_trip_limit, packages, vouchers
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        is_premium = try c.decodeIfPresent(Bool.self, forKey: .is_premium) ?? false
+        tier = try c.decodeIfPresent(String.self, forKey: .tier) ?? "free"
+        subscription_expires_at = try c.decodeIfPresent(String.self, forKey: .subscription_expires_at)
+        auto_renew = try c.decodeIfPresent(Bool.self, forKey: .auto_renew) ?? true
+        monthly_trip_count = try c.decodeLossyIntIfPresent(forKey: .monthly_trip_count) ?? 0
+        monthly_trip_limit = try c.decodeLossyIntIfPresent(forKey: .monthly_trip_limit)
+        packages = try c.decodeIfPresent([UserSubscriptionPackage].self, forKey: .packages) ?? []
+        vouchers = try c.decodeIfPresent([Promotion].self, forKey: .vouchers) ?? []
+    }
 }
 
 struct UserSubscriptionPurchaseRequest: Codable {
     var package_id: String
     var voucher_id: String?
+}
+
+struct UserSubscriptionAutoRenewPatch: Codable {
+    var auto_renew: Bool
+}
+
+struct UserSubscriptionAutoRenewResponse: Codable {
+    var auto_renew: Bool
+}
+
+struct SubscriptionActivated: Codable {
+    var ok: Bool?
+    var tier: String?
+    var subscription_expires_at: String?
+}
+
+struct UserSubscriptionPurchaseResponse: Decodable {
+    var payment_status: String?
+    var checkout_url: String?
+    var qr_code: String?
+    var account_number: String?
+    var account_name: String?
+    var amount: Double?
+    var original_amount: Double?
+    var discount_amount: Double?
+    var transfer_content: String?
+    var order_code: Int?
+    var transaction_id: String?
+    var subscription: SubscriptionActivated?
+
+    enum CodingKeys: String, CodingKey {
+        case payment_status, checkout_url, qr_code, account_number, account_name
+        case amount, original_amount, discount_amount, transfer_content, order_code
+        case transaction_id, subscription
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        payment_status = try c.decodeIfPresent(String.self, forKey: .payment_status)
+        checkout_url = try c.decodeIfPresent(String.self, forKey: .checkout_url)
+        qr_code = try c.decodeIfPresent(String.self, forKey: .qr_code)
+        account_number = try c.decodeIfPresent(String.self, forKey: .account_number)
+        account_name = try c.decodeIfPresent(String.self, forKey: .account_name)
+        amount = try c.decodeLossyDoubleIfPresent(forKey: .amount)
+        original_amount = try c.decodeLossyDoubleIfPresent(forKey: .original_amount)
+        discount_amount = try c.decodeLossyDoubleIfPresent(forKey: .discount_amount)
+        transfer_content = try c.decodeIfPresent(String.self, forKey: .transfer_content)
+        order_code = try c.decodeIfPresent(Int.self, forKey: .order_code)
+        transaction_id = try c.decodeIfPresent(String.self, forKey: .transaction_id)
+        subscription = try c.decodeIfPresent(SubscriptionActivated.self, forKey: .subscription)
+    }
 }
 
 struct AdminUserRow: Codable, Identifiable {

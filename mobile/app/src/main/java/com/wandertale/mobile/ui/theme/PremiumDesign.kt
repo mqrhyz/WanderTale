@@ -19,7 +19,7 @@ object PremiumDesign {
     val SoftShadowColor = Color(0x12000000)
 
     val NavBarHeight = 76.dp
-    val NavFabSize = 54.dp
+    val NavFabSize = 60.dp
     val NavFabOffsetUp = 6.dp
     val NavIconSize = 22.dp
     val BottomNavDrop = 8.dp

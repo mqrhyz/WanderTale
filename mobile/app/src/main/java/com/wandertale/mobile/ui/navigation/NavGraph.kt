@@ -324,6 +324,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             )
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.SAVED_OFFERS) { SavedOffersScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.BOOKING) { MyBookingsScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.ADMIN) {
             AdminPortalScreen(

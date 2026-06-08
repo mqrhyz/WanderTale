@@ -89,27 +89,47 @@ function mapVoucher(v: VoucherRow) {
   const meta = metadata(v);
   return {
     id: String(v.id),
-    code: v.code,
-    title: v.title,
+    code: String(v.code ?? ""),
+    title: String(v.title ?? "Voucher"),
     description: v.description ?? null,
-    discount_percent: v.discount_percent ?? null,
-    discount_amount: v.discount_amount ?? null,
+    discount_percent: v.discount_percent != null ? Number(v.discount_percent) : null,
+    discount_amount: v.discount_amount != null ? Number(v.discount_amount) : null,
     valid_from: v.valid_from ?? null,
     valid_until: v.valid_until ?? null,
     applicability: String(meta.applicability ?? "hotel_places"),
     billing_cycle: String(meta.billing_cycle ?? "both"),
+    is_saved: true,
   };
+}
+
+async function fetchSubscriptionProfile(userId: string) {
+  const sb = getSupabaseAdmin();
+  const full = await sb
+    .from("profiles")
+    .select("id,is_premium,subscription_tier,subscription_expires_at,subscription_auto_renew")
+    .eq("id", userId)
+    .maybeSingle();
+  if (full.error?.message?.includes("subscription_auto_renew")) {
+    const fallback = await sb
+      .from("profiles")
+      .select("id,is_premium,subscription_tier,subscription_expires_at")
+      .eq("id", userId)
+      .maybeSingle();
+    if (fallback.error) throw fallback.error;
+    return {
+      ...(fallback.data as Record<string, unknown>),
+      subscription_auto_renew: true,
+    };
+  }
+  if (full.error) throw full.error;
+  return full.data as Record<string, unknown> | null;
 }
 
 export async function getUserSubscriptionOverview(userId: string) {
   const sb = getSupabaseAdmin();
   const today = new Date().toISOString().slice(0, 10);
-  const [{ data: profile }, { count }, { data: saved }] = await Promise.all([
-    sb
-      .from("profiles")
-      .select("id,is_premium,subscription_tier,subscription_expires_at")
-      .eq("id", userId)
-      .maybeSingle(),
+  const [profile, { count }, { data: saved }] = await Promise.all([
+    fetchSubscriptionProfile(userId),
     sb
       .from("trips")
       .select("id", { count: "exact", head: true })
@@ -121,7 +141,7 @@ export async function getUserSubscriptionOverview(userId: string) {
       .eq("user_id", userId),
   ]);
 
-  const active = isProfilePro(profile as Record<string, unknown> | null);
+  const active = isProfilePro(profile);
   const vouchers = (saved ?? [])
     .map((r) => (Array.isArray(r.vouchers) ? r.vouchers[0] : r.vouchers) as VoucherRow | null)
     .filter((v): v is VoucherRow => Boolean(v?.id))
@@ -136,9 +156,13 @@ export async function getUserSubscriptionOverview(userId: string) {
     is_premium: active,
     tier: active ? "pro" : "free",
     subscription_expires_at: active ? profile?.subscription_expires_at ?? null : null,
+    auto_renew: profile?.subscription_auto_renew !== false,
     monthly_trip_count: count ?? 0,
     monthly_trip_limit: active ? null : FREE_MONTHLY_TRIP_LIMIT,
-    packages: USER_SUBSCRIPTION_PACKAGES,
+    packages: USER_SUBSCRIPTION_PACKAGES.map((p) => ({
+      ...p,
+      price_vnd: Number(p.price_vnd),
+    })),
     vouchers,
   };
 }
@@ -173,6 +197,7 @@ export async function activateUserSubscriptionByTransaction(txId: string) {
       is_premium: true,
       subscription_tier: "pro",
       subscription_expires_at: ends.toISOString(),
+      subscription_auto_renew: true,
     })
     .eq("id", tx.user_id);
   await sb.from("platform_transactions").update({ status: "captured" }).eq("id", txId);
@@ -278,4 +303,19 @@ export async function purchaseUserSubscription(userId: string, input: { package_
     order_code: orderCode,
     transaction_id: tx.id,
   };
+}
+
+export async function updateUserSubscriptionAutoRenew(userId: string, autoRenew: boolean) {
+  const { error } = await getSupabaseAdmin()
+    .from("profiles")
+    .update({ subscription_auto_renew: autoRenew })
+    .eq("id", userId);
+  if (error) throw error;
+  await logSystemEvent({
+    level: "info",
+    title: autoRenew ? "User enabled subscription auto-renew" : "User disabled subscription auto-renew",
+    source: "user_subscription",
+    metadata: { user_id: userId, auto_renew: autoRenew },
+  });
+  return { auto_renew: autoRenew };
 }

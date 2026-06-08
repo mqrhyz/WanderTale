@@ -29,9 +29,14 @@ extension ApiService {
         try await request(path: "/api/user/subscription")
     }
 
-    static func purchaseUserSubscription(packageId: String, voucherId: String?) async throws -> AdPurchaseResponse {
+    static func purchaseUserSubscription(packageId: String, voucherId: String?) async throws -> UserSubscriptionPurchaseResponse {
         let data = try JSONEncoder().encode(UserSubscriptionPurchaseRequest(package_id: packageId, voucher_id: voucherId))
         return try await request(path: "/api/user/subscription/purchase", method: "POST", body: data)
+    }
+
+    static func updateUserSubscriptionAutoRenew(_ enabled: Bool) async throws -> UserSubscriptionAutoRenewResponse {
+        let data = try JSONEncoder().encode(UserSubscriptionAutoRenewPatch(auto_renew: enabled))
+        return try await request(path: "/api/user/subscription/auto-renew", method: "PATCH", body: data)
     }
 
     static func businessCampaigns() async throws -> BusinessCampaignList {
@@ -223,6 +228,11 @@ extension ApiService {
 
     static func promotionHome() async throws -> PromotionHomePayload {
         try await request(path: "/api/promotions")
+    }
+
+    static func savedPromotionVouchers() async throws -> [Promotion] {
+        let list: PromotionList = try await request(path: "/api/promotions/saved")
+        return list.items
     }
 
     static func promotionPost(id: String) async throws -> PromotionPost {

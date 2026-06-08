@@ -8,6 +8,13 @@ struct ProfileView: View {
     @State private var saved = false
     @State private var saveError: String?
     @State private var showUpgrade = false
+    @State private var isProMember = false
+
+    private var isPremium: Bool {
+        isProMember
+            || appState.accountInfo?.profile?.is_premium == true
+            || appState.accountInfo?.profile?.subscription_tier?.lowercased() == "pro"
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -42,6 +49,8 @@ struct ProfileView: View {
                 VStack(spacing: 0) {
                     settingsRow("Cài đặt", icon: "gearshape.fill") { path.append(Route.settings) }
                     divider
+                    settingsRow("Ưu đãi", icon: "tag.fill") { path.append(Route.savedOffers) }
+                    divider
                     settingsRow("Thông báo", icon: "bell.fill") { }
                     divider
                     settingsRow("Trợ giúp & FAQ", icon: "questionmark.circle.fill") { }
@@ -75,6 +84,14 @@ struct ProfileView: View {
         .appTabRoot()
         .onAppear {
             phone = appState.accountInfo?.phone ?? ""
+            Task { await refreshProStatus() }
+        }
+    }
+
+    private func refreshProStatus() async {
+        await appState.loadAccountInfo()
+        if let overview = try? await ApiService.userSubscription() {
+            isProMember = overview.is_premium
         }
     }
 
@@ -89,23 +106,31 @@ struct ProfileView: View {
                         .foregroundStyle(PremiumTheme.accent)
                 )
 
-            Text(appState.accountInfo?.displayName ?? appState.displayName)
-                .font(.system(size: 17, weight: .bold))
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                Text(appState.accountInfo?.displayName ?? appState.displayName)
+                    .font(.system(size: 17, weight: .bold))
+                    .lineLimit(1)
+
+                if isPremium {
+                    ProMemberBadge()
+                }
+            }
 
             Spacer(minLength: 0)
 
-            Button { showUpgrade = true } label: {
-                Image("UpgradeIcon")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 58, height: 58)
+            if !isPremium {
+                Button { showUpgrade = true } label: {
+                    Image("UpgradeIcon")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 128, height: 58)
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .sheet(isPresented: $showUpgrade) {
             UserUpgradeSheet {
-                await appState.loadAccountInfo()
+                await refreshProStatus()
             }
         }
     }
@@ -205,16 +230,17 @@ struct ProfileView: View {
     }
 }
 
-private struct UserUpgradeSheet: View {
+struct UserUpgradeSheet: View {
     let onPurchased: () async -> Void
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openURL) private var openURL
     @State private var overview: UserSubscriptionOverview?
     @State private var selectedPackageId = "pro_monthly"
     @State private var selectedVoucherId = ""
     @State private var loading = true
     @State private var paying = false
     @State private var message: String?
+    @State private var paymentResult: UserSubscriptionPurchaseResponse?
+    @State private var showPayment = false
 
     var body: some View {
         NavigationStack {
@@ -226,11 +252,15 @@ private struct UserUpgradeSheet: View {
                         planHeader(overview)
                         packagePicker(overview)
                         voucherPicker(overview)
+                        priceSummary(overview)
                         benefits(overview)
+                        Text("Gói Pro mặc định tự động gia hạn. Bạn có thể tắt trong Cài đặt bất cứ lúc nào.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(PremiumTheme.textMuted)
                         Button {
                             Task { await purchase() }
                         } label: {
-                            Text(paying ? "Đang tạo thanh toán..." : "Thanh toán / nâng cấp")
+                            Text(purchaseButtonTitle(overview))
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
@@ -238,7 +268,7 @@ private struct UserUpgradeSheet: View {
                                 .background(PremiumTheme.accent)
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
-                        .disabled(paying)
+                        .disabled(paying || overview.is_premium)
                     }
                     if let message {
                         Text(message)
@@ -253,6 +283,19 @@ private struct UserUpgradeSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button("Đóng") { dismiss() } } }
             .task { await load() }
+            .sheet(isPresented: $showPayment) {
+                if let paymentResult {
+                    SubscriptionPaymentSheet(response: paymentResult) {
+                        Task {
+                            await onPurchased()
+                            await load()
+                        }
+                    }
+                }
+            }
+            .onChange(of: selectedPackageId) { _, _ in
+                selectedVoucherId = ""
+            }
         }
     }
 
@@ -267,6 +310,13 @@ private struct UserUpgradeSheet: View {
                      : "Free còn \(max(0, (overview.monthly_trip_limit ?? 5) - overview.monthly_trip_count))/\(overview.monthly_trip_limit ?? 5) chuyến trong tháng này.")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(PremiumTheme.muted)
+                if overview.is_premium {
+                    Text(overview.auto_renew
+                         ? "Gói sẽ tự động gia hạn. Bạn có thể tắt trong Cài đặt."
+                         : "Gia hạn tự động đã tắt. Gói hết hạn sẽ không gia hạn thêm.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(PremiumTheme.textMuted)
+                }
                 if let expires = overview.subscription_expires_at {
                     Text("Hết hạn: \(expires.prefix(10))")
                         .font(.system(size: 13, weight: .semibold))
@@ -302,22 +352,86 @@ private struct UserUpgradeSheet: View {
     }
 
     private func voucherPicker(_ overview: UserSubscriptionOverview) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Voucher của bạn").font(.system(size: 15, weight: .bold))
-            if overview.vouchers.isEmpty {
-                Text("Chưa có voucher subscription/Pro đã lưu.")
+        let vouchers = applicableVouchers(overview)
+        return VStack(alignment: .leading, spacing: 10) {
+            Text("Voucher đã lưu").font(.system(size: 15, weight: .bold))
+            Text("Lưu voucher Pro ở mục Khám phá ưu đãi trên Trang chủ trước khi áp dụng khi nâng cấp.")
+                .font(.system(size: 12))
+                .foregroundStyle(PremiumTheme.textMuted)
+            if vouchers.isEmpty {
+                Text("Chưa có voucher Pro/subscription phù hợp gói đã chọn.")
                     .font(.system(size: 13))
                     .foregroundStyle(PremiumTheme.muted)
             } else {
                 Picker("Voucher", selection: $selectedVoucherId) {
                     Text("Không áp dụng").tag("")
-                    ForEach(overview.vouchers) { voucher in
+                    ForEach(vouchers) { voucher in
                         Text("\(voucher.code) · \(upgradeDiscountText(voucher))").tag(voucher.id)
                     }
                 }
                 .pickerStyle(.menu)
             }
         }
+    }
+
+    private func priceSummary(_ overview: UserSubscriptionOverview) -> some View {
+        guard let pkg = overview.packages.first(where: { $0.id == selectedPackageId }) ?? overview.packages.first else {
+            return AnyView(EmptyView())
+        }
+        let original = pkg.price_vnd
+        let voucher = applicableVouchers(overview).first(where: { $0.id == selectedVoucherId })
+        let discount = upgradeDiscountAmount(voucher, original: original)
+        let finalAmount = max(0, original - discount)
+        return AnyView(
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Tạm tính").font(.system(size: 15, weight: .bold))
+                HStack {
+                    Text("Giá gói")
+                    Spacer()
+                    Text(FormatUtils.formatVnd(original))
+                }
+                .font(.system(size: 13))
+                if discount > 0 {
+                    HStack {
+                        Text("Voucher")
+                        Spacer()
+                        Text("-\(FormatUtils.formatVnd(discount))")
+                            .foregroundStyle(PremiumTheme.accent)
+                    }
+                    .font(.system(size: 13))
+                }
+                HStack {
+                    Text("Thanh toán")
+                        .font(.system(size: 14, weight: .bold))
+                    Spacer()
+                    Text(finalAmount <= 0 ? "Miễn phí" : FormatUtils.formatVnd(finalAmount))
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundStyle(PremiumTheme.accent)
+                }
+            }
+            .padding(14)
+            .background(PremiumTheme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(PremiumTheme.border))
+        )
+    }
+
+    private func purchaseButtonTitle(_ overview: UserSubscriptionOverview) -> String {
+        if paying { return "Đang xử lý..." }
+        if overview.is_premium { return "Đang dùng Pro" }
+        guard let pkg = overview.packages.first(where: { $0.id == selectedPackageId }) else {
+            return "Thanh toán / nâng cấp"
+        }
+        let voucher = applicableVouchers(overview).first(where: { $0.id == selectedVoucherId })
+        let finalAmount = max(0, pkg.price_vnd - upgradeDiscountAmount(voucher, original: pkg.price_vnd))
+        return finalAmount <= 0 ? "Nâng cấp miễn phí" : "Thanh toán / nâng cấp"
+    }
+
+    private func applicableVouchers(_ overview: UserSubscriptionOverview) -> [Promotion] {
+        guard let cycle = overview.packages.first(where: { $0.id == selectedPackageId })?.billing_cycle else {
+            return overview.vouchers
+        }
+        return overview.vouchers.filter { voucherAppliesToPackage($0, billingCycle: cycle) }
     }
 
     private func benefits(_ overview: UserSubscriptionOverview) -> some View {
@@ -352,17 +466,25 @@ private struct UserUpgradeSheet: View {
         paying = true; message = nil
         defer { paying = false }
         do {
-            let result = try await ApiService.purchaseUserSubscription(packageId: selectedPackageId, voucherId: selectedVoucherId.isEmpty ? nil : selectedVoucherId)
-            if let url = result.checkout_url, let parsed = URL(string: url) {
-                openURL(parsed)
-                message = "Đã mở cổng thanh toán. Sau khi thanh toán xong, quay lại app để kiểm tra Pro."
-            } else {
+            let result = try await ApiService.purchaseUserSubscription(
+                packageId: selectedPackageId,
+                voucherId: selectedVoucherId.isEmpty ? nil : selectedVoucherId
+            )
+            if result.payment_status == "paid" || result.subscription != nil {
                 message = "Đã nâng cấp Pro."
                 await onPurchased()
                 await load()
+            } else if result.qr_code != nil || result.account_number != nil {
+                paymentResult = result
+                showPayment = true
+            } else {
+                message = "Không tạo được thông tin thanh toán. Thử lại sau."
             }
         } catch {
-            message = formatApiError(error, fallback: "Không tạo được thanh toán")
+            let text = formatApiError(error, fallback: "Không tạo được thanh toán")
+            message = text.contains("voucher_not_applicable")
+                ? "Voucher không áp dụng cho gói này. Hãy chọn voucher đã lưu phù hợp."
+                : text
         }
     }
 }
@@ -373,19 +495,138 @@ private func upgradeDiscountText(_ promo: Promotion) -> String {
     return "Ưu đãi"
 }
 
-struct SettingsView: View {
+private func upgradeDiscountAmount(_ promo: Promotion?, original: Double) -> Double {
+    guard let promo else { return 0 }
+    let byPercent = (promo.discount_percent ?? 0) > 0
+        ? original * (promo.discount_percent ?? 0) / 100
+        : 0
+    let byAmount = promo.discount_amount ?? 0
+    return min(original, max(byPercent, byAmount)).rounded()
+}
+
+private func voucherAppliesToPackage(_ voucher: Promotion, billingCycle: String?) -> Bool {
+    switch voucher.applicability ?? "hotel_places" {
+    case "user_subscription":
+        return true
+    case "pro_plan":
+        let cycle = voucher.billing_cycle ?? "both"
+        return cycle == "both" || cycle == billingCycle
+    default:
+        return false
+    }
+}
+
+struct ProMemberBadge: View {
     var body: some View {
-        PremiumSurfaceCard {
-            Text("Thông báo chuyến đi — sắp ra mắt")
-                .font(.system(size: 14))
-                .foregroundStyle(PremiumTheme.textMuted)
-                .padding(.vertical, 8)
+        HStack(spacing: 4) {
+            Image(systemName: "crown.fill")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundStyle(Color(red: 1.0, green: 0.82, blue: 0.22))
+            Text("PRO")
+                .font(.system(size: 11, weight: .heavy))
+                .foregroundStyle(.white)
         }
-        .padding(PremiumTheme.screenPadding)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(
+            LinearGradient(
+                colors: [Color(red: 0.49, green: 0.32, blue: 0.92), Color(red: 0.58, green: 0.38, blue: 0.98)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        )
+        .clipShape(Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.28), lineWidth: 0.8))
+    }
+}
+
+struct SettingsView: View {
+    @State private var overview: UserSubscriptionOverview?
+    @State private var autoRenew = true
+    @State private var loading = true
+    @State private var saving = false
+    @State private var message: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                PremiumSurfaceCard {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Gói WanderTale Pro")
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(PremiumTheme.ink)
+                        if loading {
+                            ProgressView().tint(PremiumTheme.accent)
+                        } else if overview?.is_premium == true {
+                            Text("Bạn đang dùng Pro.")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(PremiumTheme.muted)
+                            overview?.subscription_expires_at.map {
+                                Text("Hết hạn: \(String($0.prefix(10)))")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(PremiumTheme.accent)
+                            }
+                            Toggle("Tự động gia hạn", isOn: Binding(
+                                get: { autoRenew },
+                                set: { newValue in Task { await updateAutoRenew(newValue) } }
+                            ))
+                            .disabled(saving)
+                            Text("Khi bật, gói sẽ tự gia hạn khi hết hạn. Tắt nếu bạn không muốn gia hạn thêm.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(PremiumTheme.textMuted)
+                        } else {
+                            Text("Bạn đang dùng gói Free. Nâng cấp Pro tại tab Hồ sơ.")
+                                .font(.system(size: 14))
+                                .foregroundStyle(PremiumTheme.muted)
+                        }
+                        message.map {
+                            Text($0)
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(PremiumTheme.accent)
+                        }
+                    }
+                    .padding(.vertical, 8)
+                }
+
+                PremiumSurfaceCard {
+                    Text("Thông báo chuyến đi — sắp ra mắt")
+                        .font(.system(size: 14))
+                        .foregroundStyle(PremiumTheme.textMuted)
+                        .padding(.vertical, 8)
+                }
+            }
+            .padding(PremiumTheme.screenPadding)
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(PremiumTheme.bg)
         .navigationTitle("Cài đặt")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await load() }
+    }
+
+    private func load() async {
+        loading = true
+        defer { loading = false }
+        guard let data = try? await ApiService.userSubscription() else { return }
+        overview = data
+        autoRenew = data.auto_renew
+    }
+
+    private func updateAutoRenew(_ enabled: Bool) async {
+        saving = true
+        message = nil
+        let previous = autoRenew
+        autoRenew = enabled
+        do {
+            let response = try await ApiService.updateUserSubscriptionAutoRenew(enabled)
+            autoRenew = response.auto_renew
+            overview?.auto_renew = response.auto_renew
+            message = enabled ? "Đã bật tự động gia hạn." : "Đã tắt tự động gia hạn."
+        } catch {
+            autoRenew = previous
+            message = formatApiError(error, fallback: "Không cập nhật được gia hạn")
+        }
+        saving = false
     }
 }
 

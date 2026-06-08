@@ -385,7 +385,25 @@ func formatApiError(_ error: Error, fallback: String) -> String {
             return urlError.localizedDescription
         }
     }
-    if error is DecodingError {
+    if let decoding = error as? DecodingError {
+        switch decoding {
+        case .keyNotFound(let key, _):
+            return "Thiếu trường dữ liệu API: \(key.stringValue)."
+        case .typeMismatch(_, let context):
+            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return path.isEmpty
+                ? "Dữ liệu API không khớp kiểu dữ liệu."
+                : "Dữ liệu API không khớp tại \(path)."
+        case .valueNotFound(_, let context):
+            let path = context.codingPath.map(\.stringValue).joined(separator: ".")
+            return path.isEmpty
+                ? "Thiếu giá trị trong phản hồi API."
+                : "Thiếu giá trị API tại \(path)."
+        case .dataCorrupted(let context):
+            return context.debugDescription
+        @unknown default:
+            break
+        }
         return "Phản hồi API không đúng định dạng từ \(AppConfig.apiURL)."
     }
     let text = error.localizedDescription.trimmingCharacters(in: .whitespacesAndNewlines)

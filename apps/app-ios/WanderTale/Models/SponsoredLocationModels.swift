@@ -102,6 +102,43 @@ struct Promotion: Codable, Identifiable {
     var is_saved: Bool?
     var applicability: String?
     var billing_cycle: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id, code, title, description, discount_percent, discount_amount
+        case valid_from, valid_until, partner_name, is_saved, applicability, billing_cycle
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        code = try c.decodeIfPresent(String.self, forKey: .code) ?? ""
+        title = try c.decodeIfPresent(String.self, forKey: .title) ?? "Voucher"
+        description = try c.decodeIfPresent(String.self, forKey: .description)
+        discount_percent = try c.decodeLossyDoubleIfPresent(forKey: .discount_percent)
+        discount_amount = try c.decodeLossyDoubleIfPresent(forKey: .discount_amount)
+        valid_from = try c.decodeIfPresent(String.self, forKey: .valid_from)
+        valid_until = try c.decodeIfPresent(String.self, forKey: .valid_until)
+        partner_name = try c.decodeIfPresent(String.self, forKey: .partner_name)
+        is_saved = try c.decodeIfPresent(Bool.self, forKey: .is_saved)
+        applicability = try c.decodeIfPresent(String.self, forKey: .applicability)
+        billing_cycle = try c.decodeIfPresent(String.self, forKey: .billing_cycle)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .id)
+        try c.encode(code, forKey: .code)
+        try c.encode(title, forKey: .title)
+        try c.encodeIfPresent(description, forKey: .description)
+        try c.encodeIfPresent(discount_percent, forKey: .discount_percent)
+        try c.encodeIfPresent(discount_amount, forKey: .discount_amount)
+        try c.encodeIfPresent(valid_from, forKey: .valid_from)
+        try c.encodeIfPresent(valid_until, forKey: .valid_until)
+        try c.encodeIfPresent(partner_name, forKey: .partner_name)
+        try c.encodeIfPresent(is_saved, forKey: .is_saved)
+        try c.encodeIfPresent(applicability, forKey: .applicability)
+        try c.encodeIfPresent(billing_cycle, forKey: .billing_cycle)
+    }
 }
 
 struct PromotionList: Codable {

@@ -30,6 +30,8 @@ struct MainTabView: View {
                         TripDetailView(tripId: id)
                     case .settings:
                         SettingsView()
+                    case .savedOffers:
+                        SavedOffersView()
                     case .admin:
                         AdminPortalView()
                     case .business:
@@ -121,6 +123,7 @@ private enum HomeRole {
 enum Route: Hashable {
     case tripDetail(String)
     case settings
+    case savedOffers
     case admin
     case business
     case booking

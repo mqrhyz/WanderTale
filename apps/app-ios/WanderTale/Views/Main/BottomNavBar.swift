@@ -136,9 +136,9 @@ struct WanderTaleBottomNav: View {
         Button(action: onCreate) {
             VStack(spacing: 2) {
                 Image(systemName: "plus")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 22, weight: .bold))
                     .foregroundStyle(.white)
-                    .frame(width: 34, height: 34)
+                    .frame(width: 42, height: 42)
                     .background {
                         Circle()
                             .fill(

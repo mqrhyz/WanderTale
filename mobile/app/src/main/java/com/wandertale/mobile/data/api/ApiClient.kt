@@ -63,6 +63,9 @@ import com.wandertale.mobile.data.model.ReviewReplyPatch
 import com.wandertale.mobile.data.model.SystemLogList
 import com.wandertale.mobile.data.model.TripRecord
 import com.wandertale.mobile.data.model.UserSubscriptionOverview
+import com.wandertale.mobile.data.model.UserSubscriptionPurchaseResponse
+import com.wandertale.mobile.data.model.UserSubscriptionAutoRenewPatch
+import com.wandertale.mobile.data.model.UserSubscriptionAutoRenewResponse
 import com.wandertale.mobile.data.model.UserSubscriptionPurchaseRequest
 import com.wandertale.mobile.data.model.UserRolePatch
 import com.wandertale.mobile.data.model.UserStatusPatch
@@ -267,12 +270,16 @@ object ApiClient {
     }
 
     suspend fun promotionHome(): PromotionHomePayload = portalGet("/api/promotions")
+    suspend fun savedPromotionVouchers(): List<Promotion> =
+        portalGet<PromotionList>("/api/promotions/saved").items
     suspend fun promotionPost(id: String): PromotionPost = portalGet("/api/promotions/posts/$id")
     suspend fun savePromotionVoucher(id: String): Map<String, Boolean> = portalPost("/api/promotions/vouchers/$id/save")
     suspend fun unsavePromotionVoucher(id: String): Map<String, Boolean> = portalDelete("/api/promotions/vouchers/$id/save")
 
     suspend fun userSubscription(): UserSubscriptionOverview = portalGet("/api/user/subscription")
-    suspend fun purchaseUserSubscription(packageId: String, voucherId: String?): AdPurchaseResponse =
+    suspend fun updateUserSubscriptionAutoRenew(enabled: Boolean): UserSubscriptionAutoRenewResponse =
+        portalPatch("/api/user/subscription/auto-renew", UserSubscriptionAutoRenewPatch(enabled))
+    suspend fun purchaseUserSubscription(packageId: String, voucherId: String?): UserSubscriptionPurchaseResponse =
         portalPost("/api/user/subscription/purchase", UserSubscriptionPurchaseRequest(packageId, voucherId))
 
     suspend fun businessOverview(): BusinessOverview = portalGet("/api/business/overview")

@@ -176,6 +176,9 @@ struct VoucherRow: Codable, Identifiable {
 
 struct ApiErrorBody: Codable {
     var message: String?
+    var error: String?
+
+    var resolvedMessage: String? { message ?? error }
 }
 
 enum TripPhase { case upcoming, ongoing, completed }

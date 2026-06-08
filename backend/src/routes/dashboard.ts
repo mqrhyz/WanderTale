@@ -4,6 +4,7 @@ import { dashboardStats } from "../services/tripService.js";
 import {
   getPromotionPost,
   listPromotionHome,
+  listSavedPromotionVouchers,
   savePromotionVoucher,
   unsavePromotionVoucher,
 } from "../services/promotionService.js";
@@ -20,6 +21,14 @@ export async function dashboardRoutes(app: FastifyInstance) {
   });
 
   /** Ưu đãi do admin quản lý: vouchers ngang + bài viết chương trình ưu đãi. */
+  app.get("/promotions/saved", { preHandler: requireAuth }, async (req, reply) => {
+    try {
+      return await listSavedPromotionVouchers(req.userId!);
+    } catch (e) {
+      return reply.code(500).send({ error: e instanceof Error ? e.message : "error" });
+    }
+  });
+
   app.get("/promotions", { preHandler: requireAuth }, async (req, reply) => {
     try {
       return await listPromotionHome(req.userId!);

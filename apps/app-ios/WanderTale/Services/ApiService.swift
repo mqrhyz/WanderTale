@@ -56,7 +56,7 @@ enum ApiService {
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ApiError(message: "Phản hồi không hợp lệ") }
         if http.statusCode >= 400 {
-            let msg = (try? decoder.decode(ApiErrorBody.self, from: data))?.message
+            let msg = (try? decoder.decode(ApiErrorBody.self, from: data))?.resolvedMessage
                 ?? String(data: data, encoding: .utf8)
                 ?? "HTTP \(http.statusCode)"
             throw ApiError(message: msg, statusCode: http.statusCode)
@@ -82,7 +82,7 @@ enum ApiService {
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ApiError(message: "Phản hồi không hợp lệ") }
         if http.statusCode >= 400 {
-            let msg = (try? decoder.decode(ApiErrorBody.self, from: data))?.message
+            let msg = (try? decoder.decode(ApiErrorBody.self, from: data))?.resolvedMessage
                 ?? String(data: data, encoding: .utf8)
                 ?? "Không xóa được chuyến"
             let error = ApiError(message: msg, statusCode: http.statusCode)
@@ -137,7 +137,7 @@ enum ApiService {
         let (responseData, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse else { throw ApiError(message: "Phản hồi không hợp lệ") }
         if http.statusCode >= 400 {
-            let msg = (try? decoder.decode(ApiErrorBody.self, from: responseData))?.message
+            let msg = (try? decoder.decode(ApiErrorBody.self, from: responseData))?.resolvedMessage
                 ?? String(data: responseData, encoding: .utf8)
                 ?? "HTTP \(http.statusCode)"
             throw ApiError(message: msg, statusCode: http.statusCode)

@@ -1,40 +1,60 @@
 import SwiftUI
 
 struct PromotionsSection: View {
+    @Environment(AppState.self) private var appState
     @State private var vouchers: [Promotion] = []
     @State private var posts: [PromotionPost] = []
     @State private var selectedPost: PromotionPost?
+    @State private var loading = true
+
+    private var isPremium: Bool {
+        appState.accountInfo?.profile?.is_premium == true
+            || appState.accountInfo?.profile?.subscription_tier?.lowercased() == "pro"
+    }
 
     var body: some View {
-        Group {
-            if !vouchers.isEmpty || !posts.isEmpty {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Khám phá ưu đãi dành riêng cho bạn")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(PremiumTheme.ink)
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Khám phá ưu đãi dành riêng cho bạn")
+                .font(.system(size: 20, weight: .bold))
+                .foregroundStyle(PremiumTheme.ink)
 
-                    if !vouchers.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(spacing: 12) {
-                                ForEach(vouchers) { promo in
-                                    PromotionVoucherCard(promo: promo) {
-                                        await toggleSave(promo)
-                                    }
+            if loading {
+                HStack {
+                    Spacer()
+                    ProgressView().tint(PremiumTheme.accent)
+                    Spacer()
+                }
+                .padding(.vertical, 8)
+            } else {
+                if !vouchers.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        LazyHStack(spacing: 12) {
+                            ForEach(vouchers) { promo in
+                                PromotionVoucherCard(promo: promo, carousel: true) {
+                                    await toggleSave(promo)
                                 }
                             }
                         }
-                        .frame(height: 142)
-                    }
-
-                    if !posts.isEmpty {
-                        PromotionPostMasonry(posts: posts) { post in
-                            selectedPost = post
-                        }
+                        .padding(.horizontal, 2)
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if !posts.isEmpty {
+                    PromotionPostMasonry(posts: posts) { post in
+                        selectedPost = post
+                    }
+                }
+
+                if vouchers.isEmpty && posts.isEmpty && isPremium {
+                    Text("Chưa có ưu đãi mới. Quay lại sau nhé!")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(PremiumTheme.muted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .task { await load() }
         .sheet(item: $selectedPost) { post in
             PromotionPostDetailSheet(post: post) { voucher in
@@ -44,6 +64,8 @@ struct PromotionsSection: View {
     }
 
     private func load() async {
+        loading = true
+        defer { loading = false }
         guard let payload = try? await ApiService.promotionHome() else { return }
         vouchers = payload.vouchers.isEmpty ? payload.items : payload.vouchers
         posts = payload.posts
@@ -102,63 +124,6 @@ private struct PromotionPostMasonry: View {
                 .frame(maxWidth: .infinity)
             }
         }
-    }
-}
-
-private struct PromotionVoucherCard: View {
-    let promo: Promotion
-    let onSave: () async -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 7) {
-                Image(systemName: "ticket.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(PremiumTheme.accent)
-                Text(promo.code)
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(PremiumTheme.accent)
-                    .lineLimit(1)
-            }
-            Text(promo.title)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(PremiumTheme.ink)
-                .lineLimit(2)
-            if let desc = promo.description, !desc.isEmpty {
-                Text(desc)
-                    .font(.system(size: 12))
-                    .foregroundStyle(PremiumTheme.muted)
-                    .lineLimit(2)
-            }
-            Text(applicabilityText(promo))
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(PremiumTheme.muted)
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            HStack {
-                Text(discountText(promo))
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(PremiumTheme.accent)
-                    .clipShape(Capsule())
-                Spacer()
-                Button {
-                    Task { await onSave() }
-                } label: {
-                    Image(systemName: promo.is_saved == true ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(PremiumTheme.accent)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
-        .frame(width: 226, height: 142, alignment: .topLeading)
-        .background(PremiumTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(PremiumTheme.border))
     }
 }
 
@@ -254,26 +219,5 @@ private struct PromotionPostDetailSheet: View {
                 }
             }
         }
-    }
-}
-
-private func discountText(_ promo: Promotion) -> String {
-    if let pct = promo.discount_percent, pct > 0 { return "Giảm \(Int(pct))%" }
-    if let amt = promo.discount_amount, amt > 0 { return "Giảm \(FormatUtils.formatVnd(amt))" }
-    return "Ưu đãi"
-}
-
-private func applicabilityText(_ promo: Promotion) -> String {
-    switch promo.applicability ?? "hotel_places" {
-    case "user_subscription":
-        return "Dùng cho subscription"
-    case "pro_plan":
-        switch promo.billing_cycle ?? "both" {
-        case "monthly": return "Pro theo tháng"
-        case "yearly": return "Pro theo năm"
-        default: return "Pro tháng/năm"
-        }
-    default:
-        return "Khách sạn/địa điểm"
     }
 }

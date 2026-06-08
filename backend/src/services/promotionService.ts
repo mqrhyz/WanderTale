@@ -96,6 +96,20 @@ async function savedVoucherIds(userId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((r) => String(r.voucher_id)));
 }
 
+export async function listSavedPromotionVouchers(userId: string) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("user_saved_vouchers")
+    .select("created_at,vouchers(id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,partners(name))")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const rows = (data ?? [])
+    .map((r) => (Array.isArray(r.vouchers) ? r.vouchers[0] : r.vouchers) as VoucherRow | null)
+    .filter((v): v is VoucherRow => Boolean(v?.id));
+  const saved = new Set(rows.map((v) => String(v.id)));
+  return { items: rows.map((v) => mapVoucher(v, saved)) };
+}
+
 export async function listPromotionHome(userId: string) {
   const sb = getSupabaseAdmin();
   const today = todayISO();

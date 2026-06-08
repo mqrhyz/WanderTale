@@ -110,6 +110,7 @@ data class UserSubscriptionOverview(
     val is_premium: Boolean = false,
     val tier: String = "free",
     val subscription_expires_at: String? = null,
+    val auto_renew: Boolean = true,
     val monthly_trip_count: Int = 0,
     val monthly_trip_limit: Int? = null,
     val packages: List<UserSubscriptionPackage> = emptyList(),
@@ -117,9 +118,30 @@ data class UserSubscriptionOverview(
 )
 
 @Serializable
+data class UserSubscriptionAutoRenewPatch(val auto_renew: Boolean)
+
+@Serializable
+data class UserSubscriptionAutoRenewResponse(val auto_renew: Boolean)
+
+@Serializable
 data class UserSubscriptionPurchaseRequest(
     val package_id: String,
     val voucher_id: String? = null,
+)
+
+@Serializable
+data class UserSubscriptionPurchaseResponse(
+    val payment_status: String? = null,
+    val checkout_url: String? = null,
+    val qr_code: String? = null,
+    val account_number: String? = null,
+    val account_name: String? = null,
+    val amount: Double? = null,
+    val original_amount: Double? = null,
+    val discount_amount: Double? = null,
+    val transfer_content: String? = null,
+    val order_code: Long? = null,
+    val transaction_id: String? = null,
 )
 
 @Serializable
