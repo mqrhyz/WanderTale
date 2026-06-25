@@ -1,5 +1,5 @@
 import type { TripGenerateInput } from "../schemas/trip.js";
-import { generateItinerary, type GeneratedItinerary } from "./openaiItinerary.js";
+import { generateItinerary, isFallbackSkeletonItinerary, type GeneratedItinerary } from "./openaiItinerary.js";
 import {
   markTripGenerationFailed,
   persistGeneratedTrip,
@@ -118,6 +118,34 @@ export async function enrichTripWithOtaInBackground(params: {
       : (params.suggestedPlaces ?? []);
 
     let itinerary = baseItinerary;
+
+    // Nếu skeleton ban đầu là fallback do Gemini lỗi/quota, thử sinh lại lịch đầy đủ
+    // trong nền khi đã có suggested places và context đầy đủ hơn.
+    if (isFallbackSkeletonItinerary(itinerary)) {
+      try {
+        const regenerated = await generateItinerary({
+          destination: body.destination,
+          dateRangeLabel: `${body.start_date} → ${body.end_date}`,
+          numDays: context.dates.length,
+          budget: body.budget,
+          preferences: body.preferences,
+          travelers: body.travelers,
+          pace: body.pace,
+          accommodation_style: body.accommodation_style,
+          weather: context.weather,
+          traffic: context.traffic,
+          places: context.places,
+          vouchers: context.vouchers,
+          suggestedPlaces,
+          hotelPricing: pendingHotelPricing(),
+        });
+        itinerary = regenerated;
+        console.info(`[trip-ota] regenerated fallback itinerary for trip=${tripId}`);
+      } catch (regenError) {
+        console.warn(`[trip-ota] failed to regenerate fallback itinerary for trip=${tripId}:`, regenError);
+      }
+    }
+
     if (suggestedPlaces.length > 0) {
       itinerary = applySpecificPlacesToAgenda(itinerary, suggestedPlaces);
     }

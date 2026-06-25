@@ -208,11 +208,10 @@ export async function geminiGenerateJsonFast(prompt: string): Promise<string> {
   return geminiGenerateWithModels(prompt, fastModelsToTry(), env.GEMINI_FAST_TIMEOUT_MS);
 }
 
-/** Skeleton staged — fail nhanh → fallback lịch khung nếu Gemini lỗi. */
+/** Skeleton staged — thử nhiều model/key hơn trước khi fallback lịch khung. */
 export async function geminiGenerateJsonSkeleton(prompt: string): Promise<string> {
-  const fast = env.GEMINI_FAST_MODEL?.trim() || "gemini-2.5-flash-lite";
-  return geminiGenerateWithModels(prompt, [fast], env.GEMINI_SKELETON_TIMEOUT_MS, {
-    maxAttemptsPerKey: 1,
+  return geminiGenerateWithModels(prompt, fastModelsToTry(), env.GEMINI_SKELETON_TIMEOUT_MS, {
+    maxAttemptsPerKey: 2,
     maxKeys: usesVertexGemini() ? undefined : 3,
   });
 }

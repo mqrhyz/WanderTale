@@ -202,82 +202,138 @@ function parseTripStartDate(dateRangeLabel: string): string | null {
   return m?.[1] ?? null;
 }
 
-function fallbackActivity(
-  title: string,
+type FallbackActivityTemplate = {
+  start: string;
+  end: string;
+  title: string;
+  category: "landmark" | "cafe" | "restaurant" | "activity" | "nature";
+  cuisine_type?: "cafe" | "other";
+};
+
+type FallbackDayTemplate = {
+  theme: string;
+  note: string;
+  activities: FallbackActivityTemplate[];
+};
+
+const FALLBACK_DAY_TEMPLATES: FallbackDayTemplate[] = [
+  {
+    theme: "Ngày 1 — Khám phá thiên nhiên & địa danh nổi bật",
+    note: "Dành trọn ngày đầu cho những điểm đến thiên nhiên và danh thắng đặc trưng.",
+    activities: [
+      { start: "08:00", end: "10:00", title: "Điểm ngắm cảnh thiên nhiên buổi sáng", category: "nature" },
+      { start: "10:30", end: "11:30", title: "Cafe view sáng", category: "cafe", cuisine_type: "cafe" },
+      { start: "12:00", end: "13:30", title: "Ăn trưa đặc sản địa phương", category: "restaurant", cuisine_type: "other" },
+      { start: "14:30", end: "16:30", title: "Tham quan danh thắng chiều", category: "landmark" },
+      { start: "18:30", end: "20:30", title: "Dạo phố đêm & thưởng thức ẩm thực", category: "restaurant", cuisine_type: "other" },
+    ],
+  },
+  {
+    theme: "Ngày 2 — Văn hóa, nghệ thuật & trải nghiệm địa phương",
+    note: "Khám phá nét văn hóa, nghệ thuật và những hoạt động đặc trưng của vùng đất.",
+    activities: [
+      { start: "08:30", end: "10:00", title: "Di tích / bảo tàng / nhà thờ buổi sáng", category: "landmark" },
+      { start: "10:30", end: "11:30", title: "Quán cafe nghệ thuật", category: "cafe", cuisine_type: "cafe" },
+      { start: "12:00", end: "13:30", title: "Bữa trưa ẩm thực địa phương", category: "restaurant", cuisine_type: "other" },
+      { start: "14:30", end: "16:30", title: "Trải nghiệm văn hóa / làng nghề", category: "activity" },
+      { start: "18:00", end: "20:00", title: "Chợ đêm / phố đi bộ & ăn tối", category: "activity" },
+    ],
+  },
+  {
+    theme: "Ngày 3 — Nghỉ ngơi, ẩm thực & khám phá ẩn giấu",
+    note: "Một ngày nhẹ nhàng với quán xá đặc sắc và những góc phố ít người biết.",
+    activities: [
+      { start: "08:30", end: "10:00", title: "Công viên / hồ / điểm chill sáng", category: "nature" },
+      { start: "10:30", end: "11:30", title: "Cafe sách / cafe view", category: "cafe", cuisine_type: "cafe" },
+      { start: "12:00", end: "13:30", title: "Quán ăn ngon trưa", category: "restaurant", cuisine_type: "other" },
+      { start: "14:30", end: "16:30", title: "Khám phá góc nhỏ địa phương", category: "activity" },
+      { start: "18:00", end: "20:30", title: "Ẩm thực tối & cafe đêm", category: "restaurant", cuisine_type: "other" },
+    ],
+  },
+  {
+    theme: "Ngày 4 — Phiêu lưu & trải nghiệm thiên nhiên",
+    note: "Nếu thích mạo hiểm, hãy thử các trải nghiệm ngoài trời nổi tiếng.",
+    activities: [
+      { start: "07:30", end: "10:00", title: "Trải nghiệm thiên nhiên sáng sớm", category: "nature" },
+      { start: "10:30", end: "11:30", title: "Nghỉ chân cafe sáng", category: "cafe", cuisine_type: "cafe" },
+      { start: "12:00", end: "13:30", title: "Ăn trưa tại nhà hàng đặc sản", category: "restaurant", cuisine_type: "other" },
+      { start: "14:30", end: "17:00", title: "Hoạt động ngoài trời / tour chiều", category: "activity" },
+      { start: "18:30", end: "20:30", title: "Ẩm thực đêm & mua sắm nhỏ", category: "activity" },
+    ],
+  },
+];
+
+function fallbackActivityForDay(
+  template: FallbackActivityTemplate,
   destination: string,
+  dayLabel: string,
   cost: number,
-  start: string,
-  end: string,
-  category: "landmark" | "hotel" | "restaurant" | "cafe" | "nature" | "activity" = "activity",
-  cuisine_type?: "pho" | "bun_bo" | "com" | "banh" | "cafe" | "other"
+  note: string
 ): Record<string, unknown> {
   return {
-    title,
-    summary: `Trải nghiệm không thể bỏ lỡ khi đến ${destination} — khám phá điều thú vị ngay!`,
-    start_time: start,
-    end_time: end,
+    title: `${template.title} (${dayLabel})`,
+    summary: `${note} Gợi ý khám phá tại ${destination} — sẽ được AI cụ thể hóa khi API khả dụng.`,
+    start_time: template.start,
+    end_time: template.end,
     estimated_cost: cost,
     suggested_duration_minutes: 90,
     weather_note: "Kiểm tra thời tiết trước khi ra ngoài — lịch khung tạm thời.",
     notes: "Lịch khung — AI sẽ tinh chỉnh sau khi API khả dụng.",
-    category,
-    ...(category === "restaurant" || category === "cafe"
-      ? { cuisine_type: cuisine_type ?? "other" }
+    category: template.category,
+    ...(template.category === "restaurant" || template.category === "cafe"
+      ? { cuisine_type: template.cuisine_type ?? "other" }
       : {}),
   };
 }
 
-const FALLBACK_DAY_ACTIVITIES: Array<{
-  start: string;
-  end: string;
-  title: string;
-  category: "landmark" | "cafe" | "restaurant" | "activity";
-  cuisine_type?: "cafe" | "other";
-}> = [
-  { start: "08:00", end: "09:30", title: "Điểm tham quan buổi sáng", category: "landmark" },
-  { start: "10:00", end: "11:30", title: "Cafe / view sáng", category: "cafe", cuisine_type: "cafe" },
-  { start: "12:00", end: "13:30", title: "Ăn trưa đặc sản", category: "restaurant", cuisine_type: "other" },
-  { start: "14:30", end: "16:30", title: "Khám phá chiều", category: "activity" },
-  { start: "18:30", end: "20:30", title: "Ẩm thực / phố đi bộ tối", category: "restaurant", cuisine_type: "other" },
-];
+function pickFallbackDayTemplate(dayIndex: number, tags: string[]): FallbackDayTemplate {
+  const preferred = tags.map((t) => t.toLowerCase());
+  const ordered = [...FALLBACK_DAY_TEMPLATES];
+  if (preferred.some((t) => ["nature", "thiên nhiên", "adventure", "phiêu lưu"].includes(t))) {
+    ordered.unshift(FALLBACK_DAY_TEMPLATES[0], FALLBACK_DAY_TEMPLATES[3]);
+  }
+  if (preferred.some((t) => ["food", "ẩm thực", "culture", "văn hóa"].includes(t))) {
+    ordered.unshift(FALLBACK_DAY_TEMPLATES[1], FALLBACK_DAY_TEMPLATES[2]);
+  }
+  return ordered[dayIndex % ordered.length];
+}
 
-/** Lịch khung khi Gemini hết quota — vẫn trả trip thay vì 503. */
+/** Lịch khung khi Gemini hết quota — vẫn trả trip thay vì 503, nhưng mỗi ngày có theme khác. */
 export function buildFallbackSkeletonItinerary(params: ItineraryGenerateParams): GeneratedItinerary {
   const startDate = parseTripStartDate(params.dateRangeLabel) ?? new Date().toISOString().slice(0, 10);
-  const perActivityCost = Math.max(40_000, Math.round(params.budget / Math.max(params.numDays, 1) / 5));
+  const perActivityCost = Math.max(40_000, Math.round(params.budget / Math.max(params.numDays, 1) / Math.max(4, FALLBACK_DAY_TEMPLATES[0].activities.length)));
+  const tags = params.preferences?.tags ?? [];
 
   const days = Array.from({ length: params.numDays }, (_, i) => {
-    const activities = FALLBACK_DAY_ACTIVITIES.map((a) =>
-      fallbackActivity(
-        `${a.title} — ${params.destination}`,
-        params.destination,
-        perActivityCost,
-        a.start,
-        a.end,
-        a.category,
-        a.cuisine_type
-      )
+    const template = pickFallbackDayTemplate(i, tags);
+    const activities = template.activities.map((a) =>
+      fallbackActivityForDay(a, params.destination, `Ngày ${i + 1}`, perActivityCost, template.note)
     );
     return finalizeDayPlan({
       day: i + 1,
       date: addDaysIso(startDate, i),
-      theme: `Ngày ${i + 1} — ${params.destination}`,
+      theme: template.theme,
       activities: activities as SlotLike[],
     });
   });
 
   return {
     destination: params.destination,
-    summary: `Lịch khung ${params.numDays} ngày tại ${params.destination}. Gemini API đang giới hạn — bạn vẫn xem được timeline; thử tạo lại sau vài phút để có lịch chi tiết hơn.`,
-    total_estimated_cost: perActivityCost * FALLBACK_DAY_ACTIVITIES.length * params.numDays,
+    summary: `Lịch khung ${params.numDays} ngày tại ${params.destination}. Gemini API đang giới hạn — bạn vẫn xem được timeline; hệ thống sẽ tự động cập nhật lịch chi tiết hơn khi API khả dụng hoặc bạn có thể thử tạo lại sau vài phút.`,
+    total_estimated_cost: perActivityCost * FALLBACK_DAY_TEMPLATES[0].activities.length * params.numDays,
     risk_warnings: [
-      "Lịch tạm thời do Gemini API hết quota/rate limit. Giá OTA vẫn quét nền bình thường.",
+      "Lịch tạm thời do Gemini API hết quota/rate limit. Hệ thống sẽ thử tạo lại lịch chi tiết trong nền.",
     ],
     days: days as GeneratedItinerary["days"],
     hotel_suggestions: [],
     restaurant_suggestions: [],
     voucher_suggestions: [],
   };
+}
+
+/** Kiểm tra xem itinerary có phải là fallback khung do Gemini lỗi không. */
+export function isFallbackSkeletonItinerary(itinerary: GeneratedItinerary): boolean {
+  return itinerary.risk_warnings.some((w) => /lịch tạm thời|lịch khung|fallback|quota|rate limit/i.test(w));
 }
 
 function slotFromSuggested(match: SuggestedPlace | undefined): Record<string, unknown> | undefined {

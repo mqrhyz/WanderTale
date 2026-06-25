@@ -27,8 +27,8 @@ const envSchema = z.object({
   GOOGLE_CLOUD_LOCATION: z.string().default("asia-southeast1"),
   /** 0 = tắt thinking (Gemini 2.5 Flash Lite) — giảm latency & quota drain */
   GEMINI_THINKING_BUDGET: z.coerce.number().default(0),
-  /** gemini = Google API (mặc định). ollama = model local qua Ollama. */
-  LLM_PROVIDER: z.enum(["gemini", "ollama"]).default("gemini"),
+  /** gemini = Google API (mặc định). mistral = Mistral AI API. ollama = model local qua Ollama. */
+  LLM_PROVIDER: z.enum(["gemini", "mistral", "ollama"]).default("gemini"),
   OLLAMA_BASE_URL: z.string().default("http://127.0.0.1:11434"),
   /** Tên model sau `ollama pull` — ví dụ gemma-4-26b-a4b */
   OLLAMA_MODEL: z.string().default("gemma4:26b"),
@@ -48,6 +48,18 @@ const envSchema = z.object({
   GEMINI_FAST_TIMEOUT_MS: z.coerce.number().default(45_000),
   /** Skeleton lịch staged — 1 lần gọi LLM, timeout ngắn hơn. */
   GEMINI_SKELETON_TIMEOUT_MS: z.coerce.number().default(28_000),
+  /** Mistral AI API key. */
+  MISTRAL_API_KEY: z.string().optional().default(""),
+  /** Model Mistral — ví dụ mistral-small-latest, mistral-medium-latest, mistral-large-latest. */
+  MISTRAL_MODEL: z.string().default("mistral-small-latest"),
+  /** Timeout chung cho Mistral (ms). */
+  MISTRAL_TIMEOUT_MS: z.coerce.number().default(120_000),
+  /** Timeout cho tác vụ nhanh (gợi ý địa điểm). */
+  MISTRAL_FAST_TIMEOUT_MS: z.coerce.number().default(60_000),
+  /** Timeout cho skeleton staged. */
+  MISTRAL_SKELETON_TIMEOUT_MS: z.coerce.number().default(45_000),
+  /** max_tokens mặc định cho response Mistral. */
+  MISTRAL_MAX_TOKENS: z.coerce.number().default(8_192),
   /** Hard deadline tổng khi quét OTA tạo lịch (ms). */
   TRIP_OTA_HARD_DEADLINE_MS: z.coerce.number().default(90_000),
   /** Bật cache OTA Supabase + memory. */
