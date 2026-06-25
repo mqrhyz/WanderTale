@@ -106,6 +106,7 @@ fun TripDetailScreen(
     onBack: () -> Unit,
     onDuplicated: (String) -> Unit,
     onDataChanged: () -> Unit = {},
+    onOpenBooking: (String) -> Unit = {},
 ) {
     var trip by remember { mutableStateOf<TripRecord?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -191,7 +192,12 @@ fun TripDetailScreen(
     val t = trip
     val locId = selectedLocationId
     if (locId != null) {
-        LocationDetailScreen(locationId = locId, tripId = tripId, onBack = { selectedLocationId = null })
+        LocationDetailScreen(
+            locationId = locId,
+            tripId = tripId,
+            onBack = { selectedLocationId = null },
+            onOpenBooking = onOpenBooking,
+        )
         return
     }
     AppScaffold(

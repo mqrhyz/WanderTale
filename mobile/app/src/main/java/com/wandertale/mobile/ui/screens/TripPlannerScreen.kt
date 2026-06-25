@@ -157,7 +157,6 @@ fun TripPlannerScreen(
         hasValidDates &&
         budgetAmount > 0 &&
         travelerCount >= 1
-    val showSummary = destination.trim().length >= 2 && hasValidDates
 
     val initialPickerMillis = remember(pickingStart, startDate, endDate, showDatePicker) {
         val iso = if (pickingStart) startDate else endDate
@@ -350,11 +349,6 @@ fun TripPlannerScreen(
             if (onBack != null && !tabLayout) {
                 item {
                     PlannerCreateFooter(
-                        showSummary = showSummary,
-                        destination = destination.trim(),
-                        tripDayCount = tripDayCount,
-                        budgetAmount = budgetAmount,
-                        travelerCount = travelerCount,
                         loading = loading,
                         enabled = isFormValid,
                         onClick = submitTrip,
@@ -379,11 +373,6 @@ fun TripPlannerScreen(
                             .padding(PremiumDesign.CardPadding),
                     ) {
                         PlannerCreateFooter(
-                            showSummary = showSummary,
-                            destination = destination.trim(),
-                            tripDayCount = tripDayCount,
-                            budgetAmount = budgetAmount,
-                            travelerCount = travelerCount,
                             loading = loading,
                             enabled = isFormValid,
                             onClick = submitTrip,
@@ -418,11 +407,6 @@ fun TripPlannerScreen(
                             .padding(PremiumDesign.CardPadding),
                     ) {
                         PlannerCreateFooter(
-                            showSummary = showSummary,
-                            destination = destination.trim(),
-                            tripDayCount = tripDayCount,
-                            budgetAmount = budgetAmount,
-                            travelerCount = travelerCount,
                             loading = loading,
                             enabled = isFormValid,
                             onClick = submitTrip,
@@ -488,7 +472,7 @@ private fun PlannerTabTopBar(onBack: () -> Unit) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Quay lại",
-                tint = PremiumColors.Ink,
+                tint = PremiumColors.Accent,
             )
         }
         Column(Modifier.weight(1f)) {
@@ -769,10 +753,7 @@ private fun PlannerField(
                         Icon(
                             it,
                             null,
-                            tint = when (label) {
-                                "Ngày đi" -> PremiumColors.BadgeUpcoming
-                                else -> PremiumColors.Accent
-                            },
+                            tint = PremiumColors.Accent,
                         )
                     }
                 },
@@ -924,62 +905,15 @@ private fun BudgetRangeHint(budgetAmount: Long) {
 }
 
 @Composable
-private fun PlannerSummaryBar(
-    destination: String,
-    tripDayCount: Int,
-    budgetAmount: Long,
-    travelerCount: Int,
-) {
-    val budgetLabel = if (budgetAmount > 0) FormatUtils.formatCompactVnd(budgetAmount.toDouble()) else "—"
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xFFF5F5F5))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-    ) {
-        Text(
-            "📍 $destination · 🗓 $tripDayCount ngày · 💰 $budgetLabel · 👥 $travelerCount người",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color(0xFF333333),
-            lineHeight = 18.sp,
-        )
-        Text(
-            "AI sẽ gợi ý lịch trình phù hợp",
-            fontSize = 11.sp,
-            color = Color(0xFF999999),
-            modifier = Modifier.padding(top = 2.dp),
-        )
-    }
-}
-
-@Composable
 private fun PlannerCreateFooter(
-    showSummary: Boolean,
-    destination: String,
-    tripDayCount: Int,
-    budgetAmount: Long,
-    travelerCount: Int,
     loading: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     buttonText: String = "Tạo chuyến đi",
 ) {
-    when {
-        loading -> {
-            PlannerAiProgressCard(active = true, destination = destination)
-            Spacer(Modifier.height(12.dp))
-        }
-        showSummary -> {
-            PlannerSummaryBar(
-                destination = destination,
-                tripDayCount = tripDayCount,
-                budgetAmount = budgetAmount,
-                travelerCount = travelerCount,
-            )
-            Spacer(Modifier.height(12.dp))
-        }
+    if (loading) {
+        PlannerAiProgressCard(active = true, destination = "")
+        Spacer(Modifier.height(12.dp))
     }
     PremiumAccentButton(
         text = buttonText,

@@ -21,6 +21,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -29,6 +30,7 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.wandertale.mobile.ui.screens.AdminPortalScreen
 import com.wandertale.mobile.ui.screens.BookingScreen
+import com.wandertale.mobile.ui.screens.BookingReceiptScreen
 import com.wandertale.mobile.ui.screens.MyBookingsScreen
 import com.wandertale.mobile.ui.screens.MyBookingsTab
 import com.wandertale.mobile.ui.screens.BusinessPortalScreen
@@ -90,8 +92,8 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             ForgotPasswordScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.MAIN) {
-            var tab by remember { mutableStateOf("dashboard") }
-            var tabBeforeCreate by remember { mutableStateOf("dashboard") }
+            var tab by rememberSaveable { mutableStateOf("dashboard") }
+            var tabBeforeCreate by rememberSaveable { mutableStateOf("dashboard") }
 
             fun openCreateTab() {
                 if (tab != "create") tabBeforeCreate = tab
@@ -266,6 +268,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                         "favorites" -> MyBookingsTab(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = scrollPadding,
+                        onOpenBooking = { navController.navigate(Routes.bookingDetail(it)) },
                     )
                         "profile" -> ProfileScreen(
                         modifier = Modifier.fillMaxSize(),
@@ -310,11 +313,24 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                         )
                     }
                 },
+                onOpenBooking = { bookingId -> navController.navigate(Routes.bookingDetail(bookingId)) },
             )
         }
         composable(Routes.SETTINGS) { SettingsScreen(onBack = { navController.popBackStack() }) }
         composable(Routes.SAVED_OFFERS) { SavedOffersScreen(onBack = { navController.popBackStack() }) }
-        composable(Routes.BOOKING) { MyBookingsScreen(onBack = { navController.popBackStack() }) }
+        composable(Routes.BOOKING) {
+            MyBookingsScreen(
+                onBack = { navController.popBackStack() },
+                onOpenBooking = { navController.navigate(Routes.bookingDetail(it)) },
+            )
+        }
+        composable(
+            route = Routes.BOOKING_DETAIL,
+            arguments = listOf(navArgument("bookingId") { type = NavType.StringType }),
+        ) { entry ->
+            val id = entry.arguments?.getString("bookingId") ?: return@composable
+            BookingReceiptScreen(bookingId = id, onBack = { navController.popBackStack() })
+        }
         composable(Routes.ADMIN) {
             AdminPortalScreen(
                 onBack = { navController.popBackStack() },

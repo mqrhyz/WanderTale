@@ -25,6 +25,7 @@ final class AppState {
     var trips: [TripRecord] = []
     var displayName = "Xin chào"
     var accountInfo: AccountInfo?
+    var promotionHome: PromotionHomePayload?
     var favoriteTripIds: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "favorite_trip_ids") ?? [])
     var dashboardError: String?
     var roleError: String?
@@ -72,15 +73,9 @@ final class AppState {
             }
         }
 
-        do {
-            let fetched = try await ApiService.listTrips()
-            trips = fetched
-            RemoteImageCache.prefetch(fetched.compactMap { TripUtils.tripCoverImageUrl($0) })
-        } catch {
-            if !isCancellationError(error) {
-                tripsError = formatApiError(error, fallback: "Không tải chuyến đi")
-            }
-        }
+        async let tripsLoad: Void = loadTrips(&tripsError)
+        async let promotionsLoad: Void = loadPromotionHome()
+        _ = await (tripsLoad, promotionsLoad)
 
         // Chỉ hiện lỗi thật (bỏ qua huỷ tác vụ); nếu không thì xoá lỗi cũ.
         if let statsError, let tripsError {
@@ -90,6 +85,24 @@ final class AppState {
         }
 
         startCoverImagePollingIfNeeded()
+    }
+
+    private func loadTrips(_ tripsError: inout String?) async {
+        do {
+            let fetched = try await ApiService.listTrips()
+            trips = fetched
+            RemoteImageCache.prefetch(fetched.compactMap { TripUtils.tripCoverImageUrl($0) })
+        } catch {
+            if !isCancellationError(error) {
+                tripsError = formatApiError(error, fallback: "Không tải chuyến đi")
+            }
+        }
+    }
+
+    private func loadPromotionHome() async {
+        guard let payload = try? await ApiService.promotionHome() else { return }
+        promotionHome = payload
+        RemoteImageCache.prefetch(payload.posts.map(\.cover_image_url))
     }
 
     /// Ảnh bìa được sinh ở server (Pexels) nên có thể chưa sẵn ngay lúc tạo chuyến.

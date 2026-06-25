@@ -36,7 +36,9 @@ struct PromotionsSection: View {
                             }
                         }
                         .padding(.horizontal, 2)
+                        .padding(.vertical, 4)
                     }
+                    .scrollClipDisabled()
                 }
 
                 if !posts.isEmpty {
@@ -64,9 +66,21 @@ struct PromotionsSection: View {
     }
 
     private func load() async {
-        loading = true
+        if let cached = appState.promotionHome {
+            apply(cached)
+            loading = false
+        } else {
+            loading = true
+        }
+
         defer { loading = false }
         guard let payload = try? await ApiService.promotionHome() else { return }
+        appState.promotionHome = payload
+        apply(payload)
+        RemoteImageCache.prefetch(payload.posts.map(\.cover_image_url))
+    }
+
+    private func apply(_ payload: PromotionHomePayload) {
         vouchers = payload.vouchers.isEmpty ? payload.items : payload.vouchers
         posts = payload.posts
     }
@@ -90,42 +104,80 @@ private struct PromotionPostMasonry: View {
     let posts: [PromotionPost]
     let onTap: (PromotionPost) -> Void
 
-    private var primary: [PromotionPost] {
-        posts.filter { $0.post_type == "main" }
-    }
-
-    private var secondary: [PromotionPost] {
-        posts.filter { $0.post_type != "main" }
+    private var columns: (left: [PromotionPost], right: [PromotionPost]) {
+        PromotionMasonryLayout.columns(for: posts)
     }
 
     var body: some View {
-        if primary.isEmpty || secondary.isEmpty {
-            LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                ForEach(posts) { post in
-                    PromotionPostCard(post: post)
-                        .frame(minWidth: 0, maxWidth: .infinity)
-                        .onTapGesture { onTap(post) }
-                }
-            }
-        } else {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(spacing: 12) {
-                    ForEach(primary) { post in
-                        PromotionPostCard(post: post)
-                            .onTapGesture { onTap(post) }
-                    }
-                }
+        HStack(alignment: .top, spacing: 12) {
+            columnView(columns.left)
                 .frame(minWidth: 0, maxWidth: .infinity)
+            columnView(columns.right)
+                .frame(minWidth: 0, maxWidth: .infinity)
+        }
+    }
 
-                VStack(spacing: 12) {
-                    ForEach(secondary) { post in
-                        PromotionPostCard(post: post)
-                            .onTapGesture { onTap(post) }
-                    }
-                }
-                .frame(minWidth: 0, maxWidth: .infinity)
+    @ViewBuilder
+    private func columnView(_ posts: [PromotionPost]) -> some View {
+        VStack(spacing: 12) {
+            ForEach(posts) { post in
+                PromotionPostCard(post: post)
+                    .onTapGesture { onTap(post) }
             }
         }
+    }
+}
+
+private enum PromotionMasonryLayout {
+    static func columns(for posts: [PromotionPost], spacing: CGFloat = 0.08) -> (left: [PromotionPost], right: [PromotionPost]) {
+        guard !posts.isEmpty else { return ([], []) }
+
+        let mains = posts.filter { $0.post_type == "main" }
+        let secondaries = posts.filter { $0.post_type != "main" }
+
+        var left: [PromotionPost] = []
+        var right: [PromotionPost] = []
+        var leftHeight: CGFloat = 0
+        var rightHeight: CGFloat = 0
+
+        func itemHeight(_ post: PromotionPost) -> CGFloat {
+            post.post_type == "main" ? 4.0 / 3.0 : 1.0
+        }
+
+        func place(_ post: PromotionPost, onLeft: Bool) {
+            if onLeft {
+                if !left.isEmpty { leftHeight += spacing }
+                left.append(post)
+                leftHeight += itemHeight(post)
+            } else {
+                if !right.isEmpty { rightHeight += spacing }
+                right.append(post)
+                rightHeight += itemHeight(post)
+            }
+        }
+
+        func placeInShortestColumn(_ post: PromotionPost) {
+            place(post, onLeft: leftHeight <= rightHeight)
+        }
+
+        if secondaries.isEmpty {
+            for post in mains {
+                placeInShortestColumn(post)
+            }
+            return (left, right)
+        }
+
+        // 1:1 đầu tiên luôn cố định góc phải trên
+        place(secondaries[0], onLeft: false)
+
+        for post in mains {
+            placeInShortestColumn(post)
+        }
+        for post in secondaries.dropFirst() {
+            placeInShortestColumn(post)
+        }
+
+        return (left, right)
     }
 }
 

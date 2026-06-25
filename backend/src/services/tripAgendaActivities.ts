@@ -130,7 +130,7 @@ export function countItineraryPlaces(days: DayPlanLike[]): number {
 
 export function targetActivitiesPerDay(pace: string): { min: number; max: number } {
   const p = pace.toLowerCase();
-  if (p.includes("relax") || p.includes("nhẹ")) return { min: 4, max: 5 };
-  if (p.includes("pack") || p.includes("dày") || p.includes("nhanh")) return { min: 6, max: 8 };
+  if (p === "relaxed" || p.includes("relax") || p.includes("nhẹ")) return { min: 3, max: 4 };
+  if (p === "packed" || p.includes("pack") || p.includes("dày") || p.includes("nhanh") || p.includes("fast")) return { min: 6, max: 8 };
   return { min: 5, max: 6 };
 }

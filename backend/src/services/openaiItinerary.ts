@@ -590,10 +590,10 @@ function buildItineraryPrompt(params: ItineraryGenerateParams): string {
     `Dates: ${params.dateRangeLabel}`,
     `Budget (total trip, local currency estimate): ${params.budget}`,
     `Travelers: ${params.travelers}`,
-    `Pace: ${params.pace}`,
-    `Accommodation style: ${params.accommodation_style ?? "standard"} (budget=hostel/homestay, standard=3-star hotel, premium=resort/boutique). Match hotel_suggestions to this tier within total budget.`,
-    `Preferences (tags): ${params.preferences.tags.join(", ") || "general"}.`,
-    `Thời điểm hiện tại: tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}. Ưu tiên địa điểm đang HOT/được ưa chuộng & hợp mùa hiện tại; KHÔNG đề xuất nơi đã ĐÓNG CỬA VĨNH VIỄN hoặc ngừng hoạt động.`,
+    `Pace: ${params.pace}. Mỗi ngày BẮT BUỘC có đúng ${minActs}–${maxActs} activities, không ít hơn, không nhiều hơn. Nếu pace="relaxed" thì nhiều thời gian tự do, ít điểm đến, các điểm gần nhau; nếu pace="packed" thì tối ưu từng giờ, nhiều điểm, chuyển cảnh nhanh; nếu pace="balanced" thì xen kẽ tham quan và nghỉ ngơi.`,
+    `Accommodation style: ${params.accommodation_style ?? "standard"}. ĐÂY LÀ BẮT BUỘC: budget = chỉ hostel/homestay/khách sạn 1-2 sao, giá rẻ; standard = khách sạn 3 sao/khách sạn boutique trung cấp; premium = khách sạn 4-5 sao/resort/boutique cao cấp. hotel_suggestions PHẢI thuộc đúng tier này và estimated_cost phải phản ánh mức giá tương ứng.`,
+    `Preferences (tags): ${params.preferences.tags.join(", ") || "general"}. Lịch trình PHẢI ưu tiên các địa điểm/hoạt động phù hợp với các tag này. Mỗi ngày nên có ít nhất 2–3 activities liên quan trực tiếp đến sở thích. Khi chọn giữa hai điểm tương đương, ưu tiên điểm khớp tag hơn.`,
+    `Thời điểm hiện tại: tháng ${new Date().getMonth() + 1}/${new Date().getFullYear()}. Sau khi đã thỏa mãn sở thích, mới cân nhắc đến yếu tố HOT/hợp mùa; KHÔNG đề xuất nơi đã ĐÓNG CỬA VĨNH VIỄN hoặc ngừng hoạt động.`,
     `weather_note BẮT BUỘC là CẢNH BÁO khi thời tiết khung giờ đó có biến động (mưa, dông, nắng gắt, lạnh sâu, gió mạnh) — mở đầu bằng "⚠️" và nêu cách ứng phó (mang ô, đổi sang indoor...). Nếu thời tiết ổn định thì ghi ngắn gọn không cần "⚠️".`,
     ollama
       ? `Dùng thời tiết gợi ý indoor/outdoor. Mỗi ngày có activities[] (${minActs}–${maxActs} mục), mỗi mục là object có title, category, start_time, end_time, summary, estimated_cost.`

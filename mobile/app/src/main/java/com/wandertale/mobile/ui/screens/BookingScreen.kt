@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.wandertale.mobile.data.MyBookingsCache
 import com.wandertale.mobile.data.api.ApiClient
 import com.wandertale.mobile.data.model.BookingCreate
 import com.wandertale.mobile.data.model.BookingPayResponse
@@ -184,6 +185,7 @@ fun BookingScreen(onBack: () -> Unit) {
                                             working = true; message = null
                                             runCatching {
                                                 val booking = ApiClient.createBooking(BookingCreate(business_id = biz.id, total_amount = amt, type = "other"))
+                                                MyBookingsCache.clear()
                                                 bookingId = booking.id
                                                 val pay = ApiClient.payBooking(booking.id)
                                                 status = pay.status
@@ -249,17 +251,25 @@ private fun BusinessPickRow(biz: PublicBusinessRow, selected: Boolean, onClick: 
 
 /** Danh sách đặt chỗ của user — "Đặt chỗ & Thanh toán" với mã + thông tin. */
 @Composable
-fun MyBookingsScreen(onBack: () -> Unit) {
-    var bookings by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BookingRecord>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+fun MyBookingsScreen(
+    onBack: () -> Unit,
+    onOpenBooking: (String) -> Unit,
+) {
+    val cached = MyBookingsCache.bookings
+    var bookings by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BookingRecord>>(cached ?: emptyList()) }
+    var loading by remember { mutableStateOf(cached == null) }
     val scope = rememberCoroutineScope()
 
     suspend fun load() {
         loading = true
-        bookings = runCatching { ApiClient.myBookings() }.getOrDefault(emptyList())
+        val list = runCatching { ApiClient.myBookings() }.getOrDefault(emptyList())
+        MyBookingsCache.set(list)
+        bookings = list
         loading = false
     }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) {
+        if (!MyBookingsCache.isFresh()) load()
+    }
 
     AppScaffold(title = "Đặt chỗ & Thanh toán", onBack = onBack) { padding ->
         when {
@@ -271,17 +281,25 @@ fun MyBookingsScreen(onBack: () -> Unit) {
                 padding.padding(PremiumDesign.ScreenPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                items(bookings, key = { it.id }) { b -> MyBookingCard(b) }
+                items(bookings, key = { it.id }) { b -> MyBookingCard(b, onClick = { onOpenBooking(b.id) }) }
             }
         }
     }
 }
 
 @Composable
-private fun MyBookingCard(b: com.wandertale.mobile.data.model.BookingRecord) {
+private fun MyBookingCard(
+    b: com.wandertale.mobile.data.model.BookingRecord,
+    onClick: () -> Unit,
+) {
     Column(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(PremiumColors.Surface)
-            .border(1.dp, PremiumColors.Border, RoundedCornerShape(14.dp)).padding(14.dp),
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(PremiumColors.Surface)
+            .border(1.dp, PremiumColors.Border, RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -301,7 +319,7 @@ private fun MyBookingCard(b: com.wandertale.mobile.data.model.BookingRecord) {
 }
 
 @Composable
-private fun BookingStatusPill(status: String) {
+fun BookingStatusPill(status: String) {
     val (label, color) = when (status) {
         "paid" -> "Đã thanh toán" to Color(0xFF1B8E5A)
         "confirmed" -> "Đã xác nhận" to Color(0xFF1B8E5A)
@@ -321,16 +339,22 @@ private fun BookingStatusPill(status: String) {
 fun MyBookingsTab(
     modifier: Modifier = Modifier,
     contentPadding: androidx.compose.foundation.layout.PaddingValues = androidx.compose.foundation.layout.PaddingValues(0.dp),
+    onOpenBooking: (String) -> Unit,
 ) {
-    var bookings by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BookingRecord>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    val cached = MyBookingsCache.bookings
+    var bookings by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BookingRecord>>(cached ?: emptyList()) }
+    var loading by remember { mutableStateOf(cached == null) }
 
     suspend fun load() {
         loading = true
-        bookings = runCatching { ApiClient.myBookings() }.getOrDefault(emptyList())
+        val list = runCatching { ApiClient.myBookings() }.getOrDefault(emptyList())
+        MyBookingsCache.set(list)
+        bookings = list
         loading = false
     }
-    LaunchedEffect(Unit) { load() }
+    LaunchedEffect(Unit) {
+        if (!MyBookingsCache.isFresh()) load()
+    }
 
     Column(modifier.fillMaxSize()) {
         Column(
@@ -350,7 +374,7 @@ fun MyBookingsTab(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = contentPadding.calculateBottomPadding() + 16.dp),
             ) {
-                items(bookings, key = { it.id }) { b -> MyBookingCard(b) }
+                items(bookings, key = { it.id }) { b -> MyBookingCard(b, onClick = { onOpenBooking(b.id) }) }
             }
         }
     }

@@ -94,8 +94,10 @@ import kotlinx.serialization.json.JsonPrimitive
 import com.wandertale.mobile.data.model.UploadImageResponse
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.util.concurrent.TimeUnit
 
 class ApiException(message: String, val statusCode: Int? = null) : Exception(message)
 

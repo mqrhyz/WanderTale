@@ -1,34 +1,14 @@
 import SwiftUI
 
-struct VoucherTicketShape: Shape {
-    var cornerRadius: CGFloat = 14
-    var notchRadius: CGFloat = 9
+private let voucherCardRadius: CGFloat = 16
 
-    func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let r = cornerRadius
-        let nr = notchRadius
-        let midY = rect.midY
-
-        path.move(to: CGPoint(x: rect.minX + r, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX - r, y: rect.minY))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY + r), control: CGPoint(x: rect.maxX, y: rect.minY))
-        path.addLine(to: CGPoint(x: rect.maxX, y: midY - nr))
-        path.addArc(
-            center: CGPoint(x: rect.maxX, y: midY),
-            radius: nr,
-            startAngle: .degrees(-90),
-            endAngle: .degrees(90),
-            clockwise: true
-        )
-        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
-        path.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r), control: CGPoint(x: rect.minX, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + r))
-        path.addQuadCurve(to: CGPoint(x: rect.minX + r, y: rect.minY), control: CGPoint(x: rect.minX, y: rect.minY))
-        path.closeSubpath()
-        return path
+enum VoucherCardMetrics {
+    /// ~78% màn hình, để lộ mép voucher kế tiếp trong carousel.
+    static var carouselWidth: CGFloat {
+        let screen = UIScreen.main.bounds.width
+        let inset = PremiumTheme.screenPadding * 2
+        let peek: CGFloat = 52
+        return max(268, screen - inset - peek)
     }
 }
 
@@ -37,67 +17,118 @@ struct PromotionVoucherCard: View {
     var carousel: Bool = false
     let onSave: () async -> Void
 
+    private var fullTitle: String { voucherDisplayTitle(promo) }
+    private var isSaved: Bool { promo.is_saved == true }
+    private var compact: Bool { carousel }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(PremiumTheme.accent)
-                    .frame(width: 46, height: 46)
-                Image(systemName: voucherIconName(promo))
-                    .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .padding(.top, 2)
+        let shape = RoundedRectangle(cornerRadius: voucherCardRadius, style: .continuous)
+        let hPad: CGFloat = compact ? 12 : 14
+        let iconSize: CGFloat = compact ? 34 : 40
+        let ticketIconSize: CGFloat = compact ? 24 : 28
 
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top, spacing: 6) {
-                    Text(voucherHeadline(promo))
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundStyle(PremiumTheme.ink)
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: compact ? 10 : 12) {
+                Image(systemName: "ticket.fill")
+                    .font(.system(size: ticketIconSize, weight: .semibold))
+                    .foregroundStyle(PremiumTheme.accent)
+                    .frame(width: iconSize, height: iconSize)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    VoucherTitleLine(title: fullTitle, promo: promo, compact: compact)
+
+                    Text(voucherSubtitlePrimary(promo))
+                        .font(.system(size: 12))
+                        .foregroundStyle(PremiumTheme.muted)
+                        .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 0)
-                    Button {
-                        Task { await onSave() }
-                    } label: {
-                        Image(systemName: promo.is_saved == true ? "bookmark.fill" : "bookmark")
-                            .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(PremiumTheme.textMuted)
-                    }
-                    .buttonStyle(.plain)
+                        .multilineTextAlignment(.leading)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(minHeight: 34, alignment: .top)
                 }
-
-                Text(voucherDetailText(promo))
-                    .font(.system(size: 12))
-                    .foregroundStyle(PremiumTheme.muted)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                VoucherDottedDivider()
-                    .padding(.top, 2)
-
-                HStack(spacing: 8) {
-                    Text(promo.code)
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(PremiumTheme.accent)
-                    Text("·")
-                        .foregroundStyle(PremiumTheme.textMuted)
-                    Text(promotionApplicabilityText(promo))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(PremiumTheme.textMuted)
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                    Text(promotionDiscountText(promo))
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(PremiumTheme.accent)
-                }
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             }
+            .padding(.horizontal, hPad)
+            .padding(.top, compact ? 12 : 14)
+            .padding(.bottom, compact ? 10 : 12)
+
+            VoucherDottedDivider()
+                .padding(.horizontal, hPad)
+
+            HStack(spacing: compact ? 8 : 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(PremiumTheme.muted)
+                    Text(promo.code)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(PremiumTheme.muted)
+                        .lineLimit(1)
+                }
+                .padding(.horizontal, compact ? 10 : 12)
+                .padding(.vertical, compact ? 8 : 10)
+                .background(PremiumTheme.inputBg)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                Spacer(minLength: 0)
+
+                Button {
+                    guard !isSaved else { return }
+                    Task { await onSave() }
+                } label: {
+                    Text(isSaved ? "Đã lưu" : "Lưu")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(isSaved ? PremiumTheme.muted : PremiumTheme.accent)
+                        .padding(.horizontal, compact ? 14 : 18)
+                        .padding(.vertical, compact ? 8 : 10)
+                        .background(isSaved ? PremiumTheme.inputBg : PremiumTheme.accentLight)
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .disabled(isSaved)
+            }
+            .padding(.horizontal, hPad)
+            .padding(.top, compact ? 10 : 12)
+            .padding(.bottom, compact ? 12 : 14)
         }
-        .padding(14)
-        .frame(width: carousel ? 300 : nil, alignment: .leading)
+        .frame(width: carousel ? VoucherCardMetrics.carouselWidth : nil, alignment: .leading)
         .frame(maxWidth: carousel ? nil : .infinity, alignment: .leading)
-        .background(PremiumTheme.surface)
-        .clipShape(VoucherTicketShape())
-        .overlay(VoucherTicketShape().stroke(Color.black.opacity(0.06), lineWidth: 1))
+        .background(PremiumTheme.surface, in: shape)
+        .clipShape(shape)
+        .overlay(shape.stroke(Color.black.opacity(0.06), lineWidth: 1))
+        .compositingGroup()
         .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
+    }
+}
+
+private struct VoucherTitleLine: View {
+    let title: String
+    let promo: Promotion
+    var compact: Bool = false
+
+    @State private var showDetails = false
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            Text(title)
+                .font(.system(size: compact ? 15 : 16, weight: .bold))
+                .foregroundStyle(PremiumTheme.ink)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
+
+            Button { showDetails = true } label: {
+                Image(systemName: "info.circle")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundStyle(PremiumTheme.textMuted)
+            }
+            .buttonStyle(.plain)
+        }
+        .alert("Chi tiết ưu đãi", isPresented: $showDetails) {
+            Button("Đóng", role: .cancel) {}
+        } message: {
+            Text(voucherInfoPopupText(promo))
+        }
     }
 }
 
@@ -109,24 +140,15 @@ struct VoucherDottedDivider: View {
                 path.addLine(to: CGPoint(x: geo.size.width, y: 0))
             }
             .stroke(
-                PremiumTheme.accent.opacity(0.35),
-                style: StrokeStyle(lineWidth: 1, dash: [4, 4])
+                PremiumTheme.accent.opacity(0.28),
+                style: StrokeStyle(lineWidth: 1, dash: [5, 5])
             )
         }
         .frame(height: 1)
     }
 }
 
-func voucherIconName(_ promo: Promotion) -> String {
-    switch promo.applicability ?? "hotel_places" {
-    case "user_subscription", "pro_plan":
-        return "crown.fill"
-    default:
-        return "building.2.fill"
-    }
-}
-
-func voucherHeadline(_ promo: Promotion) -> String {
+func voucherDisplayTitle(_ promo: Promotion) -> String {
     if let pct = promo.discount_percent, pct > 0 {
         return "Giảm \(Int(pct))% · \(promo.title)"
     }
@@ -134,6 +156,44 @@ func voucherHeadline(_ promo: Promotion) -> String {
         return "Giảm đến \(FormatUtils.formatVnd(amt)) · \(promo.title)"
     }
     return promo.title
+}
+
+func voucherValidityText(_ promo: Promotion) -> String? {
+    let from = promo.valid_from?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let until = promo.valid_until?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    if !from.isEmpty, !until.isEmpty {
+        return "Áp dụng từ \(from) đến \(until)"
+    }
+    if !until.isEmpty {
+        return "Hết hạn \(until)"
+    }
+    if !from.isEmpty {
+        return "Áp dụng từ \(from)"
+    }
+    return nil
+}
+
+func voucherInfoPopupText(_ promo: Promotion) -> String {
+    var lines = [voucherDisplayTitle(promo)]
+    if let validity = voucherValidityText(promo) {
+        lines.append(validity)
+    }
+    return lines.joined(separator: "\n\n")
+}
+
+func voucherSubtitlePrimary(_ promo: Promotion) -> String {
+    if let desc = promo.description?.trimmingCharacters(in: .whitespacesAndNewlines), !desc.isEmpty {
+        return desc
+    }
+    return promotionApplicabilityText(promo)
+}
+
+func voucherIconName(_ promo: Promotion) -> String {
+    "ticket.fill"
+}
+
+func voucherHeadline(_ promo: Promotion) -> String {
+    voucherDisplayTitle(promo)
 }
 
 func voucherDetailText(_ promo: Promotion) -> String {

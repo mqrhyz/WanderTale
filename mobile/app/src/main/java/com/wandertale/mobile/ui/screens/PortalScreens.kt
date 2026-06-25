@@ -14,6 +14,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +38,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
@@ -1711,14 +1714,14 @@ private fun AdminPromotionManagerDialog(
                     ) {
                         Text(if (coverUri != null || coverUrl.isNotBlank()) "Đổi ảnh bìa từ thiết bị" else "Chọn ảnh bìa từ thiết bị")
                     }
-                    coverUri?.let { uri ->
+                    if (coverUri != null) {
                         AsyncImage(
-                            model = uri,
+                            model = coverUri,
                             contentDescription = postTitle,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxWidth().height(160.dp).clip(RoundedCornerShape(12.dp)),
                         )
-                    } ?: if (coverUrl.isNotBlank()) {
+                    } else if (coverUrl.isNotBlank()) {
                         AsyncImage(
                             model = coverUrl,
                             contentDescription = postTitle,

@@ -1,10 +1,43 @@
 import SwiftUI
 import UIKit
 
-enum RemoteImageCache {
-    static let shared = NSCache<NSURL, UIImage>()
+import SwiftUI
+import UIKit
+import ImageIO
 
-    static func prefetch(_ urls: [String]) {
+enum RemoteImageCache {
+    static let shared: NSCache<NSURL, UIImage> = {
+        let cache = NSCache<NSURL, UIImage>()
+        cache.countLimit = 200
+        cache.totalCostLimit = 100 * 1024 * 1024
+        return cache
+    }()
+
+    static let session: URLSession = {
+        let cache = URLCache(memoryCapacity: 50_000_000, diskCapacity: 200_000_000)
+        let config = URLSessionConfiguration.default
+        config.urlCache = cache
+        config.requestCachePolicy = .returnCacheDataElseLoad
+        return URLSession(configuration: config)
+    }()
+
+    static func downsample(data: Data, maxPixelSize: CGFloat = 720) -> UIImage? {
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize,
+        ]
+        guard
+            let source = CGImageSourceCreateWithData(data as CFData, nil),
+            let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+        else {
+            return UIImage(data: data)
+        }
+        return UIImage(cgImage: cgImage)
+    }
+
+    static func prefetch(_ urls: [String], maxPixelSize: CGFloat = 720) {
         for raw in Set(urls) {
             guard let url = URL(string: raw) else { continue }
             guard shared.object(forKey: url as NSURL) == nil else { continue }
@@ -13,9 +46,11 @@ enum RemoteImageCache {
                 do {
                     var request = URLRequest(url: url)
                     request.cachePolicy = .returnCacheDataElseLoad
-                    let (data, _) = try await URLSession.shared.data(for: request)
-                    guard let image = UIImage(data: data) else { return }
-                    shared.setObject(image, forKey: url as NSURL)
+                    let (data, _) = try await session.data(for: request)
+                    guard let image = downsample(data: data, maxPixelSize: maxPixelSize) else { return }
+                    await MainActor.run {
+                        shared.setObject(image, forKey: url as NSURL, cost: data.count)
+                    }
                 } catch {
                     return
                 }
@@ -46,11 +81,13 @@ private final class RemoteImageLoader: ObservableObject {
         image = nil
         task = Task {
             do {
-                var request = URLRequest(url: url)
-                request.cachePolicy = .returnCacheDataElseLoad
-                let (data, _) = try await URLSession.shared.data(for: request)
-                guard !Task.isCancelled, let loaded = UIImage(data: data) else { return }
-                RemoteImageCache.shared.setObject(loaded, forKey: url as NSURL)
+                let data = try await Task.detached(priority: .userInitiated) {
+                    var request = URLRequest(url: url)
+                    request.cachePolicy = .returnCacheDataElseLoad
+                    return try await RemoteImageCache.session.data(for: request).0
+                }.value
+                guard !Task.isCancelled, let loaded = RemoteImageCache.downsample(data: data) else { return }
+                RemoteImageCache.shared.setObject(loaded, forKey: url as NSURL, cost: data.count)
                 image = loaded
             } catch {
                 guard !Task.isCancelled else { return }
@@ -61,6 +98,7 @@ private final class RemoteImageLoader: ObservableObject {
 
     func cancel() {
         task?.cancel()
+        task = nil
     }
 }
 
@@ -86,7 +124,6 @@ struct RemoteImage: View {
                 }
                 .onAppear { loader.load(imageURL) }
                 .onChange(of: imageURL) { _, newURL in loader.load(newURL) }
-                .onDisappear { loader.cancel() }
             } else {
                 fallbackView
             }

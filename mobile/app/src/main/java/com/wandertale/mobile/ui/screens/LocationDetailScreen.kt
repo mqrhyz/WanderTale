@@ -31,6 +31,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.wandertale.mobile.data.api.ApiClient
 import com.wandertale.mobile.data.DashboardHomeCache
+import com.wandertale.mobile.data.MyBookingsCache
 import com.wandertale.mobile.data.model.BookingCreate
 import com.wandertale.mobile.data.model.BookingPayResponse
 import com.wandertale.mobile.data.model.LocationDetail
@@ -43,7 +44,12 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit) {
+fun LocationDetailScreen(
+    locationId: String,
+    tripId: String?,
+    onBack: () -> Unit,
+    onOpenBooking: (String) -> Unit = {},
+) {
     var detail by remember { mutableStateOf<LocationDetail?>(null) }
     var reviews by remember { mutableStateOf<List<LocationReview>>(emptyList()) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -182,13 +188,17 @@ fun LocationDetailScreen(locationId: String, tripId: String?, onBack: () -> Unit
             defaultName = DashboardHomeCache.accountInfo?.displayName.orEmpty(),
             defaultPhone = DashboardHomeCache.accountInfo?.phone.orEmpty(),
             onDismiss = { formMode = null },
-            onPay = { resp -> formMode = null; payResp = resp },
-            onPaidLater = { formMode = null; paidLater = true },
+            onPay = { resp -> formMode = null; payResp = resp; MyBookingsCache.clear() },
+            onPaidLater = { formMode = null; paidLater = true; MyBookingsCache.clear() },
         )
     }
 
     payResp?.let { resp ->
-        BookingPaymentDialog(resp, onDone = { payResp = null; scope.launch { reload() } })
+        BookingPaymentDialog(
+            resp = resp,
+            onOpenBooking = onOpenBooking,
+            onDone = { payResp = null; scope.launch { reload() } },
+        )
     }
     if (paidLater) {
         AlertDialog(
@@ -219,7 +229,11 @@ private fun ReviewDialog(onDismiss: () -> Unit, onSubmit: (Int, String?) -> Unit
 }
 
 @Composable
-private fun BookingPaymentDialog(resp: BookingPayResponse, onDone: () -> Unit) {
+private fun BookingPaymentDialog(
+    resp: BookingPayResponse,
+    onOpenBooking: (String) -> Unit,
+    onDone: () -> Unit,
+) {
     var activated by remember { mutableStateOf(false) }
     LaunchedEffect(resp.booking_id) {
         while (!activated) {
@@ -237,6 +251,11 @@ private fun BookingPaymentDialog(resp: BookingPayResponse, onDone: () -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Icons.Default.CheckCircle, null, tint = Color(0xFF1B8E5A), modifier = Modifier.size(46.dp))
                     Text("Thanh toán thành công!", fontWeight = FontWeight.Bold)
+                    TextButton(
+                        onClick = { onOpenBooking(resp.booking_id); onDone() },
+                    ) {
+                        Text("Xem chi tiết đặt chỗ", color = PremiumColors.Accent, fontWeight = FontWeight.Bold)
+                    }
                 }
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
