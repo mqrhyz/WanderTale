@@ -1,6 +1,8 @@
 package com.wandertale.mobile.ui.screens
 
-import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -35,7 +38,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Apartment
 import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.BookmarkBorder
-import androidx.compose.material.icons.filled.CardTravel
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Notifications
@@ -73,6 +77,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -268,6 +273,9 @@ fun DashboardScreen(
                             iconTint = PremiumColors.StatTripIcon,
                             modifier = Modifier.weight(1f),
                             animatedInt = if (animateMetrics) stats?.total_trips else null,
+                            backgroundImage = R.drawable.metric_h1,
+                            subtitle = "Hành trình",
+                            labelColor = Color(0xFFD95926),
                         )
                         PremiumMetricCard(
                             label = "Điểm đến",
@@ -277,6 +285,9 @@ fun DashboardScreen(
                             iconTint = PremiumColors.StatDestIcon,
                             modifier = Modifier.weight(1f),
                             animatedInt = if (animateMetrics) stats?.unique_destinations else null,
+                            backgroundImage = R.drawable.metric_h2,
+                            subtitle = "Đã khám phá",
+                            labelColor = Color(0xFF2E8C57),
                         )
                     }
                     Row(
@@ -290,6 +301,9 @@ fun DashboardScreen(
                             icon = Icons.Outlined.MonetizationOn,
                             iconTint = PremiumColors.StatBudgetIcon,
                             modifier = Modifier.weight(1f),
+                            backgroundImage = R.drawable.metric_h3,
+                            subtitle = "Tổng chi tiêu",
+                            labelColor = Color(0xFFBF801A),
                         )
                         PremiumMetricCard(
                             label = "Hoạt động",
@@ -299,6 +313,9 @@ fun DashboardScreen(
                             iconTint = PremiumColors.StatActivityIcon,
                             modifier = Modifier.weight(1f),
                             animatedInt = if (animateMetrics) stats?.places_in_itineraries else null,
+                            backgroundImage = R.drawable.metric_h4,
+                            subtitle = "Đã trải nghiệm",
+                            labelColor = Color(0xFF6B59B8),
                         )
                     }
                 }
@@ -315,11 +332,17 @@ fun DashboardScreen(
                     payload = promotionHome,
                     onPostClick = { selectedPromotionPost = it },
                     onToggleVoucher = { voucher ->
+                        val newSaved = voucher.is_saved != true
+                        promotionHome?.let { current ->
+                            promotionHome = current.copy(
+                                vouchers = current.vouchers.map { if (it.id == voucher.id) it.copy(is_saved = newSaved) else it },
+                                items = current.items.map { if (it.id == voucher.id) it.copy(is_saved = newSaved) else it },
+                            )
+                        }
                         scope.launch {
-                            if (voucher.is_saved == true) {
-                                runCatching { ApiClient.unsavePromotionVoucher(voucher.id) }
-                            } else {
-                                runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                            runCatching {
+                                if (newSaved) ApiClient.savePromotionVoucher(voucher.id)
+                                else ApiClient.unsavePromotionVoucher(voucher.id)
                             }
                             loadPromotions()
                         }
@@ -335,10 +358,17 @@ fun DashboardScreen(
             post = post,
             onDismiss = { selectedPromotionPost = null },
             onSaveVoucher = { voucher ->
+                val savedVoucher = voucher.copy(is_saved = true)
+                selectedPromotionPost = selectedPromotionPost?.copy(voucher = savedVoucher)
+                promotionHome?.let { current ->
+                    promotionHome = current.copy(
+                        vouchers = current.vouchers.map { if (it.id == voucher.id) savedVoucher else it },
+                        items = current.items.map { if (it.id == voucher.id) savedVoucher else it },
+                    )
+                }
                 scope.launch {
                     runCatching { ApiClient.savePromotionVoucher(voucher.id) }
                     loadPromotions()
-                    selectedPromotionPost = selectedPromotionPost?.copy(voucher = voucher.copy(is_saved = true))
                 }
             },
         )
@@ -363,8 +393,7 @@ private fun PromotionHomeSection(
 ) {
     val vouchers = payload?.let { it.vouchers.ifEmpty { it.items } } ?: emptyList()
     val posts = payload?.posts.orEmpty()
-    val isPremium = DashboardHomeCache.accountInfo?.profile?.is_premium == true
-        || DashboardHomeCache.accountInfo?.profile?.subscription_tier.equals("pro", ignoreCase = true)
+    if (vouchers.isEmpty() && posts.isEmpty()) return
 
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text(
@@ -387,14 +416,6 @@ private fun PromotionHomeSection(
         if (posts.isNotEmpty()) {
             PromotionPostMasonry(posts = posts, onPostClick = onPostClick)
         }
-        if (vouchers.isEmpty() && posts.isEmpty() && isPremium) {
-            Text(
-                "Chưa có ưu đãi mới. Quay lại sau nhé!",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = PremiumColors.TextMuted,
-            )
-        }
     }
 }
 
@@ -404,133 +425,246 @@ private fun PromotionPostMasonry(
     posts: List<PromotionPost>,
     onPostClick: (PromotionPost) -> Unit,
 ) {
-    val primary = posts.filter { it.post_type == "main" }
-    val secondary = posts.filter { it.post_type != "main" }
-    if (primary.isEmpty() || secondary.isEmpty()) {
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            maxItemsInEachRow = 2,
-        ) {
-            posts.forEach { post ->
-                PromotionPostCard(
-                    post = post,
-                    onClick = { onPostClick(post) },
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                )
-            }
-        }
-    } else {
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                primary.forEach { post ->
-                    PromotionPostCard(post = post, onClick = { onPostClick(post) })
-                }
-            }
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                secondary.forEach { post ->
-                    PromotionPostCard(post = post, onClick = { onPostClick(post) })
-                }
-            }
+    val columns = promotionMasonryColumns(posts)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top,
+    ) {
+        PromotionPostColumn(
+            posts = columns.first,
+            onPostClick = onPostClick,
+            modifier = Modifier.weight(1f),
+        )
+        PromotionPostColumn(
+            posts = columns.second,
+            onPostClick = onPostClick,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
+
+@Composable
+private fun PromotionPostColumn(
+    posts: List<PromotionPost>,
+    onPostClick: (PromotionPost) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        posts.forEach { post ->
+            PromotionPostCard(post = post, onClick = { onPostClick(post) })
         }
     }
+}
+
+private fun promotionMasonryColumns(
+    posts: List<PromotionPost>,
+    spacing: Float = 0.08f,
+): Pair<List<PromotionPost>, List<PromotionPost>> {
+    if (posts.isEmpty()) return emptyList<PromotionPost>() to emptyList()
+
+    val mains = posts.filter { it.post_type == "main" }
+    val secondaries = posts.filter { it.post_type != "main" }
+
+    val left = mutableListOf<PromotionPost>()
+    val right = mutableListOf<PromotionPost>()
+    var leftHeight = 0f
+    var rightHeight = 0f
+
+    fun itemHeight(post: PromotionPost): Float = if (post.post_type == "main") 4f / 3f else 1f
+
+    fun place(post: PromotionPost, onLeft: Boolean) {
+        if (onLeft) {
+            if (left.isNotEmpty()) leftHeight += spacing
+            left += post
+            leftHeight += itemHeight(post)
+        } else {
+            if (right.isNotEmpty()) rightHeight += spacing
+            right += post
+            rightHeight += itemHeight(post)
+        }
+    }
+
+    fun placeInShortestColumn(post: PromotionPost) {
+        place(post, onLeft = leftHeight <= rightHeight)
+    }
+
+    if (secondaries.isEmpty()) {
+        mains.forEach { placeInShortestColumn(it) }
+        return left to right
+    }
+
+    place(secondaries.first(), onLeft = false)
+    mains.forEach { placeInShortestColumn(it) }
+    secondaries.drop(1).forEach { placeInShortestColumn(it) }
+
+    return left to right
+}
+
+@Composable
+private fun voucherCarouselWidth(): Dp {
+    val screenWidth = LocalConfiguration.current.screenWidthDp.dp
+    val inset = PremiumDesign.ScreenPadding * 2
+    val peek = 52.dp
+    return maxOf(268.dp, screenWidth - inset - peek)
 }
 
 @Composable
 private fun PromotionVoucherCard(voucher: Promotion, carousel: Boolean = false, onToggle: () -> Unit) {
     val accent = PremiumColors.Accent
-    val cardWidth = if (carousel) 300.dp else Dp.Unspecified
+    val cardWidth = if (carousel) voucherCarouselWidth() else Dp.Unspecified
+    val fullTitle = voucherDisplayTitle(voucher)
+    val isSaved = voucher.is_saved == true
+    var showInfoDialog by remember { mutableStateOf(false) }
+    val cardShape = RoundedCornerShape(16.dp)
+    val compact = carousel
+    val hPad = if (compact) 12.dp else 14.dp
 
-    Box(
+    Column(
         modifier = Modifier
             .then(if (carousel) Modifier.width(cardWidth) else Modifier.fillMaxWidth())
-            .shadow(4.dp, RoundedCornerShape(14.dp))
-            .clip(VoucherTicketShape())
+            .shadow(4.dp, cardShape)
+            .clip(cardShape)
             .background(Color.White)
-            .border(1.dp, Color.Black.copy(alpha = 0.06f), VoucherTicketShape()),
+            .border(1.dp, Color.Black.copy(alpha = 0.06f), cardShape),
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = hPad, end = hPad, top = if (compact) 12.dp else 14.dp, bottom = if (compact) 10.dp else 12.dp),
             verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 10.dp else 12.dp),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .background(accent, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = voucherIcon(voucher),
-                    contentDescription = null,
-                    tint = Color.White,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
+            Icon(
+                imageVector = Icons.Filled.LocalOffer,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(if (compact) 24.dp else 28.dp),
+            )
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Row(verticalAlignment = Alignment.Top) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
                     Text(
-                        voucherHeadline(voucher),
-                        fontSize = 15.sp,
+                        fullTitle,
+                        fontSize = if (compact) 15.sp else 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = PremiumColors.Ink,
-                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = true),
                     )
                     Icon(
-                        imageVector = if (voucher.is_saved == true) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                        contentDescription = null,
+                        imageVector = Icons.Filled.Info,
+                        contentDescription = "Chi tiết ưu đãi",
                         tint = PremiumColors.TextMuted,
                         modifier = Modifier
-                            .size(24.dp)
-                            .clickable(onClick = onToggle)
-                            .padding(2.dp),
+                            .size(16.dp)
+                            .clickable { showInfoDialog = true },
                     )
                 }
                 Text(
-                    voucherDetailText(voucher),
+                    voucherSubtitlePrimary(voucher),
                     fontSize = 12.sp,
                     color = PremiumColors.Muted,
                     lineHeight = 17.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 34.dp),
                 )
-                Canvas(Modifier.fillMaxWidth().height(1.dp)) {
-                    drawLine(
-                        color = Color(0xFFE8884A),
-                        start = Offset(0f, 0f),
-                        end = Offset(size.width, 0f),
-                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f),
-                        strokeWidth = 2f,
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(voucher.code, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = accent)
-                    Text(" · ", fontSize = 11.sp, color = PremiumColors.TextMuted)
-                    Text(
-                        promotionApplicabilityText(voucher),
-                        fontSize = 11.sp,
-                        color = PremiumColors.TextMuted,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Text(
-                        promotionDiscountText(voucher),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = accent,
-                    )
-                }
             }
         }
+
+        Canvas(
+            Modifier
+                .fillMaxWidth()
+                .padding(horizontal = hPad)
+                .height(1.dp),
+        ) {
+            drawLine(
+                color = Color(0xFFE8884A).copy(alpha = 0.28f),
+                start = Offset(0f, 0f),
+                end = Offset(size.width, 0f),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 8f), 0f),
+                strokeWidth = 2f,
+            )
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    start = hPad,
+                    end = hPad,
+                    top = if (compact) 10.dp else 12.dp,
+                    bottom = if (compact) 12.dp else 14.dp,
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+        ) {
+            Row(
+                modifier = Modifier
+                    .background(PremiumColors.InputBg, RoundedCornerShape(10.dp))
+                    .padding(
+                        horizontal = if (compact) 10.dp else 12.dp,
+                        vertical = if (compact) 8.dp else 10.dp,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ContentCopy,
+                    contentDescription = null,
+                    tint = PremiumColors.Muted,
+                    modifier = Modifier.size(13.dp),
+                )
+                Text(
+                    voucher.code,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PremiumColors.Muted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.weight(1f))
+            Text(
+                if (isSaved) "Đã lưu" else "Lưu",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isSaved) PremiumColors.Muted else accent,
+                modifier = Modifier
+                    .background(
+                        if (isSaved) PremiumColors.InputBg else PremiumColors.AccentLight,
+                        RoundedCornerShape(999.dp),
+                    )
+                    .then(if (isSaved) Modifier else Modifier.clickable(onClick = onToggle))
+                    .padding(
+                        horizontal = if (compact) 14.dp else 18.dp,
+                        vertical = if (compact) 8.dp else 10.dp,
+                    ),
+            )
+        }
+    }
+
+    if (showInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showInfoDialog = false },
+            title = { Text("Chi tiết ưu đãi", fontWeight = FontWeight.Bold) },
+            text = { Text(voucherInfoPopupText(voucher)) },
+            confirmButton = {
+                TextButton(onClick = { showInfoDialog = false }) { Text("Đóng") }
+            },
+        )
     }
 }
 
@@ -554,16 +688,15 @@ fun SavedOffersScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { load() }
 
-    AppScaffold(title = "Ưu đãi", onBack = onBack) { padding ->
+    AppScaffold(title = "Ưu đãi", onBack = onBack) { scaffoldModifier ->
         when {
             loading -> Box(
-                Modifier.fillMaxSize().padding(padding),
+                scaffoldModifier.fillMaxSize(),
                 contentAlignment = Alignment.Center,
             ) { OrangeLoadingSpinner() }
             vouchers.isEmpty() -> Column(
-                Modifier
+                scaffoldModifier
                     .fillMaxSize()
-                    .padding(padding)
                     .padding(PremiumDesign.ScreenPadding),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -579,9 +712,8 @@ fun SavedOffersScreen(onBack: () -> Unit) {
                 )
             }
             else -> LazyColumn(
-                Modifier
+                scaffoldModifier
                     .fillMaxSize()
-                    .padding(padding)
                     .padding(PremiumDesign.ScreenPadding),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
@@ -599,11 +731,12 @@ fun SavedOffersScreen(onBack: () -> Unit) {
                             )
                         }
                         PromotionVoucherCard(voucher = voucher, onToggle = {
+                            val newSaved = voucher.is_saved != true
+                            vouchers = vouchers.map { if (it.id == voucher.id) it.copy(is_saved = newSaved) else it }
                             scope.launch {
-                                if (voucher.is_saved == true) {
-                                    runCatching { ApiClient.unsavePromotionVoucher(voucher.id) }
-                                } else {
-                                    runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                                runCatching {
+                                    if (newSaved) ApiClient.savePromotionVoucher(voucher.id)
+                                    else ApiClient.unsavePromotionVoucher(voucher.id)
                                 }
                                 load()
                             }
@@ -623,36 +756,6 @@ private fun promotionIsExpired(voucher: Promotion): Boolean {
     return until < today
 }
 
-private class VoucherTicketShape : Shape {
-    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
-        val corner = with(density) { 14.dp.toPx() }
-        val notch = with(density) { 9.dp.toPx() }
-        val path = Path().apply {
-            val w = size.width
-            val h = size.height
-            val midY = h / 2f
-            moveTo(corner, 0f)
-            lineTo(w - corner, 0f)
-            quadraticTo(w, 0f, w, corner)
-            lineTo(w, midY - notch)
-            arcTo(
-                rect = androidx.compose.ui.geometry.Rect(w - notch * 2f, midY - notch, w, midY + notch),
-                startAngleDegrees = -90f,
-                sweepAngleDegrees = 180f,
-                forceMoveTo = false,
-            )
-            lineTo(w, h - corner)
-            quadraticTo(w, h, w - corner, h)
-            lineTo(corner, h)
-            quadraticTo(0f, h, 0f, h - corner)
-            lineTo(0f, corner)
-            quadraticTo(0f, 0f, corner, 0f)
-            close()
-        }
-        return Outline.Generic(path)
-    }
-}
-
 private fun voucherIcon(voucher: Promotion): ImageVector {
     return when (voucher.applicability ?: "hotel_places") {
         "user_subscription", "pro_plan" -> Icons.Filled.Star
@@ -660,7 +763,7 @@ private fun voucherIcon(voucher: Promotion): ImageVector {
     }
 }
 
-private fun voucherHeadline(voucher: Promotion): String {
+private fun voucherDisplayTitle(voucher: Promotion): String {
     val pct = voucher.discount_percent ?: 0.0
     val amt = voucher.discount_amount ?: 0.0
     return when {
@@ -669,6 +772,29 @@ private fun voucherHeadline(voucher: Promotion): String {
         else -> voucher.title
     }
 }
+
+private fun voucherValidityText(voucher: Promotion): String? {
+    val from = voucher.valid_from?.trim().orEmpty()
+    val until = voucher.valid_until?.trim().orEmpty()
+    if (from.isNotEmpty() && until.isNotEmpty()) return "Áp dụng từ $from đến $until"
+    if (until.isNotEmpty()) return "Hết hạn $until"
+    if (from.isNotEmpty()) return "Áp dụng từ $from"
+    return null
+}
+
+private fun voucherInfoPopupText(voucher: Promotion): String {
+    val lines = mutableListOf(voucherDisplayTitle(voucher))
+    voucherValidityText(voucher)?.let { lines += it }
+    return lines.joinToString("\n\n")
+}
+
+private fun voucherSubtitlePrimary(voucher: Promotion): String {
+    val desc = voucher.description?.trim().orEmpty()
+    if (desc.isNotEmpty()) return desc
+    return promotionApplicabilityText(voucher)
+}
+
+private fun voucherHeadline(voucher: Promotion): String = voucherDisplayTitle(voucher)
 
 private fun voucherDetailText(voucher: Promotion): String {
     val desc = voucher.description?.trim().orEmpty()
@@ -801,6 +927,17 @@ fun TripsListScreen(
     val activeTrips = trips.filter { getTripPhase(it.start_date, it.end_date) != TripPhase.COMPLETED }
     val pastTrips = trips.filter { getTripPhase(it.start_date, it.end_date) == TripPhase.COMPLETED }
     var segmentIndex by remember { mutableStateOf(0) }
+    var promotionHome by remember { mutableStateOf<PromotionHomePayload?>(null) }
+    var selectedPromotionPost by remember { mutableStateOf<PromotionPost?>(null) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun loadPromotions() {
+        promotionHome = runCatching { ApiClient.promotionHome() }.getOrNull()
+    }
+
+    LaunchedEffect(Unit) {
+        loadPromotions()
+    }
 
     val segmentTrips = when (segmentIndex) {
         0 -> activeTrips
@@ -866,6 +1003,28 @@ fun TripsListScreen(
                             )
                         }
                     }
+                    item {
+                        PromotionHomeSection(
+                            payload = promotionHome,
+                            onPostClick = { selectedPromotionPost = it },
+                            onToggleVoucher = { voucher ->
+                                val newSaved = voucher.is_saved != true
+                                promotionHome?.let { current ->
+                                    promotionHome = current.copy(
+                                        vouchers = current.vouchers.map { if (it.id == voucher.id) it.copy(is_saved = newSaved) else it },
+                                        items = current.items.map { if (it.id == voucher.id) it.copy(is_saved = newSaved) else it },
+                                    )
+                                }
+                                scope.launch {
+                                    runCatching {
+                                        if (newSaved) ApiClient.savePromotionVoucher(voucher.id)
+                                        else ApiClient.unsavePromotionVoucher(voucher.id)
+                                    }
+                                    loadPromotions()
+                                }
+                            },
+                        )
+                    }
                     item { Spacer(Modifier.height(8.dp)) }
                 }
             }
@@ -879,6 +1038,27 @@ fun TripsListScreen(
         ) { content() }
     } else {
         Box(modifier) { content() }
+    }
+
+    selectedPromotionPost?.let { post ->
+        PromotionPostDialog(
+            post = post,
+            onDismiss = { selectedPromotionPost = null },
+            onSaveVoucher = { voucher ->
+                val savedVoucher = voucher.copy(is_saved = true)
+                selectedPromotionPost = selectedPromotionPost?.copy(voucher = savedVoucher)
+                promotionHome?.let { current ->
+                    promotionHome = current.copy(
+                        vouchers = current.vouchers.map { if (it.id == voucher.id) savedVoucher else it },
+                        items = current.items.map { if (it.id == voucher.id) savedVoucher else it },
+                    )
+                }
+                scope.launch {
+                    runCatching { ApiClient.savePromotionVoucher(voucher.id) }
+                    loadPromotions()
+                }
+            },
+        )
     }
 }
 
@@ -1263,6 +1443,7 @@ private fun ProfilePhoneField(value: String, onChange: (String) -> Unit) {
 }
 
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
     val scope = rememberCoroutineScope()
     var overview by remember { mutableStateOf<UserSubscriptionOverview?>(null) }
@@ -1575,10 +1756,9 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     LaunchedEffect(Unit) { load() }
 
-    com.wandertale.mobile.ui.components.AppScaffold(title = "Cài đặt", onBack = onBack) { padding ->
+    com.wandertale.mobile.ui.components.AppScaffold(title = "Cài đặt", onBack = onBack) { scaffoldModifier ->
         Column(
-            modifier = Modifier
-                .padding(padding)
+            modifier = scaffoldModifier
                 .padding(PremiumDesign.ScreenPadding),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {

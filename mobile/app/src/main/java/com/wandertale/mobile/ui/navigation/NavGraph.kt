@@ -39,6 +39,7 @@ import com.wandertale.mobile.ui.screens.LoginScreen
 import com.wandertale.mobile.ui.screens.MainShell
 import com.wandertale.mobile.ui.screens.ProfileScreen
 import com.wandertale.mobile.ui.screens.RegisterScreen
+import com.wandertale.mobile.ui.screens.SavedOffersScreen
 import com.wandertale.mobile.ui.screens.SettingsScreen
 import com.wandertale.mobile.ui.screens.SplashScreen
 import com.wandertale.mobile.ui.screens.TripDetailScreen
@@ -62,18 +63,6 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
         }
     }
 
-    fun preloadAndGoMain() {
-        scope.launch {
-            app.authRepository.initSession()
-            DashboardHomeCache.preload(
-                app.dashboardRepository,
-                app.tripRepository,
-                app.profileRepository,
-            )
-            navigateToMain()
-        }
-    }
-
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
         composable(Routes.SPLASH) {
             SplashScreen(darkTheme = darkTheme) { loggedIn ->
@@ -85,7 +74,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
         composable(Routes.LOGIN) {
             LoginScreen(
                 onBack = null,
-                onSuccess = { preloadAndGoMain() },
+                onSuccess = { navigateToMain() },
                 onRegister = { navController.navigate(Routes.REGISTER) },
                 onForgot = { navController.navigate(Routes.FORGOT) },
             )
@@ -93,7 +82,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
         composable(Routes.REGISTER) {
             RegisterScreen(
                 onBack = { navController.popBackStack() },
-                onSuccess = { preloadAndGoMain() },
+                onSuccess = { navigateToMain() },
                 onLogin = { navController.popBackStack() },
             )
         }
@@ -215,7 +204,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                     },
                 )
                 else -> MainShell(
-                    darkTheme = false,
+                    darkTheme = darkTheme,
                     currentTab = tab,
                     onTab = { tab = it },
                     onNavigate = { route ->

@@ -71,9 +71,13 @@ fun LoginScreen(
     val auth = WanderTaleApp.instance.authRepository
 
     // Khi OAuth (Google/Facebook) hoàn tất qua deep link, session chuyển sang Authenticated.
+    // Không giới hạn bởi loading flag để tránh race: session có thể cập nhật sau ON_RESUME,
+    // lúc đó observer bên dưới đã tắt spinner rồi, nên chỉ cần Authenticated là navigate.
+    var hasNavigated by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         auth.supabase.auth.sessionStatus.collect { status ->
-            if (status is SessionStatus.Authenticated && (googleLoading || facebookLoading)) {
+            if (status is SessionStatus.Authenticated && !hasNavigated) {
+                hasNavigated = true
                 googleLoading = false
                 facebookLoading = false
                 auth.initSession()

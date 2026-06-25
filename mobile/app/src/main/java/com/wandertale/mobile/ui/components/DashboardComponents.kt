@@ -189,6 +189,9 @@ fun PremiumMetricCard(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
     animatedInt: Int? = null,
+    backgroundImage: Int? = null,
+    subtitle: String? = null,
+    labelColor: Color? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -202,6 +205,7 @@ fun PremiumMetricCard(
         modifier = modifier
             .fillMaxWidth()
             .scale(scale)
+            .then(if (backgroundImage != null) Modifier.height(100.dp) else Modifier)
             .shadow(PremiumDesign.CardElevation, RoundedCornerShape(PremiumDesign.CardRadius), ambientColor = PremiumDesign.SoftShadowColor)
             .then(
                 if (onClick != null) {
@@ -212,36 +216,104 @@ fun PremiumMetricCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(PremiumDesign.CardPadding),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(RoundedCornerShape(PremiumDesign.IconContainerRadius))
-                    .background(iconBg),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(
-                    label,
-                    color = PremiumColors.TextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+        if (backgroundImage != null) {
+            Box(Modifier.fillMaxSize()) {
+                Image(
+                    painter = painterResource(backgroundImage),
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.matchParentSize(),
                 )
-                Spacer(Modifier.height(4.dp))
-                if (animatedInt != null) {
-                    CountUpIntDisplay(target = animatedInt) { display ->
+                Column(
+                    Modifier
+                        .matchParentSize()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Text(
+                        label,
+                        color = labelColor ?: MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (animatedInt != null) {
+                        CountUpIntDisplay(target = animatedInt) { display ->
+                            Text(
+                                display,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    } else {
                         Text(
-                            display,
+                            value,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    subtitle?.let {
+                        Text(
+                            it,
+                            color = PremiumColors.TextMuted,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        } else {
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(PremiumDesign.CardPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(PremiumDesign.IconContainerRadius))
+                        .background(iconBg),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        label,
+                        color = PremiumColors.TextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    if (animatedInt != null) {
+                        CountUpIntDisplay(target = animatedInt) { display ->
+                            Text(
+                                display,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 28.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                lineHeight = 32.sp,
+                            )
+                        }
+                    } else {
+                        Text(
+                            value,
                             color = MaterialTheme.colorScheme.onSurface,
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Bold,
@@ -250,16 +322,6 @@ fun PremiumMetricCard(
                             lineHeight = 32.sp,
                         )
                     }
-                } else {
-                    Text(
-                        value,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        lineHeight = 32.sp,
-                    )
                 }
             }
         }
