@@ -53,9 +53,9 @@ steps:
       - --env-vars-file
       - deploy/cloud-run.env.yaml
       - --remove-secrets
-      - GEMINI_API_KEY_2,GEMINI_API_KEY_3
+      - GEMINI_API_KEY_1,GEMINI_API_KEY_2,GEMINI_API_KEY_3
       - --update-secrets
-      - SUPABASE_URL=wander-tale-supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=wander-tale-supabase-service-role-key:latest,GEMINI_API_KEY_1=wander-tale-gemini-api-key:latest,OPENWEATHER_API_KEY=wander-tale-openweather-api-key:latest,VIETMAP_API_KEY=wander-tale-vietmap-api-key:latest,PEXELS_API_KEY=wander-tale-pexels-api-key:latest,PAYOS_CLIENT_ID=wander-tale-payos-client-id:latest,PAYOS_API_KEY=wander-tale-payos-api-key:latest,PAYOS_CHECKSUM_KEY=wander-tale-payos-checksum-key:latest,INTERNAL_WORKER_TOKEN=INTERNAL_WORKER_TOKEN:latest
+      - SUPABASE_URL=wander-tale-supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=wander-tale-supabase-service-role-key:latest,MISTRAL_API_KEY=wander-tale-mistral-api-key:latest,OPENWEATHER_API_KEY=wander-tale-openweather-api-key:latest,VIETMAP_API_KEY=wander-tale-vietmap-api-key:latest,PEXELS_API_KEY=wander-tale-pexels-api-key:latest,PAYOS_CLIENT_ID=wander-tale-payos-client-id:latest,PAYOS_API_KEY=wander-tale-payos-api-key:latest,PAYOS_CHECKSUM_KEY=wander-tale-payos-checksum-key:latest,INTERNAL_WORKER_TOKEN=INTERNAL_WORKER_TOKEN:latest
 
 images:
   - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPOSITORY}/${_IMAGE}:$COMMIT_SHA

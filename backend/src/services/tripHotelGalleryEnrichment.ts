@@ -9,11 +9,11 @@ export async function enrichHotelPricingWithGalleries(
 
   try {
     const offersWithGallery = await enrichHotelOfferGalleries(pricing.offers, {
-      maxOffers: 6,
-      minImages: 5,
-      maxImages: 10,
+      maxOffers: 4,
+      minImages: 2,
+      maxImages: 8,
     });
-    const offers = await enrichHotelOfferRoomInfo(offersWithGallery, { maxOffers: 6 });
+    const offers = await enrichHotelOfferRoomInfo(offersWithGallery, { maxOffers: 4 });
 
     const comparison =
       pricing.comparison != null

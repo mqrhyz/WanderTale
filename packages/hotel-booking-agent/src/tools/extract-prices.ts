@@ -416,6 +416,9 @@ async function extractWithSelectorsFallback(
       const priceVnd = parsePriceVnd(priceText);
       if (!priceVnd) continue;
 
+      const card = await priceEl.locator("xpath=ancestor::*[contains(@class, 'property') or contains(@class, 'Property') or contains(@class, 'hotel') or contains(@class, 'Hotel') or contains(@class, 'card') or contains(@class, 'Card') or @data-testid='property-card' or @data-selenium='hotel-item'][1]").first();
+      const cardHandle = await card.elementHandle().catch(() => null);
+
       let hotelName = "";
       for (const nameSel of adapter.nameSelectors) {
         const text = (await page.locator(nameSel).nth(i).innerText().catch(() => "")).trim();
@@ -424,12 +427,86 @@ async function extractWithSelectorsFallback(
           break;
         }
       }
+      if (!hotelName && cardHandle) {
+        const fallbackName = await cardHandle.evaluate((el: Element) => {
+          const el2 = el.querySelector(
+            "h3, [data-testid='title'], [data-selenium='hotel-name'], [data-element-name='property-card-title'], [class*='hotelName']"
+          );
+          return el2 ? (el2.textContent || "").trim().split(/[\n\r]/)[0].trim() : "";
+        }).catch(() => "");
+        if (fallbackName.length > 2) hotelName = fallbackName.slice(0, 140);
+      }
       if (!hotelName) continue;
 
       const href = await priceEl.locator("xpath=ancestor::a[1]").first().getAttribute("href").catch(() => null);
       let bookingUrl = href ? (href.startsWith("http") ? href : new URL(href, url).href) : url;
       if (site === "booking") bookingUrl = enrichBookingUrl(bookingUrl, criteria);
       if (!isRealOtaUrl(bookingUrl, site)) continue;
+
+      let imagePreviewUrl: string | undefined;
+      let imagePreviewUrls: string[] | undefined;
+      let roomName: string | undefined;
+      let perks: string[] | undefined;
+      if (cardHandle) {
+        const extra = await cardHandle.evaluate((el: Element) => {
+          function normalize(u: string | null) {
+            if (!u) return "";
+            u = u.trim();
+            if (u.indexOf("//") === 0) return "https:" + u;
+            return u;
+          }
+          function isImage(u: string) {
+            return u.startsWith("http") && !u.startsWith("data:");
+          }
+          const urls: string[] = [];
+          const seen = new Set<string>();
+          function add(u: string | null) {
+            const n = normalize(u);
+            if (!isImage(n)) return;
+            const key = n.split("?")[0];
+            if (seen.has(key)) return;
+            seen.add(key);
+            urls.push(n);
+          }
+          const img = el.querySelector("img");
+          add(img?.getAttribute("src") ?? null);
+          add(img?.getAttribute("data-src") ?? null);
+          add(img?.getAttribute("data-lazy") ?? null);
+          const picture = el.querySelector("picture source[srcset]");
+          if (picture) {
+            const srcset = picture.getAttribute("srcset") || "";
+            const part = srcset.split(",")[0]?.trim().split(/\s+/)[0];
+            add(part);
+          }
+
+          const roomEl = el.querySelector("[class*='room'], [data-testid*='room']");
+          const room = (roomEl?.textContent || "").trim().slice(0, 80);
+
+          const perkSet = new Set<string>();
+          const perksOut: string[] = [];
+          function addPerk(t: string) {
+            t = t.replace(/\s+/g, " ").trim();
+            if (!t || t.length < 2 || t.length > 80) return;
+            if (/^(\+\d|xem th|show more|see all|more amenities)$/i.test(t)) return;
+            if (/^\+\s*\d/.test(t)) return;
+            const k = t.toLowerCase();
+            if (perkSet.has(k)) return;
+            perkSet.add(k);
+            perksOut.push(t);
+          }
+          el.querySelectorAll(
+            "[data-testid*='facility'], [data-testid*='unit-configuration'], [class*='facilit'], [class*='amenity'], .bui-badge"
+          ).forEach((node) => addPerk(node.textContent || ""));
+
+          return { imagePreviewUrl: urls[0] || "", imagePreviewUrls: urls.slice(0, 8), roomName: room, perks: perksOut };
+        }).catch(() => undefined);
+        if (extra?.imagePreviewUrl) {
+          imagePreviewUrl = extra.imagePreviewUrl;
+          imagePreviewUrls = extra.imagePreviewUrls;
+        }
+        if (extra?.roomName) roomName = extra.roomName;
+        if (extra?.perks?.length) perks = dedupeRoomAmenities(extra.perks, roomName);
+      }
 
       offers.push({
         site,
@@ -438,8 +515,12 @@ async function extractWithSelectorsFallback(
         currency: "VND",
         location: criteria.city,
         bookingUrl,
+        imagePreviewUrl,
+        imagePreviewUrls,
+        roomName,
+        perks,
         scrapedAt: nowIso(),
-        confidence: 0.7,
+        confidence: 0.72,
         nights,
         priceNote: inferPriceNote(priceText, nights),
       });
