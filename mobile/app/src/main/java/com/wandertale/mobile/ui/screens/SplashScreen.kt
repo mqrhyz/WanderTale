@@ -40,9 +40,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.atan2
 
-private const val SPLASH_DURATION_MS = 1000L
-private const val BOOTSTRAP_TIMEOUT_MS = 2_500L
-private const val PRELOAD_TIMEOUT_MS = 10_000L
+private const val SPLASH_DURATION_MS = 500L
+private const val BOOTSTRAP_TIMEOUT_MS = 1_500L
 private const val SPLASH_LOGO_WIDTH_FRACTION = 0.82f
 private const val LOGO_ASPECT_RATIO = 1536f / 1024f
 
@@ -80,6 +79,7 @@ fun SplashScreen(
         val loggedIn = coroutineScope {
             val minSplash = async { delay(SPLASH_DURATION_MS) }
             val bootstrap = async { resolveLoggedInState() }
+            // Đợi tối thiểu animation, nhưng không chặn vì preload dữ liệu.
             minSplash.await()
             bootstrap.await()
         }
@@ -223,17 +223,7 @@ private suspend fun resolveLoggedInState(): Boolean {
     return runCatching {
         withTimeoutOrNull(BOOTSTRAP_TIMEOUT_MS) {
             app.authRepository.initSession()
-            val loggedIn = app.authRepository.isLoggedIn()
-            if (loggedIn) {
-                withTimeoutOrNull(PRELOAD_TIMEOUT_MS) {
-                    DashboardHomeCache.preload(
-                        app.dashboardRepository,
-                        app.tripRepository,
-                        app.profileRepository,
-                    )
-                }
-            }
-            loggedIn
+            app.authRepository.isLoggedIn()
         }
     }.getOrNull()
         ?: runCatching { app.authRepository.isLoggedIn() }.getOrDefault(false)

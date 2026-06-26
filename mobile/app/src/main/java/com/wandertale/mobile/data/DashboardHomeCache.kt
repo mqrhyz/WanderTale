@@ -59,8 +59,12 @@ object DashboardHomeCache {
         var statsError: String? = null
         var tripsError: String? = null
 
-        val profileResult = runCatching { profile.getAccountInfo() }
-        profileResult
+        // Chạy song song để giảm thời gian khởi động; lỗi profile vẫn giữ cache cũ.
+        val profileDeferred = async { runCatching { profile.getAccountInfo() } }
+        val statsDeferred = async { runCatching { dashboard.stats() } }
+        val tripsDeferred = async { runCatching { tripsRepo.list() } }
+
+        profileDeferred.await()
             .onSuccess { info ->
                 accountInfo = info
                 info.displayName.takeIf { it.isNotBlank() }?.let { displayName = it }
@@ -75,18 +79,12 @@ object DashboardHomeCache {
         val role = accountInfo?.profile
         if (role != null && !role.is_admin && !role.is_business) {
             WanderTaleApp.instance.preferencesStore.setDarkMode(false)
-            val statsJob = async {
-                runCatching { dashboard.stats() }
-                    .onSuccess { stats = it }
-                    .onFailure { statsError = formatApiError(it, "Không tải thống kê") }
-            }
-            val tripsJob = async {
-                runCatching { tripsRepo.list() }
-                    .onSuccess { trips = it }
-                    .onFailure { tripsError = formatApiError(it, "Không tải chuyến đi") }
-            }
-            statsJob.await()
-            tripsJob.await()
+            statsDeferred.await()
+                .onSuccess { stats = it }
+                .onFailure { statsError = formatApiError(it, "Không tải thống kê") }
+            tripsDeferred.await()
+                .onSuccess { trips = it }
+                .onFailure { tripsError = formatApiError(it, "Không tải chuyến đi") }
         }
 
         PreloadResult(

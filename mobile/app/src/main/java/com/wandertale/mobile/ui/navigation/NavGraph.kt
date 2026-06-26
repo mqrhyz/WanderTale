@@ -108,14 +108,22 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             var displayName by remember { mutableStateOf(DashboardHomeCache.displayName) }
             var isAdmin by remember { mutableStateOf(DashboardHomeCache.accountInfo?.profile?.is_admin == true) }
             var isBusiness by remember { mutableStateOf(DashboardHomeCache.accountInfo?.profile?.is_business == true) }
-            var roleReady by remember { mutableStateOf(false) }
+            var roleReady by remember { mutableStateOf(DashboardHomeCache.accountInfo?.profile != null) }
             var dashboardError by remember { mutableStateOf<String?>(null) }
             var roleError by remember { mutableStateOf<String?>(null) }
             var dashboardRefreshing by remember { mutableStateOf(false) }
             var dashboardMetricsAnimated by remember { mutableStateOf(false) }
 
+            suspend fun applyCacheToUi() {
+                stats = DashboardHomeCache.stats
+                trips = DashboardHomeCache.trips
+                displayName = DashboardHomeCache.displayName
+                isAdmin = DashboardHomeCache.accountInfo?.profile?.is_admin == true
+                isBusiness = DashboardHomeCache.accountInfo?.profile?.is_business == true
+                roleReady = DashboardHomeCache.accountInfo?.profile != null
+            }
+
             suspend fun reloadDashboard() {
-                roleReady = false
                 dashboardError = null
                 roleError = null
                 app.authRepository.initSession()
@@ -124,18 +132,19 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                     app.tripRepository,
                     app.profileRepository,
                 )
-                stats = DashboardHomeCache.stats
-                trips = DashboardHomeCache.trips
-                displayName = DashboardHomeCache.displayName
-                isAdmin = DashboardHomeCache.accountInfo?.profile?.is_admin == true
-                isBusiness = DashboardHomeCache.accountInfo?.profile?.is_business == true
+                applyCacheToUi()
                 roleError = result.profileError
                 dashboardError = result.summaryError
-                roleReady = DashboardHomeCache.accountInfo?.profile != null
             }
 
             LaunchedEffect(Unit) {
-                reloadDashboard()
+                // Hiển thị cache ngay lập tức; tải mới diễn ra nền.
+                if (DashboardHomeCache.accountInfo == null) {
+                    reloadDashboard()
+                } else {
+                    applyCacheToUi()
+                    reloadDashboard()
+                }
             }
 
             LaunchedEffect(stats, dashboardMetricsAnimated) {
