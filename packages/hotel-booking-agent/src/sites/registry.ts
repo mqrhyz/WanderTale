@@ -38,6 +38,7 @@ export const SITE_ADAPTERS: Record<BookingSiteId, SiteAdapter> = {
         group_children: String(c.children),
         no_rooms: String(c.rooms),
         lang: "vi",
+        selected_currency: "VND",
       });
       return `https://www.booking.com/searchresults.html?${params}`;
     },

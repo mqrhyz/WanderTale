@@ -74,7 +74,7 @@ async function scrapeOtaGallery(page: Page, url: string, max = 10): Promise<stri
   }
 }
 
-/** Bổ sung gallery ảnh từ trang chi tiết Booking (chạy nền sau khi có giá). */
+/** Bổ sung gallery ảnh từ trang chi tiết OTA (chạy song song trên nhiều tab). */
 export async function enrichHotelOfferGalleries(
   offers: HotelOffer[],
   options?: { maxOffers?: number; minImages?: number; maxImages?: number }
@@ -89,38 +89,35 @@ export async function enrichHotelOfferGalleries(
   });
   if (!needsGallery) return offers;
 
-  const { withPage } = await import("./playwright-browser.js");
-  return withPage(async (page) => {
-    const enriched = await enrichBookingGalleries(page, targets, minImages, maxImages);
+  const { withPages } = await import("./playwright-browser.js");
+  const parallelCount = Math.min(targets.length, 3);
+  return withPages(parallelCount, async (pages) => {
+    const enriched = await Promise.all(
+      targets.map((o, i) => enrichBookingGallery(pages[i % parallelCount], o, minImages, maxImages))
+    );
     const byUrl = new Map(enriched.map((o) => [o.bookingUrl, o]));
     return offers.map((o) => byUrl.get(o.bookingUrl) ?? o);
   });
 }
 
-async function enrichBookingGalleries(
+async function enrichBookingGallery(
   page: Page,
-  offers: HotelOffer[],
+  offer: HotelOffer,
   minImages = 5,
   maxImages = 10
-): Promise<HotelOffer[]> {
-  const out: HotelOffer[] = [];
+): Promise<HotelOffer> {
+  let urls = mergeImageUrls(offer.imagePreviewUrls, offer.imagePreviewUrl ? [offer.imagePreviewUrl] : undefined);
 
-  for (const o of offers) {
-    let urls = mergeImageUrls(o.imagePreviewUrls, o.imagePreviewUrl ? [o.imagePreviewUrl] : undefined);
-
-    if (isHotelDetailUrl(o) && urls.length < minImages) {
-      const gallery = await scrapeOtaGallery(page, o.bookingUrl, maxImages);
-      urls = mergeImageUrls(urls, gallery);
-    }
-
-    out.push({
-      ...o,
-      imagePreviewUrls: urls.length > 0 ? urls : undefined,
-      imagePreviewUrl: urls[0] ?? o.imagePreviewUrl,
-    });
+  if (isHotelDetailUrl(offer) && urls.length < minImages) {
+    const gallery = await scrapeOtaGallery(page, offer.bookingUrl, maxImages);
+    urls = mergeImageUrls(urls, gallery);
   }
 
-  return out;
+  return {
+    ...offer,
+    imagePreviewUrls: urls.length > 0 ? urls : undefined,
+    imagePreviewUrl: urls[0] ?? offer.imagePreviewUrl,
+  };
 }
 
 /** Bổ sung tên phòng + tiện nghi từ trang chi tiết OTA. */
@@ -133,62 +130,97 @@ export async function enrichHotelOfferRoomInfo(
   const needsRoomInfo = targets.some((o) => isHotelDetailUrl(o));
   if (!needsRoomInfo) return offers;
 
-  const { withPage } = await import("./playwright-browser.js");
-  return withPage(async (page) => {
-    const enriched = await scrapeRoomInfoForOffers(page, targets);
+  const { withPages } = await import("./playwright-browser.js");
+  const parallelCount = Math.min(targets.length, 3);
+  return withPages(parallelCount, async (pages) => {
+    const enriched = await Promise.all(
+      targets.map((o, i) => scrapeRoomInfoForOffer(pages[i % parallelCount], o))
+    );
     const byUrl = new Map(enriched.map((o) => [o.bookingUrl, o]));
     return offers.map((o) => byUrl.get(o.bookingUrl) ?? o);
   });
 }
 
-async function scrapeRoomInfoForOffers(page: Page, offers: HotelOffer[]): Promise<HotelOffer[]> {
+async function scrapeRoomInfoForOffer(page: Page, offer: HotelOffer): Promise<HotelOffer> {
+  if (!isHotelDetailUrl(offer)) return offer;
+
   const env = getHotelAgentEnv();
-  const out: HotelOffer[] = [];
+  let roomName = offer.roomName;
+  let perks = offer.perks ?? [];
+  let priceVnd = offer.priceVnd;
 
-  for (const o of offers) {
-    if (!isHotelDetailUrl(o)) {
-      out.push(o);
-      continue;
+  try {
+    await page.goto(offer.bookingUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: Math.min(env.HOTEL_AGENT_PLAYWRIGHT_TIMEOUT_MS, 12_000),
+    });
+    if (offer.bookingUrl.includes("booking.com")) {
+      await dismissBookingPopups(page);
+    } else {
+      await dismissCookieBanner(page);
+      await dismissOverlays(page);
     }
+    await page.waitForTimeout(500);
 
-    let roomName = o.roomName;
-    let perks = o.perks ?? [];
-
-    if (isHotelDetailUrl(o)) {
+    // Booking.com: thử parse deterministic b_blocks trước khi dùng LLM/generic extraction.
+    if (offer.site === "booking") {
       try {
-        await page.goto(o.bookingUrl, {
-          waitUntil: "domcontentloaded",
-          timeout: Math.min(env.HOTEL_AGENT_PLAYWRIGHT_TIMEOUT_MS, 12_000),
-        });
-        if (o.bookingUrl.includes("booking.com")) {
-          await dismissBookingPopups(page);
-        } else {
-          await dismissCookieBanner(page);
-          await dismissOverlays(page);
+        const blocks = await runBrowserScript<{
+          roomName?: string;
+          rooms?: Array<{
+            roomName: string;
+            totalAmount: number;
+            currency: string;
+            perks: string[];
+            mealPlan: string;
+          }>;
+          error?: string;
+        }>(page, "extract-booking-blocks.js", {});
+        if (blocks?.rooms && blocks.rooms.length > 0) {
+          const cheapest = blocks.rooms[0];
+          if (cheapest.roomName && cheapest.roomName.length > 2) {
+            roomName = cheapest.roomName.slice(0, 120);
+          }
+          if (cheapest.currency === "VND" && cheapest.totalAmount > 0) {
+            priceVnd = cheapest.totalAmount;
+          }
+          if (cheapest.perks?.length) {
+            perks = dedupeRoomAmenities([...(offer.perks ?? []), ...cheapest.perks], roomName);
+          }
         }
-        await page.waitForTimeout(500);
+      } catch (blockErr) {
+        // Fallback sang extraction cũ
         const info = await runBrowserScript<{ roomName?: string; perks?: string[] }>(
           page,
           "extract-room-info.js",
-          { site: o.site }
+          { site: offer.site }
         );
         if (info?.roomName && info.roomName.length > 2) roomName = info.roomName.slice(0, 120);
         if (info?.perks?.length) {
-          perks = dedupeRoomAmenities([...(o.perks ?? []), ...info.perks], roomName);
+          perks = dedupeRoomAmenities([...(offer.perks ?? []), ...info.perks], roomName);
         }
-      } catch {
-        /* giữ dữ liệu thẻ search */
+      }
+    } else {
+      const info = await runBrowserScript<{ roomName?: string; perks?: string[] }>(
+        page,
+        "extract-room-info.js",
+        { site: offer.site }
+      );
+      if (info?.roomName && info.roomName.length > 2) roomName = info.roomName.slice(0, 120);
+      if (info?.perks?.length) {
+        perks = dedupeRoomAmenities([...(offer.perks ?? []), ...info.perks], roomName);
       }
     }
-
-    out.push({
-      ...o,
-      roomName: roomName || o.roomName,
-      perks: perks.length > 0 ? dedupeRoomAmenities(perks, roomName || o.roomName) : o.perks,
-    });
+  } catch {
+    /* giữ dữ liệu thẻ search */
   }
 
-  return out;
+  return {
+    ...offer,
+    roomName: roomName || offer.roomName,
+    perks: perks.length > 0 ? dedupeRoomAmenities(perks, roomName || offer.roomName) : offer.perks,
+    priceVnd,
+  };
 }
 
 function enrichBookingUrl(url: string, criteria: SearchCriteria): string {
@@ -199,6 +231,7 @@ function enrichBookingUrl(url: string, criteria: SearchCriteria): string {
     if (!u.searchParams.has("group_adults")) u.searchParams.set("group_adults", String(criteria.adults));
     if (!u.searchParams.has("group_children")) u.searchParams.set("group_children", String(criteria.children));
     if (!u.searchParams.has("no_rooms")) u.searchParams.set("no_rooms", String(criteria.rooms));
+    if (!u.searchParams.has("selected_currency")) u.searchParams.set("selected_currency", "VND");
     return u.href;
   } catch {
     return url;

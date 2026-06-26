@@ -188,6 +188,33 @@ export async function withPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
   }
 }
 
+/** Tạo nhiều page trong cùng một context để chạy song song. */
+export async function withPages<T>(count: number, fn: (pages: Page[]) => Promise<T>): Promise<T> {
+  if (count <= 0) return fn([]);
+  const ctx = await newContext();
+  const env = getHotelAgentEnv();
+  const pages: Page[] = [];
+  for (let i = 0; i < count; i++) {
+    const page = await ctx.newPage();
+    attachPageGuards(page);
+    page.setDefaultTimeout(env.HOTEL_AGENT_PLAYWRIGHT_TIMEOUT_MS);
+    page.setDefaultNavigationTimeout(env.HOTEL_AGENT_PLAYWRIGHT_TIMEOUT_MS);
+    pages.push(page);
+  }
+  try {
+    return await fn(pages);
+  } finally {
+    await Promise.all(pages.map((p) => p.close().catch(() => undefined)));
+    if (env.HOTEL_AGENT_HEADLESS) {
+      await ctx.close();
+    } else {
+      setTimeout(() => {
+        ctx.close().catch(() => undefined);
+      }, 15 * 60 * 1000);
+    }
+  }
+}
+
 export async function withLegacyPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
   const ctx = await createLegacyScanContext();
   const page = await ctx.newPage();
