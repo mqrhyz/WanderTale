@@ -184,7 +184,6 @@ fun LoginScreen(
                     googleLoading = true
                     scope.launch {
                         runCatching {
-                            auth.initSession()
                             auth.signInWithGoogle()
                         }.onFailure {
                             error = formatAuthError(it, "Đăng nhập Google thất bại")
@@ -200,7 +199,6 @@ fun LoginScreen(
                     facebookLoading = true
                     scope.launch {
                         runCatching {
-                            auth.initSession()
                             auth.signInWithFacebook()
                         }.onFailure {
                             error = formatAuthError(it, "Đăng nhập Facebook thất bại")

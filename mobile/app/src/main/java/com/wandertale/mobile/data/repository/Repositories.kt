@@ -38,6 +38,10 @@ class AuthRepository(@Suppress("UNUSED_PARAMETER") context: Context) {
 
     suspend fun initSession() {
         supabase.auth.loadFromStorage(autoRefresh = true)
+        attachTokenProvider()
+    }
+
+    fun attachTokenProvider() {
         ApiClient.setTokenProvider { supabase.auth.currentAccessTokenOrNull() }
     }
 
