@@ -10,7 +10,7 @@ enum AppConfig {
     }
 
     static var apiURL: String {
-        normalizeURL(string(for: "API_URL", fallback: "http://127.0.0.1:8000"))
+        normalizeURL(string(for: "API_URL", fallback: "https://wander-tale-api-378632863425.asia-southeast1.run.app"))
     }
 
     static var isSupabaseConfigured: Bool {

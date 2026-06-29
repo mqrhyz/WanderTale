@@ -21,12 +21,12 @@ fun formatApiError(error: Throwable, fallback: String = "Không tải được d
     return when {
         msg.contains("Connection refused", ignoreCase = true) ||
             msg.contains("Failed to connect", ignoreCase = true) ->
-            "Backend API chưa chạy. Trên máy dev: cd wander-tale/backend && npm run dev (cổng 8000). Emulator dùng http://10.0.2.2:8000."
+            "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối mạng."
         msg.contains("timeout", ignoreCase = true) ->
-            "Backend phản hồi quá chậm. Kiểm tra server đang chạy tại cổng 8000."
+            "Máy chủ phản hồi chậm. Vui lòng thử lại."
         msg.contains("Unable to resolve host", ignoreCase = true) ||
             msg.contains("UnknownHost", ignoreCase = true) ->
-            "Không tìm thấy máy chủ API. Kiểm tra API_URL trong mobile/local.properties."
+            "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối mạng."
         msg.isNotBlank() -> msg
         else -> fallback
     }

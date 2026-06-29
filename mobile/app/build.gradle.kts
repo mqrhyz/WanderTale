@@ -30,7 +30,7 @@ android {
 
         buildConfigField("String", "SUPABASE_URL", "\"${prop("SUPABASE_URL")}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${prop("SUPABASE_ANON_KEY")}\"")
-        buildConfigField("String", "API_URL", "\"${prop("API_URL", "http://10.0.2.2:8000")}\"")
+        buildConfigField("String", "API_URL", "\"${prop("API_URL", "https://wander-tale-api-378632863425.asia-southeast1.run.app")}\"")
     }
 
     buildFeatures {

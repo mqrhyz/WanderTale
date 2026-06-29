@@ -14,6 +14,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -181,6 +182,13 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                             },
                         ) {
                             Text("Đăng xuất")
+                        }
+                        TextButton(
+                            onClick = {
+                                scope.launch { reloadDashboard() }
+                            },
+                        ) {
+                            Text("Thử lại")
                         }
                     }
                 }
