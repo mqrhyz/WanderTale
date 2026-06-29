@@ -577,6 +577,30 @@ private fun VietnameseDatePicker(state: DatePickerState) {
     }
 }
 
+private val VIETNAM_DESTINATION_CITIES = listOf(
+    "Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Đà Lạt", "Nha Trang",
+    "Phú Quốc", "Hội An", "Huế", "Sa Pa", "Hạ Long",
+    "Vũng Tàu", "Mũi Né", "Cần Thơ", "Biên Hòa", "Bình Dương",
+    "Buôn Ma Thuột", "Pleiku", "Quy Nhơn", "Tuy Hòa", "Ninh Bình",
+    "Tam Đảo", "Hải Phòng", "Lào Cai", "Điện Biên Phủ", "Côn Đảo",
+    "Phan Thiết", "Long An", "Bà Rịa - Vũng Tàu", "Khánh Hòa", "Lâm Đồng",
+    "Bình Định", "Phú Yên", "Gia Lai", "Đắk Lắk", "Bình Thuận",
+    "Ninh Thuận", "Bình Phước", "Tây Ninh", "Đồng Nai", "Tiền Giang",
+    "Bến Tre", "Vĩnh Long", "Trà Vinh", "Sóc Trăng", "Bạc Liêu",
+    "Cà Mau", "An Giang", "Kiên Giang", "Hậu Giang", "Đồng Tháp",
+)
+
+private fun normalizeForSearch(text: String): String {
+    val normalized = java.text.Normalizer.normalize(text, java.text.Normalizer.Form.NFD)
+    return normalized
+        .replace(Regex("\\p{InCombiningDiacriticalMarks}+"), "")
+        .replace("đ", "d")
+        .replace("Đ", "D")
+        .lowercase()
+        .replace(Regex("\\s+"), " ")
+        .trim()
+}
+
 @Composable
 private fun DestinationAutocompleteField(
     value: String,
@@ -587,7 +611,6 @@ private fun DestinationAutocompleteField(
 ) {
     var suggestions by remember { mutableStateOf<List<GeocodeAutocompleteItem>>(emptyList()) }
     var showSuggestions by remember { mutableStateOf(false) }
-    var searchLoading by remember { mutableStateOf(false) }
     var suppressSearch by remember { mutableStateOf(false) }
     var committedDestination by remember { mutableStateOf<String?>(null) }
 
@@ -607,19 +630,24 @@ private fun DestinationAutocompleteField(
             showSuggestions = false
             return@LaunchedEffect
         }
-        delay(350)
+        delay(150)
         if (q != value.trim()) return@LaunchedEffect
-        searchLoading = true
-        runCatching { ApiClient.geocodeAutocomplete(q) }
-            .onSuccess {
-                suggestions = it.results
-                showSuggestions = it.results.isNotEmpty()
+        val qNorm = normalizeForSearch(q)
+        suggestions = VIETNAM_DESTINATION_CITIES
+            .filter { city ->
+                val cityNorm = normalizeForSearch(city)
+                cityNorm.contains(qNorm) || qNorm.contains(cityNorm)
             }
-            .onFailure {
-                suggestions = emptyList()
-                showSuggestions = false
+            .take(6)
+            .map { city ->
+                GeocodeAutocompleteItem(
+                    ref_id = "",
+                    display = city,
+                    name = city,
+                    address = "",
+                )
             }
-        searchLoading = false
+        showSuggestions = suggestions.isNotEmpty()
     }
 
     Column(modifier = modifier.fillMaxWidth()) {
@@ -643,15 +671,7 @@ private fun DestinationAutocompleteField(
             leadingIcon = {
                 Icon(Icons.Default.Place, null, tint = PremiumColors.Accent)
             },
-            trailingIcon = {
-                if (searchLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(18.dp),
-                        strokeWidth = 2.dp,
-                        color = PremiumColors.Accent,
-                    )
-                }
-            },
+            trailingIcon = null,
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = 52.dp),
@@ -695,18 +715,9 @@ private fun DestinationAutocompleteField(
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium,
                             color = PremiumColors.Ink,
-                            maxLines = 2,
+                            maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
-                        if (item.address.isNotBlank() && item.address != item.display) {
-                            Text(
-                                item.address,
-                                fontSize = 12.sp,
-                                color = PremiumColors.TextMuted,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
                     }
                     if (index < suggestions.lastIndex && index < 5) {
                         Box(
