@@ -2,8 +2,8 @@ import SwiftUI
 
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
-    @State private var selectedTab: MainTab = .dashboard
-    @State private var tabBeforeCreate: MainTab = .dashboard
+    @SceneStorage("mainSelectedTab") private var selectedTab: MainTab = .dashboard
+    @SceneStorage("mainTabBeforeCreate") private var tabBeforeCreate: MainTab = .dashboard
     @State private var path = NavigationPath()
 
     var body: some View {
@@ -38,6 +38,8 @@ struct MainTabView: View {
                         BusinessPortalView()
                     case .booking:
                         MyBookingsView()
+                    case .bookingDetail(let id):
+                        BookingReceiptView(bookingId: id)
                     }
                 }
         }
@@ -127,6 +129,7 @@ enum Route: Hashable {
     case admin
     case business
     case booking
+    case bookingDetail(String)
 }
 
 private extension View {

@@ -228,6 +228,7 @@ private struct BookingFormSheet: View {
     let onPaidLater: (String) -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(AppState.self) private var appState
     @State private var name = ""
     @State private var phone = ""
     @State private var note = ""
@@ -362,6 +363,7 @@ private struct BookingFormSheet: View {
                 payment_mode: mode,
                 metadata: meta
             ))
+            appState.invalidateMyBookingsCache()
             if isPrepaid {
                 let pay = try await ApiService.payBooking(id: created.id)
                 if pay.checkout_url != nil || pay.qr_code != nil {

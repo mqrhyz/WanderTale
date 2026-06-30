@@ -18,6 +18,7 @@ struct BookingView: View {
     @State private var bookingStatus: String?
     @State private var pollTask: Task<Void, Never>?
     @Environment(\.openURL) private var openURL
+    @Environment(AppState.self) private var appState
 
     var body: some View {
         ScrollView {
@@ -202,6 +203,7 @@ struct BookingView: View {
         defer { working = false }
         do {
             let booking = try await ApiService.createBooking(BookingCreate(business_id: biz.id, total_amount: amt, type: "other", trip_id: nil, location_id: nil, currency: nil))
+            appState.invalidateMyBookingsCache()
             currentBookingId = booking.id
             let pay = try await ApiService.payBooking(id: booking.id)
             bookingStatus = pay.status

@@ -25,7 +25,7 @@ struct RootView: View {
             AppAssetPreloader.preload()
             async let bootstrap: Void = appState.bootstrap()
             // Minimum splash so logo animation + asset preload are visible
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            try? await Task.sleep(nanoseconds: 500_000_000)
             await bootstrap
             withAnimation(.easeInOut(duration: 0.45)) {
                 showSplash = false

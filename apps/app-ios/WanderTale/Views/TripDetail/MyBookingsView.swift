@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct MyBookingsView: View {
-    @State private var bookings: [BookingRecord] = []
+    @Environment(AppState.self) private var appState
     @State private var loading = true
     @State private var selectedBookingId: String?
+
+    private var bookings: [BookingRecord] { appState.myBookings }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,7 +106,7 @@ struct MyBookingsView: View {
 
     private func load() async {
         loading = true
-        bookings = (try? await ApiService.myBookings())?.items ?? []
+        await appState.loadMyBookings()
         loading = false
     }
 }

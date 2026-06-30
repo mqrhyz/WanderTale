@@ -30,13 +30,20 @@ final class AppState {
     var dashboardError: String?
     var roleError: String?
 
+    // MARK: - MyBookings cache (port từ Android)
+    var myBookings: [BookingRecord] = []
+    var myBookingsError: String?
+    private var myBookingsLastLoadedAt: Date?
+    private let myBookingsCacheTTL: TimeInterval = 60
+
     private var preloadTask: Task<Void, Never>?
     private var coverPollTask: Task<Void, Never>?
 
     func bootstrap() async {
         SupabaseClient.restoreSession()
         isAuthenticated = SupabaseClient.accessToken != nil
-        if isAuthenticated { await preload() }
+        // Chạy preload nền để splash không bị block; UI dùng cache nếu có.
+        if isAuthenticated { Task { await preload() } }
         isBootstrapping = false
     }
 
@@ -65,21 +72,14 @@ final class AppState {
             return
         }
 
-        do {
-            stats = try await ApiService.dashboard()
-        } catch {
-            if !isCancellationError(error) {
-                statsError = formatApiError(error, fallback: "Không tải thống kê")
-            }
-        }
-
+        async let statsLoad: Void = loadStats(&statsError)
         async let tripsLoad: Void = loadTrips(&tripsError)
         async let promotionsLoad: Void = loadPromotionHome()
-        _ = await (tripsLoad, promotionsLoad)
+        _ = await (statsLoad, tripsLoad, promotionsLoad)
 
         // Chỉ hiện lỗi thật (bỏ qua huỷ tác vụ); nếu không thì xoá lỗi cũ.
         if let statsError, let tripsError {
-            dashboardError = "Không tải được dữ liệu từ \(AppConfig.apiURL). Thống kê: \(statsError). Chuyến đi: \(tripsError)"
+            dashboardError = "Không tải được dữ liệu. Thống kê: \(statsError). Chuyến đi: \(tripsError)"
         } else {
             dashboardError = statsError ?? tripsError
         }
@@ -95,6 +95,16 @@ final class AppState {
         } catch {
             if !isCancellationError(error) {
                 tripsError = formatApiError(error, fallback: "Không tải chuyến đi")
+            }
+        }
+    }
+
+    private func loadStats(_ statsError: inout String?) async {
+        do {
+            stats = try await ApiService.dashboard()
+        } catch {
+            if !isCancellationError(error) {
+                statsError = formatApiError(error, fallback: "Không tải thống kê")
             }
         }
     }
@@ -161,6 +171,34 @@ final class AppState {
         accountInfo = nil
         roleError = nil
         dashboardError = nil
+        myBookings = []
+        myBookingsLastLoadedAt = nil
+        myBookingsError = nil
+    }
+
+    // MARK: - MyBookings cache
+    func loadMyBookings(force: Bool = false) async {
+        if !force,
+           !myBookings.isEmpty,
+           let last = myBookingsLastLoadedAt,
+           Date().timeIntervalSince(last) < myBookingsCacheTTL {
+            return
+        }
+        myBookingsError = nil
+        do {
+            let list = try await ApiService.myBookings()
+            myBookings = list.items
+            myBookingsLastLoadedAt = Date()
+        } catch {
+            if !isCancellationError(error) {
+                myBookingsError = formatApiError(error, fallback: "Không tải đặt chỗ")
+            }
+        }
+    }
+
+    func invalidateMyBookingsCache() {
+        myBookings = []
+        myBookingsLastLoadedAt = nil
     }
 
     func toggleFavorite(_ tripId: String) {

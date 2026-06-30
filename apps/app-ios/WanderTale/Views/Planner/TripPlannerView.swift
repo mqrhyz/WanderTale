@@ -1,5 +1,28 @@
 import SwiftUI
 
+private let vietnamDestinationCities: [String] = [
+    "Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Đà Lạt", "Nha Trang",
+    "Phú Quốc", "Hội An", "Huế", "Sa Pa", "Hạ Long",
+    "Vũng Tàu", "Mũi Né", "Cần Thơ", "Biên Hòa", "Bình Dương",
+    "Buôn Ma Thuột", "Pleiku", "Quy Nhơn", "Tuy Hòa", "Ninh Bình",
+    "Tam Đảo", "Hải Phòng", "Lào Cai", "Điện Biên Phủ", "Côn Đảo",
+    "Phan Thiết", "Long An", "Bà Rịa - Vũng Tàu", "Khánh Hòa", "Lâm Đồng",
+    "Bình Định", "Phú Yên", "Gia Lai", "Đắk Lắk", "Bình Thuận",
+    "Ninh Thuận", "Bình Phước", "Tây Ninh", "Đồng Nai", "Tiền Giang",
+    "Bến Tre", "Vĩnh Long", "Trà Vinh", "Sóc Trăng", "Bạc Liêu",
+    "Cà Mau", "An Giang", "Kiên Giang", "Hậu Giang", "Đồng Tháp",
+]
+
+private func normalizedForSearch(_ text: String) -> String {
+    let mutable = NSMutableString(string: text)
+    CFStringTransform(mutable, nil, kCFStringTransformStripCombiningMarks, false)
+    return mutable.lowercased
+        .replacingOccurrences(of: "đ", with: "d")
+        .replacingOccurrences(of: "Đ", with: "D")
+        .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+        .trimmingCharacters(in: .whitespaces)
+}
+
 struct TripPlannerView: View {
     @Environment(AppState.self) private var appState
     var onCreated: (String) -> Void
@@ -498,16 +521,19 @@ struct TripPlannerView: View {
     }
 
     private func fetchSuggestions(_ text: String) async {
-        guard text.trimmingCharacters(in: .whitespaces).count >= 2 else {
+        let q = text.trimmingCharacters(in: .whitespaces)
+        guard q.count >= 2 else {
             suggestions = []
             return
         }
-        do {
-            let res = try await ApiService.geocodeAutocomplete(text: text)
-            suggestions = res.results
-        } catch {
-            suggestions = []
-        }
+        let qNorm = normalizedForSearch(q)
+        suggestions = vietnamDestinationCities
+            .filter { city in
+                let cityNorm = normalizedForSearch(city)
+                return cityNorm.contains(qNorm) || qNorm.contains(cityNorm)
+            }
+            .prefix(6)
+            .map { GeocodeAutocompleteItem(ref_id: "", display: $0, name: $0, address: "") }
     }
 
     private func submit() async {

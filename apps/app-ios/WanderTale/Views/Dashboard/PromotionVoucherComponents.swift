@@ -17,9 +17,13 @@ struct PromotionVoucherCard: View {
     var carousel: Bool = false
     let onSave: () async -> Void
 
+    @State private var localSaved: Bool? = nil
+
     private var fullTitle: String { voucherDisplayTitle(promo) }
-    private var isSaved: Bool { promo.is_saved == true }
+    private var isSaved: Bool { localSaved ?? (promo.is_saved == true) }
     private var compact: Bool { carousel }
+
+    private func resetLocalSaved() { localSaved = nil }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: voucherCardRadius, style: .continuous)
@@ -74,6 +78,7 @@ struct PromotionVoucherCard: View {
 
                 Button {
                     guard !isSaved else { return }
+                    localSaved = true
                     Task { await onSave() }
                 } label: {
                     Text(isSaved ? "Đã lưu" : "Lưu")
@@ -98,6 +103,9 @@ struct PromotionVoucherCard: View {
         .overlay(shape.stroke(Color.black.opacity(0.06), lineWidth: 1))
         .compositingGroup()
         .shadow(color: .black.opacity(0.05), radius: 8, y: 3)
+        .onChange(of: promo.is_saved) { _, _ in
+            localSaved = nil
+        }
     }
 }
 
