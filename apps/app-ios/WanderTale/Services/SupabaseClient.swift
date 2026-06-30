@@ -77,7 +77,18 @@ enum SupabaseClient {
         _ = try await request(path: "recover", method: "POST", body: Body(email: email), authorized: false) as EmptyResponse
     }
 
-    static func signOut() {
+    static func signOut() async {
+        // Revoke server-side token trước khi xóa local
+        if let token = accessToken {
+            let path = "\(AppConfig.supabaseURL)/auth/v1/logout"
+            if let url = URL(string: path) {
+                var req = URLRequest(url: url)
+                req.httpMethod = "POST"
+                req.setValue(AppConfig.supabaseAnonKey, forHTTPHeaderField: "apikey")
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                try? await authSession.data(for: req)
+            }
+        }
         KeychainStore.clearSession()
     }
 

@@ -9,11 +9,18 @@ struct ProfileView: View {
     @State private var saveError: String?
     @State private var showUpgrade = false
     @State private var isProMember = false
+    @State private var showSignOutConfirm = false
 
     private var isPremium: Bool {
-        isProMember
-            || appState.accountInfo?.profile?.is_premium == true
-            || appState.accountInfo?.profile?.subscription_tier?.lowercased() == "pro"
+        // Server là source of truth; isProMember chỉ dùng khi accountInfo chưa load
+        if appState.accountInfo?.profile?.is_premium == true { return true }
+        if appState.accountInfo?.profile?.subscription_tier?.lowercased() == "pro" { return true }
+        return isProMember
+    }
+
+    // Sync isProMember từ server sau khi load
+    private func syncProStatus(from overview: UserSubscriptionOverview) {
+        isProMember = overview.is_premium
     }
 
     var body: some View {
@@ -36,6 +43,10 @@ struct ProfileView: View {
                         Text("Đã lưu.")
                             .font(.system(size: 12))
                             .foregroundStyle(PremiumTheme.statDestIcon)
+                            .task {
+                                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                                saved = false
+                            }
                     }
                     if let saveError {
                         Text(saveError)
@@ -51,11 +62,21 @@ struct ProfileView: View {
                     divider
                     settingsRow("Ưu đãi", icon: "tag.fill") { path.append(Route.savedOffers) }
                     divider
-                    settingsRow("Thông báo", icon: "bell.fill") { }
+                    settingsRow("Thông báo", icon: "bell.fill") {
+                        // TODO: Mở màn hình thông báo khi ra mắt
+                    }
                     divider
-                    settingsRow("Trợ giúp & FAQ", icon: "questionmark.circle.fill") { }
+                    settingsRow("Trợ giúp & FAQ", icon: "questionmark.circle.fill") {
+                        if let url = URL(string: "https://wandertale.app/faq") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
                     divider
-                    settingsRow("Điều khoản sử dụng", icon: "doc.text.fill") { }
+                    settingsRow("Điều khoản sử dụng", icon: "doc.text.fill") {
+                        if let url = URL(string: "https://wandertale.app/terms") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
                     if appState.accountInfo?.profile?.is_business == true {
                         divider
                         settingsRow("Doanh nghiệp", icon: "building.2.fill") { path.append(Route.business) }
@@ -68,11 +89,19 @@ struct ProfileView: View {
             }
 
             Button("Đăng xuất") {
-                appState.signOut()
+                showSignOutConfirm = true
             }
             .font(.system(size: 14, weight: .medium))
             .foregroundStyle(PremiumTheme.logoutRed)
             .padding(.top, 2)
+            .alert("Đăng xuất?", isPresented: $showSignOutConfirm) {
+                Button("Hủy", role: .cancel) { }
+                Button("Đăng xuất", role: .destructive) {
+                    Task { await appState.signOut() }
+                }
+            } message: {
+                Text("Bạn sẽ cần đăng nhập lại để tiếp tục.")
+            }
 
             Spacer(minLength: 0)
         }
@@ -91,7 +120,7 @@ struct ProfileView: View {
     private func refreshProStatus() async {
         await appState.loadAccountInfo()
         if let overview = try? await ApiService.userSubscription() {
-            isProMember = overview.is_premium
+            syncProStatus(from: overview)
         }
     }
 

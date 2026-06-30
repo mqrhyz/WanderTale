@@ -5,7 +5,8 @@ struct TripPreferences: Codable {
 }
 
 struct ItinerarySlot: Codable, Identifiable {
-    var id: String { title ?? UUID().uuidString }
+    // Stable ID: dùng combination title+start_time hoặc fallback index-based từ caller
+    var id: String { "\(title ?? "slot")-\(start_time ?? "notime")-\(place_id ?? "")" }
     var title: String?
     var summary: String?
     var place_id: String?
@@ -39,7 +40,7 @@ struct ItineraryDayPlan: Codable, Identifiable {
 }
 
 struct BookingSuggestion: Codable, Identifiable {
-    var id: String { "\(name)-\(site ?? "")" }
+    var id: String { "\(name)-\(site ?? "")-\(price_vnd.map { String($0) } ?? "")" }
     let name: String
     var category: String = "hotel"
     var place_id: String?

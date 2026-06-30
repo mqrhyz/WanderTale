@@ -48,10 +48,11 @@ struct LocationDetailView: View {
             }
         }
         .sheet(item: $payResponse) { resp in
-            BookingPaymentSheet(response: resp) {
-                payResponse = nil
+            BookingPaymentSheet(response: resp, onDone: {
+                // onDone chỉ được gọi khi activated = true (payment confirmed)
                 receiptBookingId = resp.booking_id
-            }
+                payResponse = nil
+            })
         }
         .sheet(item: $receiptBookingId.asIdentifiable) { wrapper in
             BookingReceiptView(bookingId: wrapper.value)
@@ -212,7 +213,6 @@ struct LocationDetailView: View {
 
     private func loadReviews() async {
         reviews = (try? await ApiService.locationReviews(id: locationId))?.items ?? []
-        detail = try? await ApiService.locationDetail(id: locationId)
     }
 }
 
@@ -393,7 +393,7 @@ private struct BookingFormSheet: View {
 }
 
 // Helper: present a sheet from an optional String mode.
-private struct StringItem: Identifiable { let id = UUID(); let value: String }
+private struct StringItem: Identifiable { var id: String { value }; let value: String }
 private extension Binding where Value == String? {
     var asIdentifiable: Binding<StringItem?> {
         Binding<StringItem?>(
@@ -407,9 +407,10 @@ private struct AddReviewSheet: View {
     let locationId: String
     let onDone: () -> Void
     @Environment(\.dismiss) private var dismiss
-    @State private var rating = 5
+    @State private var rating = 3
     @State private var comment = ""
     @State private var submitting = false
+    @State private var submitError: String?
 
     var body: some View {
         NavigationStack {
@@ -426,12 +427,24 @@ private struct AddReviewSheet: View {
                 TextField("Cảm nhận của bạn về địa điểm…", text: $comment, axis: .vertical)
                     .lineLimit(3...6)
                     .padding(12).background(PremiumTheme.inputBg).clipShape(RoundedRectangle(cornerRadius: 12))
+                if let submitError {
+                    Text(submitError)
+                        .font(.system(size: 13))
+                        .foregroundStyle(PremiumTheme.logoutRed)
+                }
                 Button {
                     Task {
                         submitting = true
-                        _ = try? await ApiService.createLocationReview(id: locationId, rating: rating, comment: comment)
-                        submitting = false
-                        onDone(); dismiss()
+                        submitError = nil
+                        do {
+                            _ = try await ApiService.createLocationReview(id: locationId, rating: rating, comment: comment)
+                            submitting = false
+                            onDone()
+                            dismiss()
+                        } catch {
+                            submitting = false
+                            submitError = "Không gửi được đánh giá. Vui lòng thử lại."
+                        }
                     }
                 } label: {
                     Text(submitting ? "Đang gửi…" : "Gửi đánh giá")

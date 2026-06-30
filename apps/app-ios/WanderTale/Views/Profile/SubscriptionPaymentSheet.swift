@@ -9,6 +9,7 @@ struct SubscriptionPaymentSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var activated = false
     @State private var pollTask: Task<Void, Never>?
+    @State private var pollTimedOut = false
 
     var body: some View {
         NavigationStack {
@@ -56,15 +57,26 @@ struct SubscriptionPaymentSheet: View {
                             .foregroundStyle(PremiumTheme.muted)
                             .multilineTextAlignment(.center)
 
-                        HStack(spacing: 8) {
-                            ProgressView().tint(PremiumTheme.accent).scaleEffect(0.8)
-                            Text("Đang chờ xác nhận thanh toán…")
-                                .font(.system(size: 14, weight: .medium))
-                                .foregroundStyle(PremiumTheme.accent)
+                        if pollTimedOut {
+                            Text("Xác nhận chậm hơn dự kiến. Kiểm tra lại trạng thái gói Pro sau ít phút.")
+                                .font(.system(size: 13))
+                                .foregroundStyle(PremiumTheme.muted)
+                                .multilineTextAlignment(.center)
+                                .padding(12)
+                                .frame(maxWidth: .infinity)
+                                .background(PremiumTheme.surface)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        } else {
+                            HStack(spacing: 8) {
+                                ProgressView().tint(PremiumTheme.accent).scaleEffect(0.8)
+                                Text("Đang chờ xác nhận thanh toán…")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundStyle(PremiumTheme.accent)
+                            }
+                            .frame(maxWidth: .infinity).frame(height: 44)
+                            .background(PremiumTheme.accentLight)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
                         }
-                        .frame(maxWidth: .infinity).frame(height: 44)
-                        .background(PremiumTheme.accentLight)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
                 }
                 .padding(PremiumTheme.screenPadding)
@@ -88,14 +100,20 @@ struct SubscriptionPaymentSheet: View {
     private func startPolling() {
         pollTask?.cancel()
         pollTask = Task {
-            while !Task.isCancelled && !activated {
+            let deadline = Date().addingTimeInterval(15 * 60)
+            var attempts = 0
+            while !Task.isCancelled && !activated && Date() < deadline {
                 try? await Task.sleep(nanoseconds: 4_000_000_000)
                 if Task.isCancelled { break }
+                attempts += 1
                 if let overview = try? await ApiService.userSubscription(), overview.is_premium {
                     await MainActor.run {
                         withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) { activated = true }
                     }
                     break
+                }
+                if attempts == 75 {
+                    await MainActor.run { pollTimedOut = true }
                 }
             }
         }
@@ -109,8 +127,10 @@ struct SubscriptionPaymentSheet: View {
         }
     }
 
+    private static let ciContext = CIContext()
+
     private func qrImage(from string: String) -> UIImage? {
-        let context = CIContext()
+        let context = Self.ciContext
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(string.utf8)
         guard let output = filter.outputImage?.transformed(by: CGAffineTransform(scaleX: 8, y: 8)),

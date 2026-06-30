@@ -80,9 +80,37 @@ fun BookingReceiptScreen(
                 error != null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(error!!, color = PremiumColors.LogoutRed, textAlign = TextAlign.Center)
                 }
-                booking != null -> ReceiptContent(booking!!)
+                booking != null -> {
+                    val activated = b.status == "paid" || b.status == "confirmed"
+                    if (activated) ReceiptContent(b) else PendingBookingContent(b)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun PendingBookingContent(b: BookingRecord) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
+    ) {
+        Text(
+            "Đặt chỗ chưa được kích hoạt",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            color = PremiumColors.Ink,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            "Trạng thái hiện tại: ${b.status ?: "đang xử lý"}. Vui lòng hoàn tất thanh toán để xem hoá đơn.",
+            fontSize = 14.sp,
+            color = PremiumColors.Muted,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

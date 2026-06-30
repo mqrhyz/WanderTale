@@ -12,6 +12,7 @@ struct LoginView: View {
     @State private var loading = false
     @State private var googleLoading = false
     @State private var facebookLoading = false
+    private var isAnyLoading: Bool { loading || googleLoading || facebookLoading }
     @State private var showRegister = false
     @State private var showForgot = false
     @FocusState private var focusedField: AuthFocusField?
@@ -64,7 +65,7 @@ struct LoginView: View {
                             AuthAccentButton(
                                 title: loading ? "Đang xử lý…" : "Đăng nhập",
                                 loading: loading,
-                                enabled: !email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty
+                                enabled: !email.trimmingCharacters(in: .whitespaces).isEmpty && !password.isEmpty && !isAnyLoading
                             ) {
                                 Task { await submit() }
                             }
@@ -74,9 +75,11 @@ struct LoginView: View {
                                 GoogleSignInButton(loading: googleLoading) {
                                     Task { await submitGoogle() }
                                 }
+                                .disabled(isAnyLoading)
                                 FacebookSignInButton(loading: facebookLoading) {
                                     Task { await submitFacebook() }
                                 }
+                                .disabled(isAnyLoading)
                             }
                         }
                         authFooterLinks
@@ -208,7 +211,13 @@ struct RegisterView: View {
                         if let error {
                             Text(error).font(.system(size: 13)).foregroundStyle(Color(red: 1, green: 0.56, blue: 0.66))
                         }
-                        AuthAccentButton(title: loading ? "Đang xử lý…" : "Đăng ký", loading: loading) {
+                        AuthAccentButton(
+                            title: loading ? "Đang xử lý…" : "Đăng ký",
+                            loading: loading,
+                            enabled: !name.trimmingCharacters(in: .whitespaces).isEmpty &&
+                                     email.trimmingCharacters(in: .whitespaces).contains("@") &&
+                                     password.count >= 6
+                        ) {
                             Task { await submit() }
                         }
                     }
@@ -265,7 +274,7 @@ struct ForgotPasswordView: View {
                     if let message {
                         Text(message).font(.system(size: 13)).foregroundStyle(PremiumTheme.statDestIcon)
                     }
-                    AuthAccentButton(title: "Gửi email", loading: loading) {
+                    AuthAccentButton(title: "Gửi email", loading: loading, enabled: message == nil && !loading) {
                         Task {
                             loading = true
                             do {

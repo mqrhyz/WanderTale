@@ -160,10 +160,10 @@ final class AppState {
         isAuthenticated = true
     }
 
-    func signOut() {
+    func signOut() async {
         preloadTask?.cancel()
         coverPollTask?.cancel()
-        SupabaseClient.signOut()
+        await SupabaseClient.signOut()
         isAuthenticated = false
         stats = nil
         trips = []

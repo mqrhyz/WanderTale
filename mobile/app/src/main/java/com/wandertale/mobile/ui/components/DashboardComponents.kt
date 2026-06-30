@@ -505,7 +505,6 @@ fun TallTripListCard(
 
     Box(
         modifier = modifier
-            .fillMaxWidth()
             .height(220.dp)
             .offset(y = translateY.dp)
             .scale(scale)
@@ -606,7 +605,7 @@ private fun HorizontalScrollFade(modifier: Modifier = Modifier) {
 fun TripGallerySection(
     trips: List<TripRecord>,
     onOpenTrip: (String) -> Unit,
-    onCreateTrip: () -> Unit,
+    onViewAll: () -> Unit,
     showSectionHeader: Boolean = true,
     sectionTitle: String = "Chuyến đi gần đây",
     showViewAll: Boolean = true,
@@ -626,7 +625,7 @@ fun TripGallerySection(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier
-                        .premiumPressScale(onClick = onCreateTrip),
+                        .premiumPressScale(onClick = onViewAll),
                 )
             }
         }
@@ -644,7 +643,7 @@ fun TripGallerySection(
                 if (compactCards) {
                     CompactTripCard(trip, index, onClick = { onOpenTrip(trip.id) })
                 } else {
-                    TallTripListCard(trip, index, onClick = { onOpenTrip(trip.id) })
+                    TallTripListCard(trip, index, onClick = { onOpenTrip(trip.id) }, modifier = Modifier.width(170.dp))
                 }
             }
         }

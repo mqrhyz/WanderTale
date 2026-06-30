@@ -127,7 +127,8 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
             suspend fun reloadDashboard() {
                 dashboardError = null
                 roleError = null
-                app.authRepository.initSession()
+                // initSession() chỉ gọi 1 lần khi app start (trong SplashScreen)
+                // Không gọi lại mỗi pull-to-refresh vì nó thực hiện disk I/O
                 val result = DashboardHomeCache.preload(
                     app.dashboardRepository,
                     app.tripRepository,
@@ -292,8 +293,11 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                         contentPadding = scrollPadding,
                         onNavigate = { navController.navigate(it) },
                         onLogout = {
-                            DashboardHomeCache.clear()
-                            navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                            scope.launch {
+                                app.authRepository.signOut()
+                                DashboardHomeCache.clear()
+                                navController.navigate(Routes.LOGIN) { popUpTo(0) { inclusive = true } }
+                            }
                         },
                         onDisplayNameUpdated = { updated ->
                             if (updated.isNotBlank()) displayName = updated

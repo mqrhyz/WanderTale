@@ -33,6 +33,9 @@ struct TripDetailView: View {
             }
         }
         .scrollIndicators(.hidden)
+        .refreshable {
+            await load()
+        }
         .background(Color.white)
         .navigationTitle(trip?.destination ?? "Chi tiết")
         .navigationBarTitleDisplayMode(.inline)
@@ -109,10 +112,19 @@ struct TripDetailView: View {
             }
 
             if let actionError {
-                Text(actionError)
-                    .font(.system(size: 13))
-                    .foregroundStyle(PremiumTheme.logoutRed)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                HStack {
+                    Text(actionError)
+                        .font(.system(size: 13))
+                        .foregroundStyle(PremiumTheme.logoutRed)
+                    Spacer()
+                    Button {
+                        self.actionError = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(PremiumTheme.logoutRed.opacity(0.7))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .padding(.horizontal, PremiumTheme.screenPadding)
@@ -242,9 +254,12 @@ struct TripDetailView: View {
                 if !day.theme.isEmpty {
                     Text(day.theme).font(.system(size: 14)).foregroundStyle(PremiumTheme.muted)
                 }
-                ForEach(TripUtils.getDayActivities(day), id: \.id) { slot in
+                let activities = TripUtils.getDayActivities(day)
+                ForEach(Array(activities.enumerated()), id: \.element.id) { index, slot in
                     agendaRow(slot)
-                    Divider()
+                    if index < activities.count - 1 {
+                        Divider()
+                    }
                 }
             }
         }
@@ -379,11 +394,19 @@ struct TripDetailView: View {
                     }
                 }
                 if !TripUtils.tripNeedsPolling(updated) { break }
+                }
+                // Sau timeout, nếu vẫn pending — thông báo user
+                if !Task.isCancelled {
+                    await MainActor.run {
+                        if let t = self.trip, TripUtils.tripNeedsPolling(t) {
+                            self.actionError = "AI đang mất nhiều thời gian hơn dự kiến. Thử tải lại trang sau."
+                        }
+                    }
+                }
             }
         }
-    }
 
-    @MainActor
+        @MainActor
     private func handleStreamEvent(_ raw: String) async {
         guard let data = raw.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

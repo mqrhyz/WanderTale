@@ -164,7 +164,7 @@ fun MainShell(
     onCreateTrip: () -> Unit,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    PremiumColors.darkModeEnabled = false
+    PremiumColors.darkModeEnabled = darkTheme
     val currentRoute = Routes.tabToNavRoute(currentTab)
     val showNav = currentTab != "create"
     val navBgColor by animateColorAsState(
@@ -324,7 +324,7 @@ fun DashboardScreen(
                 TripGallerySection(
                     trips = trips.take(6),
                     onOpenTrip = onOpenTrip,
-                    onCreateTrip = { onNavigate("planner") },
+                    onViewAll = { onNavigate("trips") },
                 )
             }
             item {
@@ -1000,6 +1000,7 @@ fun TripsListScreen(
                                 index = index,
                                 onClick = { onOpenTrip(trip.id) },
                                 bookingLabel = bookingLabel,
+                                modifier = Modifier.fillMaxWidth(),
                             )
                         }
                     }
@@ -1127,6 +1128,7 @@ fun FavoritesScreen(
                         index = index,
                         onClick = { onOpenTrip(trip.id) },
                         showFavoriteHeart = true,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
                 item { Spacer(Modifier.height(8.dp)) }

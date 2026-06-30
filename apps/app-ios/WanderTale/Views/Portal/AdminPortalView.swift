@@ -119,7 +119,7 @@ struct AdminPortalView: View {
             Menu {
                 Button("Thông tin cá nhân") { actionMessage = appState.accountInfo?.profile?.email ?? "Chưa có thông tin tài khoản." }
                 Button(appState.darkMode ? "Chuyển sang Light mode" : "Chuyển sang Dark mode") { appState.setDarkMode(!appState.darkMode) }
-                Button("Đăng xuất", role: .destructive) { appState.signOut() }
+                Button("Đăng xuất", role: .destructive) { Task { await appState.signOut() } }
             } label: {
                 Image(systemName: "line.3.horizontal")
                     .font(.system(size: 19, weight: .semibold))

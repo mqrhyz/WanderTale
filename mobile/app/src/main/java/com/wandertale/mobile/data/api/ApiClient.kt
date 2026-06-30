@@ -102,6 +102,19 @@ import java.util.concurrent.TimeUnit
 class ApiException(message: String, val statusCode: Int? = null) : Exception(message)
 
 object ApiClient {
+    // Shared SSE client — readTimeout 0 để SSE không bị timeout
+    private val sseClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
+    // Shared upload client
+    private val uploadClient = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
+        .writeTimeout(120, TimeUnit.SECONDS)
+        .build()
+
     val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
@@ -119,15 +132,15 @@ object ApiClient {
         expectSuccess = true
         install(ContentNegotiation) { json(json) }
         install(HttpTimeout) {
-            requestTimeoutMillis = 300_000
-            connectTimeoutMillis = 60_000
-            socketTimeoutMillis = 300_000
+            requestTimeoutMillis = 30_000   // 30s cho API thông thường
+            connectTimeoutMillis = 15_000
+            socketTimeoutMillis = 30_000
         }
         engine {
             preconfigured = OkHttpClient.Builder()
-                .connectTimeout(60, TimeUnit.SECONDS)
-                .readTimeout(300, TimeUnit.SECONDS)
-                .writeTimeout(300, TimeUnit.SECONDS)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(30, TimeUnit.SECONDS)
+                .writeTimeout(30, TimeUnit.SECONDS)
                 .build()
         }
     }
@@ -144,8 +157,8 @@ object ApiClient {
     private suspend fun parseError(e: ResponseException): ApiException {
         val text = runCatching { e.response.bodyAsText() }.getOrDefault("")
         val msg = runCatching {
-            json.decodeFromString<ApiErrorBody>(text).message
-                ?: json.decodeFromString<ApiErrorBody>(text).error?.toString()
+            val body = json.decodeFromString<ApiErrorBody>(text)
+            body.message ?: body.error?.toString()
         }.getOrNull() ?: text.ifBlank { "HTTP ${e.response.status.value}" }
         return ApiException(msg, e.response.status.value)
     }
@@ -176,10 +189,7 @@ object ApiClient {
         onEvent: (String) -> Unit,
     ) = authorized { token ->
         withContext(Dispatchers.IO) {
-            val client = OkHttpClient.Builder()
-                .connectTimeout(60, TimeUnit.SECONDS)
-                .readTimeout(0, TimeUnit.MILLISECONDS)
-                .build()
+            val client = sseClient
             val request = Request.Builder()
                 .url("${baseUrl()}/api/trips/$tripId/stream")
                 .header("Authorization", "Bearer $token")
@@ -380,10 +390,7 @@ object ApiClient {
                     .setType(MultipartBody.FORM)
                     .addFormDataPart("file", filename, bytes.toRequestBody(mimeType.toMediaType()))
                     .build()
-                val client = OkHttpClient.Builder()
-                    .connectTimeout(60, TimeUnit.SECONDS)
-                    .readTimeout(120, TimeUnit.SECONDS)
-                    .build()
+                val client = uploadClient
                 val request = Request.Builder()
                     .url("${baseUrl()}/api/upload/image")
                     .header("Authorization", "Bearer $token")
@@ -422,7 +429,7 @@ object ApiClient {
         portalPatch("/api/admin/ai-recommendation-rules/$id", body)
     suspend fun adminPayouts(status: String? = null): PayoutList =
         portalGet("/api/admin/payouts" + if (status != null && status != "all") "?status=$status" else "")
-    suspend fun adminProcessPayout(id: String): PayoutRecord = portalPost("/api/payouts/$id/process")
+    suspend fun adminProcessPayout(id: String): PayoutRecord = portalPost("/api/admin/payouts/$id/process")
 
     private suspend inline fun <reified T> portalGet(path: String): T = authorized { token ->
         try {

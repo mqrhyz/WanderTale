@@ -1,6 +1,5 @@
 package com.wandertale.mobile.data
 
-import com.wandertale.mobile.WanderTaleApp
 import com.wandertale.mobile.data.model.AccountInfo
 import com.wandertale.mobile.data.model.DashboardStats
 import com.wandertale.mobile.data.model.TripRecord
@@ -13,10 +12,10 @@ import kotlinx.coroutines.coroutineScope
 
 /** In-memory cache so Home / Profile stay visible when switching tabs. */
 object DashboardHomeCache {
-    var stats: DashboardStats? = null
-    var trips: List<TripRecord> = emptyList()
-    var displayName: String = "Xin chào"
-    var accountInfo: AccountInfo? = null
+    @Volatile var stats: DashboardStats? = null
+    @Volatile var trips: List<TripRecord> = emptyList()
+    @Volatile var displayName: String = "Xin chào"
+    @Volatile var accountInfo: AccountInfo? = null
 
     data class PreloadResult(
         val profileError: String? = null,
@@ -78,7 +77,7 @@ object DashboardHomeCache {
 
         val role = accountInfo?.profile
         if (role != null && !role.is_admin && !role.is_business) {
-            WanderTaleApp.instance.preferencesStore.setDarkMode(false)
+            // Dark mode preference không nên bị ảnh hưởng bởi data loading
             statsDeferred.await()
                 .onSuccess { stats = it }
                 .onFailure { statsError = formatApiError(it, "Không tải thống kê") }

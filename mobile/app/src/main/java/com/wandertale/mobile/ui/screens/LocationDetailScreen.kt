@@ -235,17 +235,21 @@ private fun BookingPaymentDialog(
     onDone: () -> Unit,
 ) {
     var activated by remember { mutableStateOf(false) }
+    var timedOut by remember { mutableStateOf(false) }
     LaunchedEffect(resp.booking_id) {
-        while (!activated) {
+        var n = 0
+        while (!activated && n < 225) {
             delay(4000)
             val b = runCatching { ApiClient.getBooking(resp.booking_id) }.getOrNull()
             if (b?.status == "paid" || b?.status == "confirmed") { activated = true; break }
+            n++
         }
+        if (!activated) timedOut = true
     }
     AlertDialog(
         onDismissRequest = onDone,
         confirmButton = { TextButton(onClick = onDone) { Text(if (activated) "Xong" else "Đóng", fontWeight = FontWeight.Bold, color = PremiumColors.Accent) } },
-        title = { Text(if (activated) "Thành công" else "Thanh toán đặt chỗ", fontWeight = FontWeight.Bold) },
+        title = { Text(when { activated -> "Thành công"; timedOut -> "Chưa nhận xác nhận"; else -> "Thanh toán đặt chỗ" }, fontWeight = FontWeight.Bold) },
         text = {
             if (activated) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -256,6 +260,12 @@ private fun BookingPaymentDialog(
                     ) {
                         Text("Xem chi tiết đặt chỗ", color = PremiumColors.Accent, fontWeight = FontWeight.Bold)
                     }
+                }
+            } else if (timedOut) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Default.CheckCircle, null, tint = PremiumColors.LogoutRed, modifier = Modifier.size(46.dp))
+                    Text("Đã quá 15 phút chưa nhận được xác nhận.", fontWeight = FontWeight.Bold, color = PremiumColors.LogoutRed)
+                    Text("Vui lòng kiểm tra lại giao dịch hoặc liên hệ hỗ trợ.", fontSize = 13.sp, color = PremiumColors.Muted, textAlign = TextAlign.Center)
                 }
             } else {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {

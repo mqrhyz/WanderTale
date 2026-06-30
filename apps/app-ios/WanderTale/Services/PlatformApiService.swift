@@ -292,7 +292,7 @@ extension ApiService {
     }
 
     static func adminProcessPayout(id: String) async throws -> PayoutRecord {
-        try await request(path: "/api/payouts/\(id)/process", method: "POST")
+        try await request(path: "/api/admin/payouts/\(id)/process", method: "POST")
     }
 
     static func adminPromotionVouchers() async throws -> PromotionList {

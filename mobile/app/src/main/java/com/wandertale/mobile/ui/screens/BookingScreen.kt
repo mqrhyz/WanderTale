@@ -53,9 +53,13 @@ import com.wandertale.mobile.ui.components.PremiumSurfaceCard
 import com.wandertale.mobile.ui.theme.PremiumColors
 import com.wandertale.mobile.ui.theme.PremiumDesign
 import com.wandertale.mobile.util.FormatUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.text.style.TextAlign
 
 /**
  * User booking + payment with IN-APP PayOS payment (VietQR + bank transfer).
@@ -63,7 +67,7 @@ import kotlinx.coroutines.launch
  * info in-app -> poll booking status until paid.
  */
 @Composable
-fun BookingScreen(onBack: () -> Unit) {
+fun BookingScreen(onBack: () -> Unit, onOpenBooking: (String) -> Unit = {}) {
     var businesses by remember { mutableStateOf<List<PublicBusinessRow>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -99,12 +103,14 @@ fun BookingScreen(onBack: () -> Unit) {
             payInfo != null -> {
                 val info = payInfo!!
                 val paid = status == "paid" || status == "confirmed"
-                LaunchedEffect(info.booking_id) {
-                    var n = 0
-                    while (isActive && n < 150 && status != "paid" && status != "confirmed") {
-                        delay(4000); pollOnce(); n++
+                        var timedOut by remember { mutableStateOf(false) }
+                        LaunchedEffect(info.booking_id) {
+                        var n = 0
+                        while (isActive && n < 225 && status != "paid" && status != "confirmed") {
+                            delay(4000); pollOnce(); n++
+                            if (n >= 225 && !timedOut) timedOut = true
+                        }
                     }
-                }
                 LazyColumn(
                     padding.fillMaxSize().padding(PremiumDesign.ScreenPadding),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -115,7 +121,7 @@ fun BookingScreen(onBack: () -> Unit) {
                         item { Text("Thanh toán thành công", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Ink) }
                         item { Text("Booking đã được xác nhận.", fontSize = 14.sp, color = PremiumColors.Muted) }
                         item {
-                            Button(onClick = { resetFlow() }, modifier = Modifier.fillMaxWidth().height(48.dp),
+                            Button(onClick = { val id = bookingId; resetFlow(); if (id != null) onOpenBooking(id) }, modifier = Modifier.fillMaxWidth().height(48.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = PremiumColors.Accent, contentColor = Color.White)) {
                                 Text("Xong", fontWeight = FontWeight.Bold)
                             }
@@ -124,7 +130,10 @@ fun BookingScreen(onBack: () -> Unit) {
                         item { Text("Quét QR hoặc chuyển khoản để thanh toán", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink) }
                         info.qr_code?.let { qr ->
                             item {
-                                qrBitmap(qr)?.let { bmp ->
+                                val qrBitmapState = produceState<Bitmap?>(initialValue = null, key1 = qr) {
+                                    value = withContext(Dispatchers.Default) { qrBitmap(qr) }
+                                }
+                                qrBitmapState.value?.let { bmp ->
                                     Image(bmp.asImageBitmap(), contentDescription = "QR thanh toán",
                                         modifier = Modifier.size(220.dp).clip(RoundedCornerShape(12.dp)).background(Color.White).padding(8.dp))
                                 }
@@ -141,9 +150,16 @@ fun BookingScreen(onBack: () -> Unit) {
                             }
                         }
                         item {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                OrangeLoadingSpinner()
-                                Text("Đang chờ thanh toán… tự cập nhật khi xong.", fontSize = 13.sp, color = PremiumColors.Muted)
+                            if (timedOut) {
+                                Text(
+                                    "Đã quá 15 phút mà chưa nhận được xác nhận. Vui lòng kiểm tra lại hoặc liên hệ hỗ trợ.",
+                                    fontSize = 13.sp, color = PremiumColors.LogoutRed, textAlign = TextAlign.Center,
+                                )
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    OrangeLoadingSpinner()
+                                    Text("Đang chờ thanh toán… tự cập nhật khi xong.", fontSize = 13.sp, color = PremiumColors.Muted)
+                                }
                             }
                         }
                         item { TextButton(onClick = { scope.launch { pollOnce() } }) { Text("Kiểm tra ngay") } }

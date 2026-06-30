@@ -58,7 +58,7 @@ struct MainTabView: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 28)
                         Button("Đăng xuất") {
-                            appState.signOut()
+                            Task { await appState.signOut() }
                         }
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(.white)
