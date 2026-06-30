@@ -23,6 +23,13 @@ private func normalizedForSearch(_ text: String) -> String {
         .trimmingCharacters(in: .whitespaces)
 }
 
+private extension Array where Element: Hashable {
+    func uniqued() -> [Element] {
+        var seen = Set<Element>()
+        return filter { seen.insert($0).inserted }
+    }
+}
+
 struct TripPlannerView: View {
     @Environment(AppState.self) private var appState
     var onCreated: (String) -> Void
@@ -53,27 +60,25 @@ struct TripPlannerView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     plannerSection(title: "Thông tin chung", icon: "sparkles") {
                         VStack(spacing: 14) {
-                            plannerTextField(
-                                label: "Điểm đến",
-                                text: $destination,
-                                placeholder: "Bạn muốn đến đâu?",
-                                icon: "mappin.and.ellipse"
-                            )
-                            .onChange(of: destination) { _, new in
-                                if suppressSuggestions {
-                                    suppressSuggestions = false
-                                } else {
-                                    Task { await fetchSuggestions(new) }
+                            ZStack(alignment: .topLeading) {
+                                plannerTextField(
+                                    label: "Điểm đến",
+                                    text: $destination,
+                                    placeholder: "Bạn muốn đến đâu?",
+                                    icon: "mappin.and.ellipse"
+                                )
+                                .onChange(of: destination) { _, new in
+                                    if suppressSuggestions {
+                                        suppressSuggestions = false
+                                    } else {
+                                        Task { await fetchSuggestions(new) }
+                                    }
                                 }
-                            }
 
-                            Color.clear
-                                .frame(height: 0)
-                                .overlay(alignment: .top) {
-                                    suggestionsView
-                                        .offset(y: 6)
-                                }
-                                .zIndex(50)
+                                suggestionsView
+                                    .offset(y: 72)
+                                    .zIndex(50)
+                            }
 
                             dateRangePicker
 
@@ -532,6 +537,7 @@ struct TripPlannerView: View {
                 let cityNorm = normalizedForSearch(city)
                 return cityNorm.contains(qNorm) || qNorm.contains(cityNorm)
             }
+            .uniqued()
             .prefix(6)
             .map { GeocodeAutocompleteItem(ref_id: "", display: $0, name: $0, address: "") }
     }
