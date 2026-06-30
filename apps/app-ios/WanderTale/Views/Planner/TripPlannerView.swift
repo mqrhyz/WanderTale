@@ -60,26 +60,24 @@ struct TripPlannerView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     plannerSection(title: "Thông tin chung", icon: "sparkles") {
                         VStack(spacing: 14) {
-                            ZStack(alignment: .topLeading) {
-                                plannerTextField(
-                                    label: "Điểm đến",
-                                    text: $destination,
-                                    placeholder: "Bạn muốn đến đâu?",
-                                    icon: "mappin.and.ellipse"
-                                )
-                                .onChange(of: destination) { _, new in
-                                    if suppressSuggestions {
-                                        suppressSuggestions = false
-                                    } else {
-                                        Task { await fetchSuggestions(new) }
-                                    }
+                            plannerTextField(
+                                label: "Điểm đến",
+                                text: $destination,
+                                placeholder: "Bạn muốn đến đâu?",
+                                icon: "mappin.and.ellipse"
+                            )
+                            .onChange(of: destination) { _, new in
+                                if suppressSuggestions {
+                                    suppressSuggestions = false
+                                } else {
+                                    Task { await fetchSuggestions(new) }
                                 }
-
+                            }
+                            .overlay(alignment: .bottomLeading) {
                                 suggestionsView
-                                    .offset(y: 72)
+                                    .offset(y: 6)
                                     .zIndex(50)
                             }
-                            .frame(height: 72, alignment: .topLeading)
 
                             dateRangePicker
 
@@ -219,6 +217,7 @@ struct TripPlannerView: View {
                 }
                 .background(PremiumTheme.inputBg)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -335,8 +334,10 @@ struct TripPlannerView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(PremiumTheme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .background(
+            PremiumTheme.surface
+                .clipShape(RoundedRectangle(cornerRadius: 18))
+        )
         .overlay(RoundedRectangle(cornerRadius: 18).stroke(PremiumTheme.border))
         .shadow(color: .black.opacity(0.04), radius: 10, y: 3)
     }
