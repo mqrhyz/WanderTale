@@ -47,6 +47,7 @@ struct TripPlannerView: View {
     @State private var error: String?
     @State private var suggestions: [GeocodeAutocompleteItem] = []
     @State private var suppressSuggestions = false
+    @State private var destinationFrame: CGRect = .zero
 
     var body: some View {
         plannerLayout()
@@ -73,11 +74,19 @@ struct TripPlannerView: View {
                                     Task { await fetchSuggestions(new) }
                                 }
                             }
-                            .overlay(alignment: .bottomLeading) {
-                                suggestionsView
-                                    .offset(y: 6)
-                                    .zIndex(50)
-                            }
+                            .background(
+                                GeometryReader { geo in
+                                    Color.clear
+                                        .onAppear {
+                                            destinationFrame = geo.frame(in: .named("planner"))
+                                        }
+                                        .onChange(of: geo.frame(in: .named("planner"))) { _, new in
+                                            if !suggestions.isEmpty {
+                                                destinationFrame = new
+                                            }
+                                        }
+                                }
+                            )
 
                             dateRangePicker
 
@@ -153,6 +162,14 @@ struct TripPlannerView: View {
             }
             .background(PremiumTheme.bg)
         }
+        .coordinateSpace(name: "planner")
+        .overlay(alignment: .topLeading) {
+            if !suggestions.isEmpty && destinationFrame.width > 0 {
+                suggestionsView
+                    .frame(width: destinationFrame.width, alignment: .leading)
+                    .offset(x: destinationFrame.minX, y: destinationFrame.maxY + 6)
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .transaction { $0.animation = nil }
     }
@@ -196,17 +213,17 @@ struct TripPlannerView: View {
                             suggestions = []
                         } label: {
                             HStack(spacing: 10) {
-                                Image(systemName: "location")
-                                    .font(.system(size: 12, weight: .semibold))
+                                Image(systemName: "mappin.circle.fill")
+                                    .font(.system(size: 15, weight: .semibold))
                                     .foregroundStyle(PremiumTheme.accent)
                                 Text(item.display)
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(.system(size: 14, weight: .medium))
                                     .foregroundStyle(PremiumTheme.ink)
                                     .lineLimit(1)
                                 Spacer()
                             }
+                            .frame(height: 44)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 11)
                         }
                         .buttonStyle(.plain)
 
@@ -215,8 +232,10 @@ struct TripPlannerView: View {
                         }
                     }
                 }
-                .background(PremiumTheme.inputBg)
+                .background(PremiumTheme.surface)
                 .clipShape(RoundedRectangle(cornerRadius: 14))
+                .overlay(RoundedRectangle(cornerRadius: 14).stroke(PremiumTheme.border))
+                .shadow(color: .black.opacity(0.1), radius: 14, x: 0, y: 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
@@ -332,7 +351,7 @@ struct TripPlannerView: View {
 
             content()
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 330, alignment: .leading)
         .padding(16)
         .background(
             PremiumTheme.surface
