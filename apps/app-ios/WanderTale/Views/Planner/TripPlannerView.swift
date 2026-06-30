@@ -79,6 +79,7 @@ struct TripPlannerView: View {
                                     .offset(y: 72)
                                     .zIndex(50)
                             }
+                            .frame(height: 72, alignment: .topLeading)
 
                             dateRangePicker
 
