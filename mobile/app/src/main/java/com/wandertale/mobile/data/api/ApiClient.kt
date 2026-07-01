@@ -74,6 +74,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.ResponseException
+import io.ktor.client.plugins.timeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
@@ -261,6 +262,10 @@ object ApiClient {
                 header("Authorization", "Bearer $token")
                 contentType(ContentType.Application.Json)
                 setBody(body)
+                timeout {
+                    requestTimeoutMillis = 300_000
+                    socketTimeoutMillis = 300_000
+                }
             }
             when (response.status) {
                 HttpStatusCode.Accepted, HttpStatusCode.OK -> response.body()
