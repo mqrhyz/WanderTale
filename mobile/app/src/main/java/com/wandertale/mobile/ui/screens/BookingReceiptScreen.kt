@@ -81,6 +81,7 @@ fun BookingReceiptScreen(
                     Text(error!!, color = PremiumColors.LogoutRed, textAlign = TextAlign.Center)
                 }
                 booking != null -> {
+                    val b = booking!!
                     val activated = b.status == "paid" || b.status == "confirmed"
                     if (activated) ReceiptContent(b) else PendingBookingContent(b)
                 }
