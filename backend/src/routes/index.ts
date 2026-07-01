@@ -10,6 +10,7 @@ import { locationsRoutes } from "./locations.js";
 import { mapsRoutes } from "./maps.js";
 import { paymentsRoutes } from "./payments.js";
 import { payoutsRoutes } from "./payouts.js";
+import { placePoolRoutes } from "./place-places.js";
 import { placesRoutes } from "./places.js";
 import { tripsRoutes } from "./trips.js";
 import { userSubscriptionRoutes } from "./user-subscription.js";
@@ -33,6 +34,7 @@ export async function registerApiRoutes(app: FastifyInstance) {
   await app.register(locationsRoutes);
   await app.register(payoutsRoutes);
   await app.register(paymentsRoutes);
+  await app.register(placePoolRoutes);
   await app.register(userSubscriptionRoutes);
   await app.register(uploadRoutes);
 }

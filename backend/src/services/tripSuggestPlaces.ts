@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { llmGenerateJsonFast, parseModelJsonText, llmContextCharLimit } from "../lib/llm.js";
 import { searchPlacesOptional } from "../lib/placesProvider.js";
+import { getFoodPlacesByCity } from "./placePlacesService.js";
 import type { TripGenerateInput } from "../schemas/trip.js";
 import type { TripGenerationContext } from "./tripGenerationContext.js";
 
@@ -66,25 +67,24 @@ async function suggestPlacesFromVietMap(
   context: TripGenerationContext
 ): Promise<SuggestedPlacesPlan> {
   try {
-    const searches: Array<{ query: string; type: SuggestedPlace["type"] }> = [
+    // Attraction vẫn dùng VietMap/Google Places; food/cafe dùng pool crawl từ DB.
+    const attractionSearches: Array<{ query: string; type: SuggestedPlace["type"] }> = [
       { query: `${body.destination} địa điểm du lịch`, type: "attraction" },
       { query: `${body.destination} thắng cảnh`, type: "attraction" },
-      { query: `${body.destination} nhà hàng`, type: "restaurant" },
-      { query: `${body.destination} cafe`, type: "activity" },
     ];
-    const results = await Promise.all(
-      searches.map(async (search) => ({
-        type: search.type,
-        result: await searchPlacesOptional(search.query, context.lat, context.lng),
-      }))
-    );
+    const [attractionResults, foodPool] = await Promise.all([
+      Promise.all(
+        attractionSearches.map(async (search) => ({
+          type: search.type,
+          result: await searchPlacesOptional(search.query, context.lat, context.lng),
+        }))
+      ),
+      getFoodPlacesByCity(body.destination, 20).catch(() => []),
+    ]);
+
     const places: SuggestedPlace[] = [];
     const seen = new Set<string>();
-    for (const { result, type } of results) {
-      const rows =
-        result && typeof result === "object" && Array.isArray((result as { places?: unknown }).places)
-          ? ((result as { places: unknown[] }).places)
-          : [];
+    const pushRows = (rows: unknown[], type: SuggestedPlace["type"]) => {
       for (const row of rows) {
         if (!row || typeof row !== "object") continue;
         const rec = row as Record<string, unknown>;
@@ -104,6 +104,29 @@ async function suggestPlacesFromVietMap(
           day: (places.length % Math.max(context.dates.length, 1)) + 1,
         });
       }
+    };
+    for (const { result, type } of attractionResults) {
+      const rows =
+        result && typeof result === "object" && Array.isArray((result as { places?: unknown }).places)
+          ? ((result as { places: unknown[] }).places)
+          : [];
+      pushRows(rows, type);
+    }
+    // Food pool — xen kẽ restaurant/cafe theo pool thật.
+    for (const p of foodPool) {
+      const name = p.name?.trim();
+      const key = (name ?? "").toLocaleLowerCase("vi-VN");
+      if (!name || seen.has(key)) continue;
+      if (isNonTouristPlace(name)) continue;
+      seen.add(key);
+      const type: SuggestedPlace["type"] = p.categories?.some((c) => c.includes("Café") || c.includes("Dessert"))
+        ? "activity"
+        : "restaurant";
+      places.push({
+        name,
+        type,
+        day: (places.length % Math.max(context.dates.length, 1)) + 1,
+      });
     }
     return { places };
   } catch (error) {

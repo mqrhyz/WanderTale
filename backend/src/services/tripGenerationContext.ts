@@ -2,6 +2,7 @@ import { getSupabase } from "../lib/supabase.js";
 import type { TripGenerateInput } from "../schemas/trip.js";
 import { searchPlacesOptional } from "../lib/placesProvider.js";
 import { fetchWeatherForecast, resolveDestinationCoords } from "./weatherService.js";
+import { getFoodPlacesByCity, type PlacePoolLite } from "./placePlacesService.js";
 
 export interface TripGenerationContext {
   dates: string[];
@@ -58,16 +59,39 @@ export async function buildTripGenerationContext(
   };
   opts?.onWeatherReady?.(partial);
 
-  const [places, vouchers] = await Promise.all([
+  const [places, vouchers, foodPool] = await Promise.all([
     searchPlacesOptional(`${body.destination} attractions food culture`, lat, lng),
     loadVouchersForPrompt(),
+    getFoodPlacesByCity(body.destination, 30).catch(() => [] as PlacePoolLite[]),
   ]);
 
+  // Merge pool nhà hàng/quán ăn/cafe crawl thật vào PLACES_JSON để LLM ưu tiên lấy
+  // từ danh sách đồ ăn chất lượng thay vì hallucinate tên quán.
   return {
     ...partial,
-    places,
+    places: mergeFoodPoolIntoPlaces(places, foodPool),
     vouchers,
   };
+}
+
+/** Đưa food pool vào shape `{places: [...]}` — phía dưới chỉ đọc `.name`/`.address`. */
+function mergeFoodPoolIntoPlaces(places: unknown, foodPool: PlacePoolLite[]): unknown {
+  if (!foodPool.length) return places;
+  const poolPlaces = foodPool.map((p) => ({
+    name: p.name,
+    formattedAddress: p.address,
+    location: p.lat != null && p.lng != null ? { latitude: p.lat, longitude: p.lng } : undefined,
+    categories: p.categories,
+    cuisines: p.cuisines,
+    image: p.image,
+    rating: p.rating,
+    source: "place_pool",
+  }));
+  if (places && typeof places === "object" && Array.isArray((places as { places?: unknown }).places)) {
+    const existing = (places as { places: unknown[] }).places;
+    return { ...(places as Record<string, unknown>), places: [...existing, ...poolPlaces] };
+  }
+  return { places: poolPlaces, status: "ok", provider: "place_pool+vietmap" };
 }
 
 /** P2 skeleton: chỉ geo + thời tiết (~1–2s), bỏ Google Places/voucher trước response. */
