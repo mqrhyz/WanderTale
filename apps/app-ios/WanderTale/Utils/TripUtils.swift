@@ -237,16 +237,36 @@ enum TripUtils {
         return "https://www.google.com/maps/search/?api=1&query=\(encoded)"
     }
 
-    /// Maps URL cho địa điểm trong lịch trình: ưu tiên tìm theo TÊN (không dùng toạ độ).
+    /// Maps URL cho địa điểm trong lịch trình.
+    /// - Ưu tiên `maps_url` do backend enrich (food pool sẽ trả về coord + địa chỉ DB).
+    /// - Nếu là quán ăn/nhà hàng/cafe và có `address` từ DB, dùng địa chỉ đó thay vì tìm theo tên.
+    /// - Cuối cùng fallback tìm theo tên + destination.
     static func slotMapsUrl(_ slot: ItinerarySlot, destination: String? = nil) -> String? {
+        if let maps = slot.maps_url?.trimmingCharacters(in: .whitespaces), !maps.isEmpty {
+            return maps
+        }
+
         let title = slot.title?.trimmingCharacters(in: .whitespaces) ?? ""
+        let address = slot.address?.trimmingCharacters(in: .whitespaces)
+
+        if isFoodOrDrinkSlot(slot), let addr = address, !addr.isEmpty {
+            let encoded = addr.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? addr
+            return "https://www.google.com/maps/search/?api=1&query=\(encoded)"
+        }
+
         if !title.isEmpty {
             let query = destination.map { "\(title) \($0)" } ?? title
             let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
             return "https://www.google.com/maps/search/?api=1&query=\(encoded)"
         }
-        if let maps = slot.maps_url?.trimmingCharacters(in: .whitespaces), !maps.isEmpty { return maps }
+
         return nil
+    }
+
+    private static func isFoodOrDrinkSlot(_ slot: ItinerarySlot) -> Bool {
+        let text = "\(slot.category ?? "") \(slot.cuisine_type ?? "")".lowercased()
+        let keywords = ["restaurant", "cafe", "food", "drink", "coffee", "ăn", "nhà hàng", "quán", "cà phê", "buffet", "bistro", "eatery", "bar"]
+        return keywords.contains { text.contains($0) }
     }
 
     static func tripCoverImageUrl(_ trip: TripRecord) -> String? {

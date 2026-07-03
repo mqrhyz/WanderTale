@@ -6,20 +6,15 @@ import { resolveDestinationCoords } from "./weatherService.js";
 import { getDayActivities, iterateDaySlots } from "./tripAgendaActivities.js";
 import type { TripRouteOptimization } from "./tripHotelLocationService.js";
 import { hotelNameMatches } from "./tripHotelLocationService.js";
+import { getFoodPlaceSeed, normalizePlaceKey } from "./placePlacesService.js";
 
-function normalizePlaceKey(name: string): string {
-  return name
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
+type CoordSeedValue = { lat: number; lng: number; address?: string };
+type CoordSeed = Map<string, CoordSeedValue>;
 
 export function buildCoordSeedFromRoute(
   route?: TripRouteOptimization
-): Map<string, { lat: number; lng: number }> {
-  const seed = new Map<string, { lat: number; lng: number }>();
+): CoordSeed {
+  const seed = new Map<string, CoordSeedValue>();
   for (const p of route?.places ?? []) {
     seed.set(normalizePlaceKey(p.name), { lat: p.lat, lng: p.lng });
   }
@@ -31,7 +26,7 @@ export function buildCoordSeedFromRoute(
   return seed;
 }
 
-function lookupCoords(name: string, seed: Map<string, { lat: number; lng: number }>) {
+function lookupCoords(name: string, seed: CoordSeed): CoordSeedValue | null {
   const key = normalizePlaceKey(name);
   if (!key) return null;
   const direct = seed.get(key);
@@ -45,14 +40,23 @@ function lookupCoords(name: string, seed: Map<string, { lat: number; lng: number
 function mapsFields(
   name: string,
   destination: string,
-  seed: Map<string, { lat: number; lng: number }>
-): { maps_url: string; lat?: number; lng?: number } {
+  seed: CoordSeed
+): { maps_url: string; lat?: number; lng?: number; address?: string } {
   const trimmed = name.trim();
   if (!trimmed || trimmed === "—") {
     return { maps_url: buildGoogleMapsSearchUrl(trimmed) };
   }
   const coords = lookupCoords(trimmed, seed);
   if (coords) {
+    // Ưu tiên địa chỉ từ DB (food pool) để Maps button mở đúng địa chỉ thực.
+    if (coords.address) {
+      return {
+        maps_url: buildGoogleMapsCoordUrl(coords.lat, coords.lng, coords.address),
+        lat: coords.lat,
+        lng: coords.lng,
+        address: coords.address,
+      };
+    }
     return {
       maps_url: buildGoogleMapsCoordUrl(coords.lat, coords.lng, trimmed),
       lat: coords.lat,
@@ -83,15 +87,18 @@ function collectPlaceNames(itinerary: GeneratedItinerary): string[] {
 function applyCoordMapsFromSeed<T extends GeneratedItinerary>(
   itinerary: T,
   destination: string,
-  seed: Map<string, { lat: number; lng: number }>,
+  seed: CoordSeed,
   routeOptimization?: TripRouteOptimization
 ): T {
   const days = itinerary.days.map((d) =>
     iterateDaySlots(d, (slot) => {
       const title = String(slot.title ?? "").trim();
       if (!title || title === "—") return slot;
-      const { maps_url, lat, lng } = mapsFields(title, destination, seed);
-      return { ...slot, maps_url, ...(lat != null ? { lat, lng } : {}) };
+      const { maps_url, lat, lng, address } = mapsFields(title, destination, seed);
+      const updates: Record<string, unknown> = { maps_url };
+      if (lat != null) { updates.lat = lat; updates.lng = lng; }
+      if (address) updates.address = address;
+      return { ...slot, ...updates } as typeof slot;
     })
   );
 
@@ -131,23 +138,23 @@ function applyCoordMapsFromSeed<T extends GeneratedItinerary>(
 }
 
 /** Gắn maps_url từ tọa độ VietMap đã có (route matrix) — không gọi API. */
-export function applyCoordMapsToItinerary<T extends GeneratedItinerary>(
+export async function applyCoordMapsToItinerary<T extends GeneratedItinerary>(
   itinerary: T,
   destination: string,
   routeOptimization?: TripRouteOptimization
-): T {
-  const seed = buildCoordSeedFromRoute(routeOptimization);
+): Promise<T> {
+  const seed = await buildCoordSeed(destination, routeOptimization);
   if (seed.size === 0) return itinerary;
   return applyCoordMapsFromSeed(itinerary, destination, seed, routeOptimization);
 }
 
-/** Gắn lat/lng lên slot trước resolve ảnh agenda — dùng seed routeOptimization rồi geocode phần thiếu. */
+/** Gắn lat/lng lên slot trước resolve ảnh agenda — dùng seed routeOptimization + food pool rồi geocode phần thiếu. */
 export async function prepareItineraryCoordsForMedia<T extends GeneratedItinerary>(
   itinerary: T,
   destination: string,
   routeOptimization?: TripRouteOptimization
 ): Promise<T> {
-  let prepared = applyCoordMapsToItinerary(itinerary, destination, routeOptimization);
+  let prepared = await applyCoordMapsToItinerary(itinerary, destination, routeOptimization);
   prepared = await enrichItineraryWithCoordinates(prepared, destination, routeOptimization);
   return prepared;
 }
@@ -158,7 +165,7 @@ export async function enrichItineraryWithCoordinates<T extends GeneratedItinerar
   destination: string,
   routeOptimization?: TripRouteOptimization
 ): Promise<T> {
-  const seed = buildCoordSeedFromRoute(routeOptimization);
+  const seed = await buildCoordSeed(destination, routeOptimization);
 
   let focus: { lat: number; lng: number } | null = null;
   const known = resolveCityFocus(destination);
@@ -180,4 +187,22 @@ export async function enrichItineraryWithCoordinates<T extends GeneratedItinerar
   }
 
   return applyCoordMapsFromSeed(itinerary, destination, seed, routeOptimization);
+}
+
+/** Build seed gộp: food pool (ưu tiên) + route optimization coords. */
+async function buildCoordSeed(
+  destination: string,
+  routeOptimization?: TripRouteOptimization
+): Promise<CoordSeed> {
+  const seed = buildCoordSeedFromRoute(routeOptimization);
+  try {
+    const foodSeed = await getFoodPlaceSeed(destination);
+    for (const [key, value] of foodSeed) {
+      // Food pool ghi đè route coords vì có địa chỉ DB chính xác hơn.
+      seed.set(key, value);
+    }
+  } catch {
+    // Food pool optional — không làm fail coord enrichment.
+  }
+  return seed;
 }

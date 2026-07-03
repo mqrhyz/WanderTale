@@ -226,7 +226,7 @@ export async function enrichTripWithOtaInBackground(params: {
       destination,
       hotelPricing.route_optimization
     );
-    merged = applyCoordMapsToItinerary(merged, destination, hotelPricing.route_optimization);
+    merged = await applyCoordMapsToItinerary(merged, destination, hotelPricing.route_optimization);
 
     await updateTripAfterOtaPricing({
       userId,
@@ -489,7 +489,7 @@ export async function runTripGeneration(
       body.destination,
       routeOptimization
     );
-    itinerary = applyCoordMapsToItinerary(itinerary, body.destination, routeOptimization);
+    itinerary = await applyCoordMapsToItinerary(itinerary, body.destination, routeOptimization);
     itinerary = await enrichItineraryWithCoordinates(
       itinerary,
       body.destination,

@@ -24,6 +24,7 @@ struct ItinerarySlot: Codable, Identifiable {
     var image_preview_url: String?
     var image_preview_urls: [String]?
     var maps_url: String?
+    var address: String?
     var lat: Double?
     var lng: Double?
 }

@@ -43,7 +43,7 @@ export async function scrapeHotelPrices(params: {
     params.destination,
     routeOptimization
   );
-  itinerary = applyCoordMapsToItinerary(itinerary, params.destination, routeOptimization);
+  itinerary = await applyCoordMapsToItinerary(itinerary, params.destination, routeOptimization);
 
   await updateTripAfterOtaPricing({
     userId: params.userId,
@@ -72,7 +72,7 @@ export async function enrichHotelImagesJob(params: {
 }): Promise<GeneratedItinerary> {
   const enrichedPricing = await enrichHotelPricingWithGalleries(params.hotelPricing);
   const routeOpt = params.hotelPricing.route_optimization;
-  const itinerary = applyCoordMapsToItinerary(
+  const itinerary = await applyCoordMapsToItinerary(
     enrichItineraryWithPricing(
       params.itinerary,
       params.suggestedPlaces,

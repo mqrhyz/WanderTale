@@ -107,6 +107,41 @@ export async function getPlacesByCategory(
   return rows.map(toLite);
 }
 
+/** Normalize tên địa điểm để match giữa slot title và pool name. */
+export function normalizePlaceKey(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+export type FoodPlaceSeed = {
+  lat: number;
+  lng: number;
+  address: string;
+  categories: string[];
+};
+
+/** Trả về Map<normalizedName, seed> để enrich coords/maps cho food/drink slots. */
+export async function getFoodPlaceSeed(destination: string): Promise<Map<string, FoodPlaceSeed>> {
+  const rows = await listPlacesByCity(destination, { limit: 500, categories: FOOD_CATEGORY_KEYWORDS });
+  const map = new Map<string, FoodPlaceSeed>();
+  for (const row of rows) {
+    if (row.lat == null || row.lng == null || !row.address?.trim()) continue;
+    const key = normalizePlaceKey(row.name);
+    if (!key || map.has(key)) continue;
+    map.set(key, {
+      lat: row.lat,
+      lng: row.lng,
+      address: row.address.trim(),
+      categories: row.categories ?? [],
+    });
+  }
+  return map;
+}
+
 /** Full textured pool cho LLM context — list nhỏ kèm name+address+latlng+categories+image+rating. */
 export async function getPlacesContextForPrompt(
   destination: string,

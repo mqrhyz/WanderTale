@@ -16,6 +16,7 @@ function slotMediaFields(slot: Record<string, unknown>): Record<string, unknown>
 function coordFields(slot: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (typeof slot.maps_url === "string" && slot.maps_url.trim()) out.maps_url = slot.maps_url;
+  if (typeof slot.address === "string" && slot.address.trim()) out.address = slot.address;
   if (typeof slot.lat === "number" && Number.isFinite(slot.lat)) out.lat = slot.lat;
   if (typeof slot.lng === "number" && Number.isFinite(slot.lng)) out.lng = slot.lng;
   return out;
