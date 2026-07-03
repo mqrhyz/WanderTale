@@ -560,7 +560,10 @@ struct TripPlannerView: View {
             }
             .uniqued()
             .prefix(6)
-            .map { GeocodeAutocompleteItem(ref_id: "", display: $0, name: $0, address: "") }
+            .enumerated()
+            .map { offset, city in
+                GeocodeAutocompleteItem(ref_id: "local-\(offset)", display: city, name: city, address: "")
+            }
     }
 
     private func submit() async {
