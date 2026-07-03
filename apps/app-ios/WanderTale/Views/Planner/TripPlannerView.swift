@@ -351,7 +351,7 @@ struct TripPlannerView: View {
 
             content()
         }
-        .frame(maxWidth: .infinity, minHeight: 330, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(
             PremiumTheme.surface
