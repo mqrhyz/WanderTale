@@ -1179,7 +1179,13 @@ fun ProfileScreen(
                 }
             }
         runCatching { ApiClient.userSubscription() }
-            .onSuccess { isProMember = it.is_premium }
+            .onSuccess {
+                isProMember = it.is_premium
+                // Keep profile badge aligned with subscription overview (source of truth).
+                if (!it.is_premium && profile != null) {
+                    profile = profile?.copy(is_premium = false, subscription_tier = "free")
+                }
+            }
     }
 
     LaunchedEffect(Unit) {
@@ -1212,9 +1218,8 @@ fun ProfileScreen(
     ) {
         ProfileCompactHeader(
             name = name.ifBlank { "Khách du lịch" },
-            isPremium = profile?.is_premium == true
-                || profile?.subscription_tier.equals("pro", ignoreCase = true)
-                || isProMember,
+            // isProMember comes from /user/subscription (expiry-aware). Profile flags are secondary.
+            isPremium = isProMember,
             onUpgrade = { showUpgrade = true },
         )
 
@@ -1223,7 +1228,7 @@ fun ProfileScreen(
                 Modifier.padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                ProfileReadOnlyField("Tên hiển thị", name)
+                ProfileEditableNameField(name) { name = it }
                 ProfileReadOnlyField("Email", email)
                 ProfilePhoneField(phone) { phone = it }
                 PremiumAccentButton(
@@ -1233,11 +1238,19 @@ fun ProfileScreen(
                             saveError = null
                             saved = false
                             runCatching {
-                                WanderTaleApp.instance.profileRepository.updatePhone(phone.ifBlank { null })
-                                DashboardHomeCache.updateAccountPhone(phone.trim())
+                                val trimmedName = name.trim()
+                                if (trimmedName.isBlank()) error("Tên hiển thị không được trống")
+                                WanderTaleApp.instance.profileRepository.updateProfile(
+                                    displayName = trimmedName,
+                                    phone = phone.ifBlank { null },
+                                )
+                                DashboardHomeCache.updateAccountProfile(trimmedName, phone.trim())
+                                name = trimmedName
+                                onDisplayNameUpdated(trimmedName)
                                 saved = true
                             }.onFailure {
-                                saveError = "Không thể lưu số điện thoại. Vui lòng thử lại."
+                                saveError = it.message?.takeIf { m -> m.isNotBlank() }
+                                    ?: "Không thể lưu hồ sơ. Vui lòng thử lại."
                             }
                         }
                     },
@@ -1402,6 +1415,29 @@ private fun ProfileReadOnlyField(label: String, value: String) {
             color = PremiumColors.Ink,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(PremiumColors.InputBg)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+        )
+    }
+}
+
+@Composable
+private fun ProfileEditableNameField(value: String, onChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            "Tên hiển thị",
+            color = PremiumColors.TextMuted,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = TextStyle(fontSize = 14.sp, color = PremiumColors.Ink),
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))

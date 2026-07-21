@@ -218,18 +218,33 @@ export async function getUserSubscriptionOverview(userId: string) {
   ]);
 
   const active = isProfilePro(profile);
-  // Heal partial / inconsistent PRO rows so subsequent checks and UI stay in sync.
-  if (active && profile?.id) {
-    const tier = String(profile.subscription_tier ?? "").toLowerCase().trim();
-    const needsPremiumFlag = profile.is_premium !== true;
-    const needsTier = tier !== "pro" && tier !== "premium";
-    if (needsPremiumFlag || needsTier) {
-      const healed = {
-        is_premium: true,
-        subscription_tier: needsTier ? "pro" : profile.subscription_tier,
-      };
-      await sb.from("profiles").update(healed).eq("id", profile.id);
-      Object.assign(profile, healed);
+  // Heal profile flags so UI badges match real Pro status (including expired).
+  if (profile?.id) {
+    if (active) {
+      const tier = String(profile.subscription_tier ?? "").toLowerCase().trim();
+      const needsPremiumFlag = profile.is_premium !== true;
+      const needsTier = tier !== "pro" && tier !== "premium";
+      if (needsPremiumFlag || needsTier) {
+        const healed = {
+          is_premium: true,
+          subscription_tier: needsTier ? "pro" : profile.subscription_tier,
+        };
+        await sb.from("profiles").update(healed).eq("id", profile.id);
+        Object.assign(profile, healed);
+      }
+    } else {
+      // Expired / free: clear stale is_premium so clients don't show a fake PRO badge.
+      const stalePremium =
+        profile.is_premium === true ||
+        ["pro", "premium"].includes(String(profile.subscription_tier ?? "").toLowerCase().trim());
+      if (stalePremium) {
+        const healed = {
+          is_premium: false,
+          subscription_tier: "free",
+        };
+        await sb.from("profiles").update(healed).eq("id", profile.id);
+        Object.assign(profile, healed);
+      }
     }
   }
   const vouchers = (saved ?? [])

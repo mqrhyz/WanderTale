@@ -245,6 +245,23 @@ final class AppState {
         accountInfo?.phone = phone
     }
 
+    func updateProfile(displayName: String, phone: String) async throws {
+        guard let uid = accountInfo?.profile?.id else { throw ApiError(message: "Chưa đăng nhập") }
+        let name = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw ApiError(message: "Tên hiển thị không được trống") }
+        let phoneValue = phone.trimmingCharacters(in: .whitespacesAndNewlines)
+        try await SupabaseClient.updateProfile(
+            userId: uid,
+            displayName: name,
+            phone: phoneValue.isEmpty ? nil : phoneValue
+        )
+        self.displayName = name
+        accountInfo?.displayName = name
+        accountInfo?.phone = phoneValue
+        accountInfo?.profile?.display_name = name
+        accountInfo?.profile?.phone = phoneValue.isEmpty ? nil : phoneValue
+    }
+
     private func jwtUserId(from token: String) -> String? {
         jwtPayload(token)?["sub"] as? String
     }

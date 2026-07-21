@@ -1574,6 +1574,7 @@ private struct BusinessProfileEditForm: View {
     let onSaved: (BusinessProfileRow) async -> Void
 
     @State private var loaded: BusinessProfileRow?
+    @State private var businessName = ""
     @State private var businessType = ""
     @State private var region = ""
     @State private var hotline = ""
@@ -1598,14 +1599,17 @@ private struct BusinessProfileEditForm: View {
                     ProgressView("Đang tải…")
                 } else {
                     if !canEditCore {
-                        Text("Loại hình & khu vực đang khoá đến \(formatDate(loaded?.core_profile_next_edit_at)). Hotline vẫn sửa được.")
+                        Text("Loại hình / khu vực / tên đang khoá đến \(formatDate(loaded?.core_profile_next_edit_at)). Hotline vẫn sửa được.")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(.orange)
                     } else {
-                        Text("Loại hình & khu vực chỉ được đổi 1 lần / 30 ngày.")
+                        Text("Tên, loại hình & khu vực chỉ được đổi 1 lần / 30 ngày. Hotline sửa bất cứ lúc nào.")
                             .font(.system(size: 13))
                             .foregroundStyle(BusinessPortalStyle.muted)
                     }
+
+                    TextField("Tên doanh nghiệp", text: $businessName)
+                        .disabled(!canEditCore)
 
                     Picker("Loại hình", selection: $businessType) {
                         Text("Chọn loại hình").tag("")
@@ -1658,6 +1662,7 @@ private struct BusinessProfileEditForm: View {
         do {
             let profile = try await ApiService.businessProfile()
             loaded = profile
+            if businessName.isEmpty { businessName = profile.name ?? "" }
             if businessType.isEmpty { businessType = profile.business_type ?? "" }
             if region.isEmpty { region = profile.region ?? "" }
             if hotline.isEmpty { hotline = profile.hotline ?? "" }
@@ -1665,6 +1670,7 @@ private struct BusinessProfileEditForm: View {
             self.error = formatApiError(error, fallback: "Không tải được hồ sơ")
             if let initial {
                 loaded = initial
+                businessName = initial.name ?? ""
                 businessType = initial.business_type ?? ""
                 region = initial.region ?? ""
                 hotline = initial.hotline ?? ""
@@ -1679,7 +1685,9 @@ private struct BusinessProfileEditForm: View {
         do {
             let updated = try await ApiService.updateBusinessProfile(
                 BusinessProfilePatch(
-                    name: nil,
+                    name: businessName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? nil
+                        : businessName.trimmingCharacters(in: .whitespacesAndNewlines),
                     contact_email: nil,
                     business_type: businessType.isEmpty ? nil : businessType,
                     region: region.isEmpty ? nil : region,

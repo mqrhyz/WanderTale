@@ -248,6 +248,17 @@ data class ProfilePhonePatch(
     val phone: String? = null,
 )
 
+@Serializable
+data class ProfileDisplayNamePatch(
+    val display_name: String? = null,
+)
+
+@Serializable
+data class ProfileUserPatch(
+    val display_name: String? = null,
+    val phone: String? = null,
+)
+
 data class AccountInfo(
     val displayName: String,
     val email: String,

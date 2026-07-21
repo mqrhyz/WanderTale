@@ -5,6 +5,7 @@ struct ProfileView: View {
     @Binding var path: NavigationPath
 
     @State private var phone = ""
+    @State private var displayNameEdit = ""
     @State private var saved = false
     @State private var saveError: String?
     @State private var showUpgrade = false
@@ -12,13 +13,11 @@ struct ProfileView: View {
     @State private var showSignOutConfirm = false
 
     private var isPremium: Bool {
-        // Server là source of truth; isProMember chỉ dùng khi accountInfo chưa load
-        if appState.accountInfo?.profile?.is_premium == true { return true }
-        if appState.accountInfo?.profile?.subscription_tier?.lowercased() == "pro" { return true }
-        return isProMember
+        // Server subscription overview is source of truth (respects expiry).
+        isProMember
     }
 
-    // Sync isProMember từ server sau khi load
+    // Sync isProMember from server after load
     private func syncProStatus(from overview: UserSubscriptionOverview) {
         isProMember = overview.is_premium
     }
@@ -29,10 +28,7 @@ struct ProfileView: View {
 
             profileCard {
                 VStack(spacing: 10) {
-                    profileReadOnlyField(
-                        label: "Tên hiển thị",
-                        value: appState.accountInfo?.displayName ?? appState.displayName
-                    )
+                    profileEditableNameField
                     profileReadOnlyField(
                         label: "Email",
                         value: appState.accountInfo?.email ?? ""
@@ -113,6 +109,7 @@ struct ProfileView: View {
         .appTabRoot()
         .onAppear {
             phone = appState.accountInfo?.phone ?? ""
+            displayNameEdit = appState.accountInfo?.displayName ?? appState.displayName
             Task { await refreshProStatus() }
         }
     }
@@ -179,16 +176,31 @@ struct ProfileView: View {
         }
     }
 
+    private var profileEditableNameField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Tên hiển thị")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(PremiumTheme.textMuted)
+            TextField("", text: $displayNameEdit)
+                .font(.system(size: 14))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(PremiumTheme.inputBg)
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+        }
+    }
+
     private var profileSaveButton: some View {
         Button {
             Task {
                 saveError = nil
                 saved = false
                 do {
-                    try await appState.updatePhone(phone)
+                    try await appState.updateProfile(displayName: displayNameEdit, phone: phone)
                     saved = true
                 } catch {
-                    saveError = "Không thể lưu số điện thoại."
+                    saveError = (error as? ApiError)?.message
+                        ?? "Không thể lưu hồ sơ. Vui lòng thử lại."
                 }
             }
         } label: {

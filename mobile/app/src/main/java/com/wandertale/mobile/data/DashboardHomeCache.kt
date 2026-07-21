@@ -49,6 +49,22 @@ object DashboardHomeCache {
         )
     }
 
+    fun updateAccountDisplayName(name: String) {
+        val trimmed = name.trim()
+        if (trimmed.isBlank()) return
+        displayName = trimmed
+        val current = accountInfo ?: return
+        accountInfo = current.copy(
+            displayName = trimmed,
+            profile = current.profile?.copy(display_name = trimmed),
+        )
+    }
+
+    fun updateAccountProfile(displayName: String?, phone: String?) {
+        displayName?.trim()?.takeIf { it.isNotBlank() }?.let { updateAccountDisplayName(it) }
+        if (phone != null) updateAccountPhone(phone)
+    }
+
     suspend fun preload(
         dashboard: DashboardRepository,
         tripsRepo: TripRepository,

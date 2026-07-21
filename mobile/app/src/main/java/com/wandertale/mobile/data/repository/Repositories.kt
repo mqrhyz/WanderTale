@@ -7,6 +7,8 @@ import com.wandertale.mobile.data.model.AccountInfo
 import com.wandertale.mobile.data.model.PartnerRow
 import com.wandertale.mobile.data.model.ProfileInsert
 import com.wandertale.mobile.data.model.ProfilePhonePatch
+import com.wandertale.mobile.data.model.ProfileDisplayNamePatch
+import com.wandertale.mobile.data.model.ProfileUserPatch
 import com.wandertale.mobile.data.model.ProfileRow
 import com.wandertale.mobile.data.model.VoucherRow
 import io.github.jan.supabase.auth.Auth
@@ -144,6 +146,30 @@ class ProfileRepository(private val auth: AuthRepository) {
         val uid = auth.currentUserId() ?: error("Chưa đăng nhập")
         val trimmedPhone = phone?.trim().orEmpty()
         auth.supabase.from("profiles").update(ProfilePhonePatch(trimmedPhone.takeIf { it.isNotBlank() })) {
+            filter { eq("id", uid) }
+        }
+    }
+
+    suspend fun updateDisplayName(displayName: String) {
+        val uid = auth.currentUserId() ?: error("Chưa đăng nhập")
+        val name = displayName.trim()
+        if (name.isBlank()) error("Tên hiển thị không được trống")
+        auth.supabase.from("profiles").update(ProfileDisplayNamePatch(name)) {
+            filter { eq("id", uid) }
+        }
+    }
+
+    suspend fun updateProfile(displayName: String?, phone: String?) {
+        val uid = auth.currentUserId() ?: error("Chưa đăng nhập")
+        val name = displayName?.trim().orEmpty()
+        val trimmedPhone = phone?.trim().orEmpty()
+        if (name.isBlank()) error("Tên hiển thị không được trống")
+        auth.supabase.from("profiles").update(
+            ProfileUserPatch(
+                display_name = name,
+                phone = trimmedPhone.takeIf { it.isNotBlank() },
+            ),
+        ) {
             filter { eq("id", uid) }
         }
     }

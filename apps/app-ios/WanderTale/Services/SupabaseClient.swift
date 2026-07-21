@@ -178,6 +178,23 @@ enum SupabaseClient {
         try await restPatch(table: "profiles", query: "id=eq.\(userId)", body: Patch(phone: phone))
     }
 
+    static func updateDisplayName(userId: String, displayName: String) async throws {
+        struct Patch: Encodable { let display_name: String }
+        try await restPatch(table: "profiles", query: "id=eq.\(userId)", body: Patch(display_name: displayName))
+    }
+
+    static func updateProfile(userId: String, displayName: String, phone: String?) async throws {
+        struct Patch: Encodable {
+            let display_name: String
+            let phone: String?
+        }
+        try await restPatch(
+            table: "profiles",
+            query: "id=eq.\(userId)",
+            body: Patch(display_name: displayName, phone: phone)
+        )
+    }
+
     static func listPartners() async throws -> [PartnerRow] {
         try await restGet(table: "partners", query: "select=*")
     }

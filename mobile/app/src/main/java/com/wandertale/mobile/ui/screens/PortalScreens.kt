@@ -3415,6 +3415,7 @@ private fun BusinessProfileEditDialog(
     var saving by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
 
+    var businessName by remember { mutableStateOf(initial?.name.orEmpty()) }
     var businessType by remember { mutableStateOf(initial?.business_type.orEmpty()) }
     var region by remember { mutableStateOf(initial?.region.orEmpty()) }
     var hotline by remember { mutableStateOf(initial?.hotline.orEmpty()) }
@@ -3432,6 +3433,7 @@ private fun BusinessProfileEditDialog(
         runCatching { ApiClient.businessProfile() }
             .onSuccess { profile ->
                 loaded = profile
+                if (businessName.isBlank()) businessName = profile.name.orEmpty()
                 if (businessType.isBlank()) businessType = profile.business_type.orEmpty()
                 if (region.isBlank()) region = profile.region.orEmpty()
                 if (hotline.isBlank()) hotline = profile.hotline.orEmpty()
@@ -3452,6 +3454,7 @@ private fun BusinessProfileEditDialog(
                         runCatching {
                             ApiClient.updateBusinessProfile(
                                 com.wandertale.mobile.data.model.BusinessProfilePatch(
+                                    name = businessName.trim().ifBlank { null },
                                     business_type = businessType.ifBlank { null },
                                     region = region.ifBlank { null },
                                     hotline = hotline.filter { it.isDigit() || it == '+' }.ifBlank { null },
@@ -3495,18 +3498,24 @@ private fun BusinessProfileEditDialog(
                 } else {
                     if (!canEditCore) {
                         Text(
-                            "Loại hình & khu vực đang khoá đến ${formatPortalDate(loaded?.core_profile_next_edit_at)}. Hotline vẫn sửa được.",
+                            "Tên / loại hình / khu vực đang khoá đến ${formatPortalDate(loaded?.core_profile_next_edit_at)}. Hotline vẫn sửa được.",
                             color = Color(0xFF8A5A00),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
                     } else {
                         Text(
-                            "Loại hình & khu vực chỉ được đổi 1 lần / 30 ngày.",
+                            "Tên, loại hình & khu vực chỉ được đổi 1 lần / 30 ngày. Hotline sửa bất cứ lúc nào.",
                             color = portalMuted(),
                             fontSize = 12.sp,
                         )
                     }
+                    PortalTextField(
+                        label = "Tên doanh nghiệp",
+                        value = businessName,
+                        placeholder = "Tên hiển thị doanh nghiệp",
+                        enabled = canEditCore,
+                    ) { businessName = it }
                     PortalDropdownField(
                         label = "Loại hình",
                         value = businessType,
@@ -3667,12 +3676,14 @@ private fun PortalTextField(
     value: String,
     placeholder: String = "",
     keyboardType: KeyboardType = KeyboardType.Text,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onValueChange: (String) -> Unit,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
+        enabled = enabled,
         label = { Text(label) },
         placeholder = if (placeholder.isNotBlank()) ({ Text(placeholder) }) else null,
         singleLine = true,
