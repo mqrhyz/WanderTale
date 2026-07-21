@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -143,7 +141,6 @@ import com.wandertale.mobile.ui.components.TripSegmentControl
 import com.wandertale.mobile.ui.components.DotPatternBackground
 import com.wandertale.mobile.ui.components.TripGallerySection
 import com.wandertale.mobile.ui.components.TripPlannerPromoCard
-import com.wandertale.mobile.ui.components.WanderTaleBottomNavDark
 import com.wandertale.mobile.ui.components.WanderTaleBottomNavLight
 import com.wandertale.mobile.ui.components.WanderTaleBottomNavOverlayHeight
 import com.wandertale.mobile.ui.navigation.Routes
@@ -157,21 +154,14 @@ import androidx.compose.ui.layout.ContentScale
 
 @Composable
 fun MainShell(
-    darkTheme: Boolean,
     currentTab: String,
     onTab: (String) -> Unit,
     onNavigate: (String) -> Unit,
     onCreateTrip: () -> Unit,
     content: @Composable (PaddingValues) -> Unit,
 ) {
-    PremiumColors.darkModeEnabled = darkTheme
     val currentRoute = Routes.tabToNavRoute(currentTab)
     val showNav = currentTab != "create"
-    val navBgColor by animateColorAsState(
-        targetValue = if (darkTheme) Color(0xFF1A1A1A) else Color.White,
-        animationSpec = tween(durationMillis = 300),
-        label = "nav_bg",
-    )
     val statusBarsPadding = WindowInsets.statusBars.asPaddingValues()
     val navBarsPadding = WindowInsets.navigationBars.asPaddingValues()
     val scrollPadding = PaddingValues(
@@ -199,21 +189,12 @@ fun MainShell(
                     .fillMaxWidth()
                     .offset(y = PremiumDesign.BottomNavDrop),
             ) {
-                if (darkTheme) {
-                    WanderTaleBottomNavDark(
-                        currentRoute = currentRoute,
-                        onNavigate = { route -> onTab(Routes.navRouteToTab(route)) },
-                        onCreateClick = onCreateTrip,
-                        backgroundColor = navBgColor,
-                    )
-                } else {
-                    WanderTaleBottomNavLight(
-                        currentRoute = currentRoute,
-                        onNavigate = { route -> onTab(Routes.navRouteToTab(route)) },
-                        onCreateClick = onCreateTrip,
-                        backgroundColor = navBgColor,
-                    )
-                }
+                WanderTaleBottomNavLight(
+                    currentRoute = currentRoute,
+                    onNavigate = { route -> onTab(Routes.navRouteToTab(route)) },
+                    onCreateClick = onCreateTrip,
+                    backgroundColor = Color.White,
+                )
             }
         }
     }

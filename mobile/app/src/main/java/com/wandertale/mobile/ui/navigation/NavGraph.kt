@@ -55,7 +55,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
-fun WanderTaleNavHost(darkTheme: Boolean) {
+fun WanderTaleNavHost() {
     val navController = rememberNavController()
     val scope = rememberCoroutineScope()
     val app = WanderTaleApp.instance
@@ -68,7 +68,7 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
 
     NavHost(navController = navController, startDestination = Routes.SPLASH) {
         composable(Routes.SPLASH) {
-            SplashScreen(darkTheme = darkTheme) { loggedIn ->
+            SplashScreen { loggedIn ->
                 navController.navigate(if (loggedIn) Routes.MAIN else Routes.LOGIN) {
                     popUpTo(Routes.SPLASH) { inclusive = true }
                 }
@@ -202,8 +202,6 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                     OrangeLoadingSpinner()
                 }
                 isAdmin -> AdminPortalScreen(
-                    darkTheme = darkTheme,
-                    onToggleTheme = { scope.launch { app.preferencesStore.setDarkMode(!darkTheme) } },
                     onLogout = {
                         scope.launch {
                             app.authRepository.signOut()
@@ -213,8 +211,6 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                     },
                 )
                 isBusiness -> BusinessPortalScreen(
-                    darkTheme = darkTheme,
-                    onToggleTheme = { scope.launch { app.preferencesStore.setDarkMode(!darkTheme) } },
                     onLogout = {
                         scope.launch {
                             app.authRepository.signOut()
@@ -224,7 +220,6 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
                     },
                 )
                 else -> MainShell(
-                    darkTheme = darkTheme,
                     currentTab = tab,
                     onTab = { tab = it },
                     onNavigate = { route ->
@@ -355,8 +350,6 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
         composable(Routes.ADMIN) {
             AdminPortalScreen(
                 onBack = { navController.popBackStack() },
-                darkTheme = darkTheme,
-                onToggleTheme = { scope.launch { app.preferencesStore.setDarkMode(!darkTheme) } },
                 onLogout = {
                     scope.launch {
                         app.authRepository.signOut()
@@ -369,8 +362,6 @@ fun WanderTaleNavHost(darkTheme: Boolean) {
         composable(Routes.BUSINESS) {
             BusinessPortalScreen(
                 onBack = { navController.popBackStack() },
-                darkTheme = darkTheme,
-                onToggleTheme = { scope.launch { app.preferencesStore.setDarkMode(!darkTheme) } },
                 onLogout = {
                     scope.launch {
                         app.authRepository.signOut()

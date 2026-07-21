@@ -13,7 +13,7 @@
 | Yêu thích | Local DataStore (giống web localStorage) |
 | Lịch sử | Trip đã qua |
 | Hồ sơ | Cập nhật `profiles` qua Supabase |
-| Cài đặt | Dark mode |
+| Cài đặt | Light mode only |
 | Voucher | `GET /api/vouchers` |
 | Admin | Partners + vouchers (Supabase, `is_admin`) |
 | Hotel Agent | Chat + interrupt/resume OTA agent |

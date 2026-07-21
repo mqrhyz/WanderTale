@@ -1,10 +1,8 @@
 package com.wandertale.mobile.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
@@ -27,18 +25,6 @@ private val LightColors = lightColorScheme(
     onSurfaceVariant = PremiumColors.Muted,
     outline = PremiumColors.Border,
     surfaceVariant = PremiumColors.InputBg,
-)
-
-private val DarkColors = darkColorScheme(
-    primary = PremiumColors.Accent,
-    onPrimary = Color.White,
-    background = PremiumColors.BgDark,
-    surface = PremiumColors.SurfaceDark,
-    onBackground = PremiumColors.InkDarkMode,
-    onSurface = PremiumColors.InkDarkMode,
-    onSurfaceVariant = PremiumColors.MutedDark,
-    outline = PremiumColors.BorderDark,
-    surfaceVariant = PremiumColors.BgDark,
 )
 
 private val AppTypography = Typography(
@@ -75,16 +61,16 @@ private val AppTypography = Typography(
 )
 
 @Composable
-fun WanderTaleTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val colorScheme = if (darkTheme) DarkColors else LightColors
+fun WanderTaleTheme(content: @Composable () -> Unit) {
+    val colorScheme = LightColors
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
             window.statusBarColor = colorScheme.background.toArgb()
             window.navigationBarColor = Color.Transparent.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = true
         }
     }
     MaterialTheme(

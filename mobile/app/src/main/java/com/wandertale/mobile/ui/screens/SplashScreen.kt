@@ -51,7 +51,6 @@ private val PortalSoft = PremiumColors.AccentTint
 
 @Composable
 fun SplashScreen(
-    @Suppress("UNUSED_PARAMETER") darkTheme: Boolean = false,
     onFinished: (loggedIn: Boolean) -> Unit,
 ) {
     val portalProgress = remember { Animatable(0f) }

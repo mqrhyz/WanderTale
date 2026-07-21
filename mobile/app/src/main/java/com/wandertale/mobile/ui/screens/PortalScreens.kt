@@ -147,14 +147,6 @@ private data class PortalPalette(
     val muted: Color,
 )
 
-private val PortalDarkPalette = PortalPalette(
-    bg = Color(0xFF2D2F2B),
-    card = Color(0xFF20211F),
-    stroke = Color.White.copy(alpha = 0.12f),
-    text = Color.White.copy(alpha = 0.94f),
-    muted = Color.White.copy(alpha = 0.58f),
-)
-
 private val PortalLightPalette = PortalPalette(
     bg = PremiumColors.Bg,
     card = PremiumColors.Surface,
@@ -163,7 +155,7 @@ private val PortalLightPalette = PortalPalette(
     muted = PremiumColors.Muted,
 )
 
-private val LocalPortalPalette = staticCompositionLocalOf { PortalDarkPalette }
+private val LocalPortalPalette = staticCompositionLocalOf { PortalLightPalette }
 
 @Composable private fun portalBg() = LocalPortalPalette.current.bg
 @Composable private fun portalCard() = LocalPortalPalette.current.card
@@ -182,7 +174,7 @@ private fun formatPlatformVnd(value: Double?): String {
 }
 
 @Composable
-fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = null, darkTheme: Boolean = true, onToggleTheme: (() -> Unit)? = null) {
+fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = null) {
     var tab by remember { mutableIntStateOf(0) }
     var overview by remember { mutableStateOf<BusinessOverview?>(null) }
     var transactions by remember { mutableStateOf<List<PlatformTransaction>>(emptyList()) }
@@ -257,7 +249,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
         }
     }
 
-    CompositionLocalProvider(LocalPortalPalette provides if (darkTheme) PortalDarkPalette else PortalLightPalette) {
+    CompositionLocalProvider(LocalPortalPalette provides PortalLightPalette) {
     Column(
         Modifier
             .fillMaxSize()
@@ -287,8 +279,6 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                 }
             },
             onMenu = { showBusinessMenu = true },
-            darkTheme = darkTheme,
-            onToggleTheme = onToggleTheme,
         )
         Column(
             Modifier.fillMaxSize(),
@@ -537,17 +527,12 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     }
     if (showBusinessMenu) {
         PortalAccountMenuDialog(
-            darkTheme = darkTheme,
             accountInfo = DashboardHomeCache.accountInfo,
             businessName = overview?.business?.name,
             onDismiss = { showBusinessMenu = false },
             onAccountInfo = {
                 showBusinessMenu = false
                 showBusinessAccountInfo = true
-            },
-            onToggleTheme = {
-                onToggleTheme?.invoke()
-                showBusinessMenu = false
             },
             onLogout = {
                 showBusinessMenu = false
@@ -907,7 +892,7 @@ private fun stars(rating: Int): String {
 }
 
 @Composable
-fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = null, darkTheme: Boolean = true, onToggleTheme: (() -> Unit)? = null) {
+fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = null) {
     var section by remember { mutableIntStateOf(0) }
     var overview by remember { mutableStateOf<AdminOverview?>(null) }
     var transactions by remember { mutableStateOf<List<PlatformTransaction>>(emptyList()) }
@@ -971,7 +956,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
 
     LaunchedEffect(Unit) { load() }
 
-    CompositionLocalProvider(LocalPortalPalette provides if (darkTheme) PortalDarkPalette else PortalLightPalette) {
+    CompositionLocalProvider(LocalPortalPalette provides PortalLightPalette) {
     Column(
         Modifier
             .fillMaxSize()
@@ -1001,8 +986,6 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                 }
             },
             onMenu = { showAdminMenu = true },
-            darkTheme = darkTheme,
-            onToggleTheme = onToggleTheme,
         )
         Column(
             Modifier.fillMaxSize(),
@@ -1249,16 +1232,11 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
     }
     if (showAdminMenu) {
         PortalAccountMenuDialog(
-            darkTheme = darkTheme,
             accountInfo = DashboardHomeCache.accountInfo,
             onDismiss = { showAdminMenu = false },
             onAccountInfo = {
                 showAdminMenu = false
                 showAdminAccountInfo = true
-            },
-            onToggleTheme = {
-                onToggleTheme?.invoke()
-                showAdminMenu = false
             },
             onLogout = {
                 showAdminMenu = false
@@ -1337,8 +1315,6 @@ private fun PortalHeader(
     rightIcon: ImageVector? = null,
     onRight: (() -> Unit)? = null,
     onMenu: (() -> Unit)? = null,
-    darkTheme: Boolean = true,
-    onToggleTheme: (() -> Unit)? = null,
 ) {
     Row(
         Modifier
@@ -2742,12 +2718,10 @@ private fun AdminAiRuleRow(rule: com.wandertale.mobile.data.model.AiRecommendati
 
 @Composable
 private fun PortalAccountMenuDialog(
-    darkTheme: Boolean,
     accountInfo: AccountInfo?,
     businessName: String? = null,
     onDismiss: () -> Unit,
     onAccountInfo: () -> Unit,
-    onToggleTheme: () -> Unit,
     onLogout: () -> Unit,
 ) {
     AlertDialog(
@@ -2764,7 +2738,6 @@ private fun PortalAccountMenuDialog(
                     Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp)
                 }
                 TextButton(onClick = onAccountInfo) { Text("Thông tin cá nhân") }
-                TextButton(onClick = onToggleTheme) { Text(if (darkTheme) "Chuyển sang Light mode" else "Chuyển sang Dark mode") }
                 TextButton(onClick = onLogout) { Text("Đăng xuất", color = PremiumColors.LogoutRed) }
             }
         },

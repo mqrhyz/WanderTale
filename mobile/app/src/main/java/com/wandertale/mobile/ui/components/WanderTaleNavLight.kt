@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -93,9 +92,6 @@ internal fun WanderTaleBottomNavBar(
 ) {
     val leftItems = wanderTaleNavItems.take(2)
     val rightItems = wanderTaleNavItems.drop(2)
-    val isDark = isSystemInDarkTheme()
-    val barBg = if (isDark) Color(0xFF1C1C19) else backgroundColor
-
     val navInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomChrome = maxOf(0.dp, navInset - 14.dp)
 
@@ -109,7 +105,7 @@ internal fun WanderTaleBottomNavBar(
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .height(PremiumDesign.NavBarHeight)
-                .background(barBg),
+                .background(backgroundColor),
         ) {
             Row(
                 modifier = Modifier

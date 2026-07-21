@@ -13,7 +13,7 @@
 | Trip detail | Ô chọn ngày, agenda, khách sạn OTA, nhân bản/xóa |
 | Yêu thích | UserDefaults |
 | Hồ sơ | Cập nhật phone qua Supabase REST |
-| Cài đặt | Dark mode |
+| Cài đặt | Light mode only |
 | Admin | Partners + vouchers (nếu `is_admin`) |
 
 ## Cấu trúc
@@ -79,7 +79,7 @@ Xcode → chọn simulator → **Run** (⌘R).
 ## Lưu ý
 
 - Không dùng SDK Supabase Swift — auth/profile qua REST (giảm dependency).
-- Token lưu Keychain; favorites/dark mode UserDefaults.
+- Token lưu Keychain; favorites UserDefaults.
 - Poll ảnh/OTA chỉ trong 30 phút sau tạo chuyến (giống Android/web).
 - Cần **Mac + Xcode 15+**, iOS 17+.
 

@@ -55,12 +55,29 @@ function monthStart(): string {
   return d.toISOString();
 }
 
+/**
+ * PRO active if either premium flag or tier says so, and expiry (when set) is still in the future.
+ * Previously required BOTH is_premium AND tier=pro — partial/admin updates left PRO users capped at Free (5 trips/month).
+ */
 function isProfilePro(profile: Record<string, unknown> | null): boolean {
-  if (!profile?.is_premium) return false;
-  const tier = String(profile.subscription_tier ?? "").toLowerCase();
-  if (tier !== "pro" && tier !== "premium") return false;
-  const expires = profile.subscription_expires_at ? new Date(String(profile.subscription_expires_at)).getTime() : 0;
-  return !expires || expires > Date.now();
+  if (!profile) return false;
+
+  const tier = String(profile.subscription_tier ?? "")
+    .toLowerCase()
+    .trim();
+  const premiumFlag =
+    profile.is_premium === true ||
+    profile.is_premium === 1 ||
+    profile.is_premium === "true" ||
+    profile.is_premium === "t";
+  const tierPro = tier === "pro" || tier === "premium";
+  if (!premiumFlag && !tierPro) return false;
+
+  const expiresRaw = profile.subscription_expires_at;
+  if (expiresRaw == null || expiresRaw === "") return true;
+  const expires = new Date(String(expiresRaw)).getTime();
+  if (!Number.isFinite(expires)) return true;
+  return expires > Date.now();
 }
 
 function packageFor(id: string): UserPackage {
@@ -142,6 +159,21 @@ export async function getUserSubscriptionOverview(userId: string) {
   ]);
 
   const active = isProfilePro(profile);
+  // Heal partial PRO rows (e.g. only is_premium or only subscription_tier set).
+  if (active && profile?.id) {
+    const tier = String(profile.subscription_tier ?? "").toLowerCase().trim();
+    const needsPremiumFlag = profile.is_premium !== true;
+    const needsTier = tier !== "pro" && tier !== "premium";
+    if (needsPremiumFlag || needsTier) {
+      await sb
+        .from("profiles")
+        .update({
+          is_premium: true,
+          subscription_tier: needsTier ? "pro" : profile.subscription_tier,
+        })
+        .eq("id", profile.id);
+    }
+  }
   const vouchers = (saved ?? [])
     .map((r) => (Array.isArray(r.vouchers) ? r.vouchers[0] : r.vouchers) as VoucherRow | null)
     .filter((v): v is VoucherRow => Boolean(v?.id))

@@ -119,7 +119,6 @@ struct BusinessPortalView: View {
         HStack {
             Menu {
                 Button("Thông tin cá nhân") { purchaseMessage = appState.accountInfo?.profile?.email ?? "Chưa có thông tin tài khoản." }
-                Button(appState.darkMode ? "Chuyển sang Light mode" : "Chuyển sang Dark mode") { appState.setDarkMode(!appState.darkMode) }
                 Button("Đăng xuất", role: .destructive) { Task { await appState.signOut() } }
             } label: {
                 Image(systemName: "line.3.horizontal")
@@ -1375,14 +1374,13 @@ struct BusinessPortalView: View {
 }
 
 private enum BusinessPortalStyle {
-    private static var darkMode: Bool { UserDefaults.standard.bool(forKey: "dark_mode") }
-    static var bg: Color { darkMode ? Color(red: 0.18, green: 0.19, blue: 0.17) : Color(red: 0.96, green: 0.95, blue: 0.93) }
-    static var card: Color { darkMode ? Color(red: 0.13, green: 0.14, blue: 0.12) : Color.white }
-    static var stroke: Color { darkMode ? Color.white.opacity(0.10) : Color.black.opacity(0.08) }
-    static var text: Color { darkMode ? Color.white.opacity(0.94) : Color(red: 0.10, green: 0.09, blue: 0.08) }
-    static var muted: Color { darkMode ? Color.white.opacity(0.58) : Color(red: 0.43, green: 0.42, blue: 0.38) }
+    static let bg = Color(red: 0.96, green: 0.95, blue: 0.93)
+    static let card = Color.white
+    static let stroke = Color.black.opacity(0.08)
+    static let text = Color(red: 0.10, green: 0.09, blue: 0.08)
+    static let muted = Color(red: 0.43, green: 0.42, blue: 0.38)
     static let accent = Color(red: 0.05, green: 0.75, blue: 0.58)
-    static var accentSoft: Color { darkMode ? Color(red: 0.82, green: 1.0, blue: 0.94) : Color(red: 0.86, green: 1.0, blue: 0.95) }
+    static let accentSoft = Color(red: 0.86, green: 1.0, blue: 0.95)
 }
 
 private struct BusinessCampaignForm: View {

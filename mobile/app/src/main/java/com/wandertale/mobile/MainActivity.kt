@@ -5,11 +5,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.wandertale.mobile.ui.navigation.WanderTaleNavHost
-import com.wandertale.mobile.ui.theme.PremiumColors
 import com.wandertale.mobile.ui.theme.WanderTaleTheme
 import io.github.jan.supabase.auth.handleDeeplinks
 
@@ -24,10 +21,8 @@ class MainActivity : ComponentActivity() {
         runCatching { app.authRepository.supabase.handleDeeplinks(intent) }
 
         setContent {
-            val dark by app.preferencesStore.darkMode.collectAsState(initial = false)
-            PremiumColors.darkModeEnabled = dark
-            WanderTaleTheme(darkTheme = dark) {
-                WanderTaleNavHost(darkTheme = dark)
+            WanderTaleTheme {
+                WanderTaleNavHost()
             }
         }
     }

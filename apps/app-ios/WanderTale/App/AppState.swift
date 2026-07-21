@@ -19,7 +19,6 @@ final class AppState {
 
     var isAuthenticated = false
     var isBootstrapping = true
-    var darkMode = UserDefaults.standard.bool(forKey: "dark_mode")
 
     var stats: DashboardStats?
     var trips: [TripRecord] = []
@@ -210,11 +209,6 @@ final class AppState {
         UserDefaults.standard.set(Array(favoriteTripIds), forKey: "favorite_trip_ids")
     }
 
-    func setDarkMode(_ enabled: Bool) {
-        darkMode = enabled
-        UserDefaults.standard.set(enabled, forKey: "dark_mode")
-    }
-
     func loadAccountInfo() async {
         guard let token = SupabaseClient.accessToken else { return }
         guard let uid = jwtUserId(from: token) else { return }
@@ -237,9 +231,6 @@ final class AppState {
                     profile: profile
                 )
                 displayName = accountInfo?.displayName ?? displayName
-                if !profile.is_admin && !profile.is_business {
-                    setDarkMode(false)
-                }
             }
         } catch {
             if isCancellationError(error) { return }
