@@ -411,6 +411,8 @@ struct UserUpgradeSheet: View {
         let voucher = applicableVouchers(overview).first(where: { $0.id == selectedVoucherId })
         let discount = upgradeDiscountAmount(voucher, original: original)
         let finalAmount = max(0, original - discount)
+        let giftDays = voucher?.gift_days ?? 0
+        let durationDays = giftDays > 0 ? giftDays : (pkg.duration_days ?? 30)
         return AnyView(
             VStack(alignment: .leading, spacing: 6) {
                 Text("Tạm tính").font(.system(size: 15, weight: .bold))
@@ -422,12 +424,31 @@ struct UserUpgradeSheet: View {
                 .font(.system(size: 13))
                 if discount > 0 {
                     HStack {
-                        Text("Voucher")
+                        Text(giftDays > 0 ? "Voucher (\(upgradeDiscountText(voucher!)))" : "Voucher")
                         Spacer()
                         Text("-\(FormatUtils.formatVnd(discount))")
                             .foregroundStyle(PremiumTheme.accent)
                     }
                     .font(.system(size: 13))
+                }
+                HStack {
+                    Text("Thời hạn Pro")
+                    Spacer()
+                    Text(
+                        durationDays >= 30 && durationDays % 30 == 0
+                            ? "\(durationDays / 30) tháng"
+                            : "\(durationDays) ngày"
+                    )
+                }
+                .font(.system(size: 13))
+                if let from = voucher?.valid_from, let until = voucher?.valid_until, !from.isEmpty, !until.isEmpty {
+                    Text("Áp dụng từ \(from) đến \(until)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(PremiumTheme.textMuted)
+                } else if let until = voucher?.valid_until, !until.isEmpty {
+                    Text("Hết hạn \(until)")
+                        .font(.system(size: 12))
+                        .foregroundStyle(PremiumTheme.textMuted)
                 }
                 HStack {
                     Text("Thanh toán")
@@ -519,6 +540,11 @@ struct UserUpgradeSheet: View {
 }
 
 private func upgradeDiscountText(_ promo: Promotion) -> String {
+    if let days = promo.gift_days, days > 0 {
+        let months = days / 30
+        if months >= 1 && days % 30 == 0 { return "Tặng \(months) tháng Pro" }
+        return "Tặng \(days) ngày Pro"
+    }
     if let pct = promo.discount_percent, pct > 0 { return "Giảm \(Int(pct))%" }
     if let amt = promo.discount_amount, amt > 0 { return "Giảm \(FormatUtils.formatVnd(amt))" }
     return "Ưu đãi"
@@ -526,6 +552,8 @@ private func upgradeDiscountText(_ promo: Promotion) -> String {
 
 private func upgradeDiscountAmount(_ promo: Promotion?, original: Double) -> Double {
     guard let promo else { return 0 }
+    // Gift-duration vouchers make checkout free.
+    if let days = promo.gift_days, days > 0 { return original }
     let byPercent = (promo.discount_percent ?? 0) > 0
         ? original * (promo.discount_percent ?? 0) / 100
         : 0
@@ -534,6 +562,7 @@ private func upgradeDiscountAmount(_ promo: Promotion?, original: Double) -> Dou
 }
 
 private func voucherAppliesToPackage(_ voucher: Promotion, billingCycle: String?) -> Bool {
+    if let days = voucher.gift_days, days > 0 { return true }
     switch voucher.applicability ?? "hotel_places" {
     case "user_subscription":
         return true

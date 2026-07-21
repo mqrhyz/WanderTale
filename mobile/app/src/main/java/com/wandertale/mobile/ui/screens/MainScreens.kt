@@ -744,17 +744,8 @@ private fun voucherIcon(voucher: Promotion): ImageVector {
     }
 }
 
-private fun voucherDisplayTitle(voucher: Promotion): String {
-    val pct = voucher.discount_percent ?: 0.0
-    val amt = voucher.discount_amount ?: 0.0
-    return when {
-        pct > 0 -> "Giảm ${pct.toInt()}% · ${voucher.title}"
-        amt > 0 -> "Giảm đến ${FormatUtils.formatVnd(amt)} · ${voucher.title}"
-        else -> voucher.title
-    }
-}
-
-private fun voucherValidityText(voucher: Promotion): String? {
+private fun voucherValidityText(voucher: Promotion?): String? {
+    if (voucher == null) return null
     val from = voucher.valid_from?.trim().orEmpty()
     val until = voucher.valid_until?.trim().orEmpty()
     if (from.isNotEmpty() && until.isNotEmpty()) return "Áp dụng từ $from đến $until"
@@ -837,9 +828,33 @@ private fun PromotionPostDialog(
 }
 
 private fun promotionDiscountText(voucher: Promotion): String {
+    voucher.gift_days?.takeIf { it > 0 }?.let { days ->
+        val months = days / 30
+        return if (months >= 1 && days % 30 == 0) "Tặng $months tháng Pro" else "Tặng $days ngày Pro"
+    }
     voucher.discount_percent?.takeIf { it > 0 }?.let { return "Giảm ${it.toInt()}%" }
     voucher.discount_amount?.takeIf { it > 0 }?.let { return "Giảm ${FormatUtils.formatVnd(it)}" }
     return "Ưu đãi"
+}
+
+private fun voucherDisplayTitle(voucher: Promotion): String {
+    val giftDays = voucher.gift_days ?: 0
+    if (giftDays > 0) {
+        val months = giftDays / 30
+        val giftLabel = if (months >= 1 && giftDays % 30 == 0) {
+            "Tặng $months tháng Pro"
+        } else {
+            "Tặng $giftDays ngày Pro"
+        }
+        return "$giftLabel · ${voucher.title}"
+    }
+    val pct = voucher.discount_percent ?: 0.0
+    val amt = voucher.discount_amount ?: 0.0
+    return when {
+        pct > 0 -> "Giảm ${pct.toInt()}% · ${voucher.title}"
+        amt > 0 -> "Giảm đến ${FormatUtils.formatVnd(amt)} · ${voucher.title}"
+        else -> voucher.title
+    }
 }
 
 private fun promotionApplicabilityText(voucher: Promotion): String =
@@ -1532,7 +1547,7 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
                                         FilterChip(
                                             selected = selectedVoucherId == voucher.id,
                                             onClick = { selectedVoucherId = voucher.id },
-                                            label = { Text("${voucher.code} · ${promotionDiscountText(voucher)}") },
+                                            label = { Text("${voucher.code} · ${upgradeVoucherLabel(voucher)}") },
                                         )
                                     }
                                 }
@@ -1543,6 +1558,8 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
                                 val voucher = applicableUpgradeVouchers(data, selectedPackageId).firstOrNull { it.id == selectedVoucherId }
                                 val discount = upgradeDiscountAmount(voucher, original)
                                 val finalAmount = (original - discount).coerceAtLeast(0.0)
+                                val giftDays = voucher?.gift_days ?: 0
+                                val durationDays = if (giftDays > 0) giftDays else (selectedPackage?.duration_days ?: 30)
                                 PremiumSurfaceCard {
                                     Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                         Text("Tạm tính", fontWeight = FontWeight.Bold)
@@ -1552,9 +1569,28 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
                                         }
                                         if (discount > 0) {
                                             Row(Modifier.fillMaxWidth()) {
-                                                Text("Voucher", fontSize = 13.sp, color = PremiumColors.Muted, modifier = Modifier.weight(1f))
+                                                Text(
+                                                    if (giftDays > 0) "Voucher (${upgradeVoucherLabel(voucher!!)})" else "Voucher",
+                                                    fontSize = 13.sp,
+                                                    color = PremiumColors.Muted,
+                                                    modifier = Modifier.weight(1f),
+                                                )
                                                 Text("-${FormatUtils.formatVnd(discount)}", fontSize = 13.sp, color = PremiumColors.Accent)
                                             }
+                                        }
+                                        Row(Modifier.fillMaxWidth()) {
+                                            Text("Thời hạn Pro", fontSize = 13.sp, color = PremiumColors.Muted, modifier = Modifier.weight(1f))
+                                            Text(
+                                                if (durationDays >= 30 && durationDays % 30 == 0) {
+                                                    "${durationDays / 30} tháng"
+                                                } else {
+                                                    "$durationDays ngày"
+                                                },
+                                                fontSize = 13.sp,
+                                            )
+                                        }
+                                        voucherValidityText(voucher)?.let { validity ->
+                                            Text(validity, fontSize = 12.sp, color = PremiumColors.TextMuted)
                                         }
                                         Row(Modifier.fillMaxWidth()) {
                                             Text("Thanh toán", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -1696,6 +1732,8 @@ private fun applicableUpgradeVouchers(overview: UserSubscriptionOverview, packag
 }
 
 private fun voucherAppliesToUpgradePackage(voucher: Promotion, billingCycle: String?): Boolean {
+    // Gift-duration vouchers always apply to Pro packages.
+    if ((voucher.gift_days ?: 0) > 0) return true
     return when (voucher.applicability ?: "hotel_places") {
         "user_subscription" -> true
         "pro_plan" -> {
@@ -1708,9 +1746,24 @@ private fun voucherAppliesToUpgradePackage(voucher: Promotion, billingCycle: Str
 
 private fun upgradeDiscountAmount(voucher: Promotion?, original: Double): Double {
     if (voucher == null) return 0.0
+    // Gift-duration vouchers (e.g. BANMOI = 3 months Pro) make checkout free.
+    if ((voucher.gift_days ?: 0) > 0) return original
     val byPercent = if ((voucher.discount_percent ?: 0.0) > 0) original * (voucher.discount_percent ?: 0.0) / 100 else 0.0
     val byAmount = voucher.discount_amount ?: 0.0
     return minOf(original, maxOf(byPercent, byAmount))
+}
+
+private fun upgradeVoucherLabel(voucher: Promotion): String {
+    val giftDays = voucher.gift_days ?: 0
+    if (giftDays > 0) {
+        val months = giftDays / 30
+        return if (months >= 1 && giftDays % 30 == 0) {
+            "Tặng ${months} tháng Pro"
+        } else {
+            "Tặng $giftDays ngày Pro"
+        }
+    }
+    return promotionDiscountText(voucher)
 }
 
 @Composable

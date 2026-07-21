@@ -688,6 +688,8 @@ data class Promotion(
     val is_saved: Boolean? = null,
     val applicability: String? = null,
     val billing_cycle: String? = null,
+    /** Free Pro days from gift voucher (e.g. BANMOI = 90). */
+    val gift_days: Int? = null,
 )
 
 @Serializable
@@ -728,6 +730,8 @@ data class PromotionVoucherCreate(
     val valid_until: String? = null,
     val applicability: String? = null,
     val billing_cycle: String? = null,
+    val gift_days: Int? = null,
+    val gift_months: Int? = null,
 )
 
 @Serializable

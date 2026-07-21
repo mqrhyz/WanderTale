@@ -37,6 +37,15 @@ function partnerName(v: VoucherRow): string | null {
   return row && typeof row === "object" && "name" in row ? String((row as { name?: string }).name ?? "") || null : null;
 }
 
+/** Free Pro days from gift voucher metadata (gift_days / free_days / gift_months*30). */
+function giftDaysFromMeta(meta: Record<string, unknown>): number | null {
+  const days = n(meta.gift_days) ?? n(meta.free_days) ?? n(meta.duration_days);
+  if (days != null && days > 0) return Math.round(days);
+  const months = n(meta.gift_months) ?? n(meta.free_months) ?? n(meta.pro_months);
+  if (months != null && months > 0) return Math.round(months * 30);
+  return null;
+}
+
 function mapVoucher(v: VoucherRow, savedIds = new Set<string>()) {
   const id = String(v.id);
   const meta = metadata(v);
@@ -53,7 +62,56 @@ function mapVoucher(v: VoucherRow, savedIds = new Set<string>()) {
     is_saved: savedIds.has(id),
     applicability: voucherApplicability(meta.applicability),
     billing_cycle: voucherBillingCycle(meta.billing_cycle),
+    gift_days: giftDaysFromMeta(meta),
   };
+}
+
+function voucherMetadataFromBody(
+  body: { applicability?: string; billing_cycle?: string; gift_days?: number | null; gift_months?: number | null },
+  currentMeta: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const next: Record<string, unknown> = {
+    ...currentMeta,
+    applicability: voucherApplicability(body.applicability ?? currentMeta.applicability),
+    billing_cycle: voucherBillingCycle(body.billing_cycle ?? currentMeta.billing_cycle),
+  };
+  // Prefer explicit gift_days; else gift_months * 30. Null clears gift duration.
+  if (body.gift_days !== undefined) {
+    const days = n(body.gift_days);
+    if (days != null && days > 0) {
+      next.gift_days = Math.round(days);
+      delete next.gift_months;
+      delete next.free_days;
+      delete next.free_months;
+      delete next.pro_months;
+      delete next.duration_days;
+    } else {
+      delete next.gift_days;
+      delete next.gift_months;
+      delete next.free_days;
+      delete next.free_months;
+      delete next.pro_months;
+      delete next.duration_days;
+    }
+  } else if (body.gift_months !== undefined) {
+    const months = n(body.gift_months);
+    if (months != null && months > 0) {
+      next.gift_months = Math.round(months);
+      next.gift_days = Math.round(months * 30);
+      delete next.free_days;
+      delete next.free_months;
+      delete next.pro_months;
+      delete next.duration_days;
+    } else {
+      delete next.gift_days;
+      delete next.gift_months;
+      delete next.free_days;
+      delete next.free_months;
+      delete next.pro_months;
+      delete next.duration_days;
+    }
+  }
+  return next;
 }
 
 function mapPost(p: PostRow, voucher: unknown = p.vouchers, savedIds = new Set<string>()) {
@@ -189,6 +247,8 @@ export async function adminCreatePromotionVoucher(body: {
   valid_until?: string;
   applicability?: string;
   billing_cycle?: string;
+  gift_days?: number | null;
+  gift_months?: number | null;
 }) {
   if (!body.code?.trim()) throw new Error("voucher_code_required");
   if (!body.title?.trim()) throw new Error("voucher_title_required");
@@ -205,10 +265,7 @@ export async function adminCreatePromotionVoucher(body: {
       discount_amount: n(body.discount_amount),
       valid_from: body.valid_from || today,
       valid_until: body.valid_until || today,
-      metadata: {
-        applicability: voucherApplicability(body.applicability),
-        billing_cycle: voucherBillingCycle(body.billing_cycle),
-      },
+      metadata: voucherMetadataFromBody(body),
     })
     .select("id,code,title,description,discount_percent,discount_amount,valid_from,valid_until,metadata,created_at,partners(name)")
     .single();
@@ -226,6 +283,8 @@ export async function adminUpdatePromotionVoucher(voucherId: string, body: {
   valid_until?: string;
   applicability?: string;
   billing_cycle?: string;
+  gift_days?: number | null;
+  gift_months?: number | null;
 }) {
   const patch: Record<string, unknown> = {};
   if (body.code !== undefined) patch.code = body.code.trim().toUpperCase();
@@ -235,7 +294,12 @@ export async function adminUpdatePromotionVoucher(voucherId: string, body: {
   if (body.discount_amount !== undefined) patch.discount_amount = n(body.discount_amount);
   if (body.valid_from !== undefined) patch.valid_from = body.valid_from;
   if (body.valid_until !== undefined) patch.valid_until = body.valid_until;
-  if (body.applicability !== undefined || body.billing_cycle !== undefined) {
+  if (
+    body.applicability !== undefined ||
+    body.billing_cycle !== undefined ||
+    body.gift_days !== undefined ||
+    body.gift_months !== undefined
+  ) {
     const { data: current, error: currentError } = await getSupabaseAdmin()
       .from("vouchers")
       .select("metadata")
@@ -243,11 +307,7 @@ export async function adminUpdatePromotionVoucher(voucherId: string, body: {
       .maybeSingle();
     if (currentError) throw currentError;
     const currentMeta = metadata((current ?? {}) as VoucherRow);
-    patch.metadata = {
-      ...currentMeta,
-      applicability: voucherApplicability(body.applicability ?? currentMeta.applicability),
-      billing_cycle: voucherBillingCycle(body.billing_cycle ?? currentMeta.billing_cycle),
-    };
+    patch.metadata = voucherMetadataFromBody(body, currentMeta);
   }
   if (!Object.keys(patch).length) throw new Error("empty_update");
   const { data, error } = await getSupabaseAdmin()

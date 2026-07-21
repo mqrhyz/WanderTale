@@ -102,10 +102,12 @@ struct Promotion: Codable, Identifiable {
     var is_saved: Bool?
     var applicability: String?
     var billing_cycle: String?
+    /// Free Pro days from gift voucher (e.g. BANMOI = 90).
+    var gift_days: Int?
 
     enum CodingKeys: String, CodingKey {
         case id, code, title, description, discount_percent, discount_amount
-        case valid_from, valid_until, partner_name, is_saved, applicability, billing_cycle
+        case valid_from, valid_until, partner_name, is_saved, applicability, billing_cycle, gift_days
     }
 
     init(from decoder: Decoder) throws {
@@ -122,6 +124,7 @@ struct Promotion: Codable, Identifiable {
         is_saved = try c.decodeIfPresent(Bool.self, forKey: .is_saved)
         applicability = try c.decodeIfPresent(String.self, forKey: .applicability)
         billing_cycle = try c.decodeIfPresent(String.self, forKey: .billing_cycle)
+        gift_days = try c.decodeLossyIntIfPresent(forKey: .gift_days)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -138,6 +141,7 @@ struct Promotion: Codable, Identifiable {
         try c.encodeIfPresent(is_saved, forKey: .is_saved)
         try c.encodeIfPresent(applicability, forKey: .applicability)
         try c.encodeIfPresent(billing_cycle, forKey: .billing_cycle)
+        try c.encodeIfPresent(gift_days, forKey: .gift_days)
     }
 }
 
@@ -177,6 +181,8 @@ struct PromotionVoucherCreate: Codable {
     var valid_until: String?
     var applicability: String?
     var billing_cycle: String?
+    var gift_days: Int?
+    var gift_months: Int?
 }
 
 struct PromotionPostCreate: Codable {

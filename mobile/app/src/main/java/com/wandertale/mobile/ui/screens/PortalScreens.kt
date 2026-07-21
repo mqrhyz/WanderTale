@@ -1538,6 +1538,7 @@ private fun AdminPromotionManagerDialog(
     var voucherDesc by remember { mutableStateOf("") }
     var percent by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
+    var giftMonths by remember { mutableStateOf("") }
     var validFrom by remember { mutableStateOf(LocalDate.now().format(DateTimeFormatter.ISO_DATE)) }
     var validUntil by remember { mutableStateOf(LocalDate.now().plusDays(30).format(DateTimeFormatter.ISO_DATE)) }
     var applicability by remember { mutableStateOf("hotel_places") }
@@ -1558,7 +1559,7 @@ private fun AdminPromotionManagerDialog(
 
     fun resetVoucherForm() {
         selectedVoucherId = null
-        code = ""; voucherTitle = ""; voucherDesc = ""; percent = ""; amount = ""
+        code = ""; voucherTitle = ""; voucherDesc = ""; percent = ""; amount = ""; giftMonths = ""
         applicability = "hotel_places"; billingCycle = "both"
     }
 
@@ -1575,6 +1576,9 @@ private fun AdminPromotionManagerDialog(
         voucherDesc = voucher.description ?: ""
         percent = voucher.discount_percent?.toInt()?.toString() ?: ""
         amount = voucher.discount_amount?.toInt()?.toString() ?: ""
+        giftMonths = voucher.gift_days?.takeIf { it > 0 }?.let { days ->
+            if (days % 30 == 0) (days / 30).toString() else ""
+        } ?: ""
         validFrom = voucher.valid_from ?: validFrom
         validUntil = voucher.valid_until ?: validUntil
         applicability = voucher.applicability ?: "hotel_places"
@@ -1627,6 +1631,7 @@ private fun AdminPromotionManagerDialog(
                     PortalTextInput("Mô tả", voucherDesc) { voucherDesc = it }
                     PortalTextInput("Giảm phần trăm", percent, KeyboardType.Number) { percent = it }
                     PortalTextInput("Giảm số tiền", amount, KeyboardType.Number) { amount = it }
+                    PortalTextInput("Tặng tháng Pro (vd 3 = 3 tháng miễn phí)", giftMonths, KeyboardType.Number) { giftMonths = it }
                     PortalTextInput("Ngày bắt đầu yyyy-mm-dd", validFrom) { validFrom = it }
                     PortalTextInput("Ngày kết thúc yyyy-mm-dd", validUntil) { validUntil = it }
                     Text("Áp dụng cho", color = portalMuted(), fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -1645,6 +1650,7 @@ private fun AdminPromotionManagerDialog(
                     }
                     Button(
                         onClick = {
+                            val months = giftMonths.toIntOrNull()
                             val input = PromotionVoucherCreate(
                                 code = code,
                                 title = voucherTitle,
@@ -1655,6 +1661,8 @@ private fun AdminPromotionManagerDialog(
                                 valid_until = validUntil,
                                 applicability = applicability,
                                 billing_cycle = if (applicability == "pro_plan") billingCycle else "both",
+                                gift_months = months?.takeIf { it > 0 },
+                                gift_days = months?.takeIf { it > 0 }?.let { it * 30 },
                             )
                             selectedVoucherId?.let { onUpdateVoucher(it, input) } ?: onCreateVoucher(input)
                             resetVoucherForm()
@@ -1823,6 +1831,10 @@ private fun PromotionPostAdminRow(post: PromotionPost, selected: Boolean, onClic
 }
 
 private fun promotionAdminDiscount(voucher: Promotion): String {
+    voucher.gift_days?.takeIf { it > 0 }?.let { days ->
+        val months = days / 30
+        return if (months >= 1 && days % 30 == 0) "Tặng $months tháng Pro" else "Tặng $days ngày Pro"
+    }
     voucher.discount_percent?.takeIf { it > 0 }?.let { return "Giảm ${it.toInt()}%" }
     voucher.discount_amount?.takeIf { it > 0 }?.let { return formatPlatformVnd(it) }
     return "Ưu đãi"

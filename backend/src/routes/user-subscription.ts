@@ -20,7 +20,13 @@ export async function userSubscriptionRoutes(app: FastifyInstance) {
         return await purchaseUserSubscription(req.userId!, req.body);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "subscription_purchase_failed";
-        return reply.code(msg === "voucher_not_applicable" ? 400 : 500).send({ error: msg });
+        const code =
+          msg === "voucher_not_applicable" ||
+          msg === "voucher_expired" ||
+          msg === "subscription_package_not_found"
+            ? 400
+            : 500;
+        return reply.code(code).send({ error: msg });
       }
     },
   );

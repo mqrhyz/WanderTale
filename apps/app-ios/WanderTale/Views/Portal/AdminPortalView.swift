@@ -1210,6 +1210,7 @@ private struct AdminPromotionManagerSheet: View {
     @State private var voucherDescription = ""
     @State private var discountPercent = ""
     @State private var discountAmount = ""
+    @State private var giftMonths = ""
     @State private var validFrom = String(Date().ISO8601Format().prefix(10))
     @State private var validUntil = String(Date().addingTimeInterval(60 * 60 * 24 * 30).ISO8601Format().prefix(10))
     @State private var voucherApplicability = "hotel_places"
@@ -1241,6 +1242,7 @@ private struct AdminPromotionManagerSheet: View {
                         TextField("Mô tả", text: $voucherDescription, axis: .vertical)
                         TextField("Giảm phần trăm", text: $discountPercent).keyboardType(.decimalPad)
                         TextField("Giảm số tiền", text: $discountAmount).keyboardType(.numberPad)
+                        TextField("Tặng tháng Pro (vd 3 = 3 tháng miễn phí)", text: $giftMonths).keyboardType(.numberPad)
                         TextField("Ngày bắt đầu yyyy-mm-dd", text: $validFrom)
                         TextField("Ngày kết thúc yyyy-mm-dd", text: $validUntil)
                         Picker("Áp dụng cho", selection: $voucherApplicability) {
@@ -1386,6 +1388,11 @@ private struct AdminPromotionManagerSheet: View {
         voucherDescription = voucher.description ?? ""
         discountPercent = voucher.discount_percent.map { String(Int($0)) } ?? ""
         discountAmount = voucher.discount_amount.map { String(Int($0)) } ?? ""
+        if let days = voucher.gift_days, days > 0, days % 30 == 0 {
+            giftMonths = String(days / 30)
+        } else {
+            giftMonths = ""
+        }
         validFrom = voucher.valid_from ?? validFrom
         validUntil = voucher.valid_until ?? validUntil
         voucherApplicability = voucher.applicability ?? "hotel_places"
@@ -1409,7 +1416,7 @@ private struct AdminPromotionManagerSheet: View {
         error = nil
         if mode == 0 {
             selectedVoucherId = nil
-            code = ""; voucherTitle = ""; voucherDescription = ""; discountPercent = ""; discountAmount = ""
+            code = ""; voucherTitle = ""; voucherDescription = ""; discountPercent = ""; discountAmount = ""; giftMonths = ""
             voucherApplicability = "hotel_places"; voucherBillingCycle = "both"
         } else {
             selectedPostId = nil
@@ -1431,6 +1438,7 @@ private struct AdminPromotionManagerSheet: View {
         saving = true; error = nil
         do {
             if mode == 0 {
+                let months = Int(giftMonths)
                 let input = PromotionVoucherCreate(
                     code: code,
                     title: voucherTitle,
@@ -1440,7 +1448,9 @@ private struct AdminPromotionManagerSheet: View {
                     valid_from: validFrom,
                     valid_until: validUntil,
                     applicability: voucherApplicability,
-                    billing_cycle: voucherApplicability == "pro_plan" ? voucherBillingCycle : "both"
+                    billing_cycle: voucherApplicability == "pro_plan" ? voucherBillingCycle : "both",
+                    gift_days: (months ?? 0) > 0 ? (months! * 30) : nil,
+                    gift_months: (months ?? 0) > 0 ? months : nil
                 )
                 if let selectedVoucherId { try await onUpdateVoucher(selectedVoucherId, input) } else { try await onCreateVoucher(input) }
                 resetCurrentForm()
@@ -1479,6 +1489,11 @@ private struct AdminPromotionManagerSheet: View {
     }
 
     private func discountLabel(_ voucher: Promotion) -> String {
+        if let days = voucher.gift_days, days > 0 {
+            let months = days / 30
+            if months >= 1 && days % 30 == 0 { return "Tặng \(months) tháng Pro" }
+            return "Tặng \(days) ngày Pro"
+        }
         if let pct = voucher.discount_percent, pct > 0 { return "Giảm \(Int(pct))%" }
         if let amount = voucher.discount_amount, amount > 0 { return FormatUtils.formatVnd(amount) }
         return "Ưu đãi"

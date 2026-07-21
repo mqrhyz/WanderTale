@@ -100,20 +100,46 @@ function voucherApplies(voucher: VoucherRow, pkg: UserPackage): boolean {
   const meta = metadata(voucher);
   const applicability = String(meta.applicability ?? "hotel_places");
   const cycle = String(meta.billing_cycle ?? "both");
+  // Gift-duration vouchers always apply to Pro packages (BANMOI-style).
+  if (giftDaysFromVoucher(voucher) > 0) return true;
   if (applicability === "user_subscription") return true;
   if (applicability !== "pro_plan") return false;
   return cycle === "both" || cycle === pkg.billing_cycle;
 }
 
+/** Free Pro duration from gift voucher (gift_days / gift_months). */
+function giftDaysFromVoucher(voucher: VoucherRow | null): number {
+  if (!voucher) return 0;
+  const meta = metadata(voucher);
+  const days = n(meta.gift_days) || n(meta.free_days) || n(meta.duration_days);
+  if (days > 0) return Math.round(days);
+  const months = n(meta.gift_months) || n(meta.free_months) || n(meta.pro_months);
+  if (months > 0) return Math.round(months * 30);
+  return 0;
+}
+
+/**
+ * Monetary discount for a Pro package.
+ * Gift-duration vouchers (BANMOI = 3 months free) zero out the price entirely.
+ */
 function discountFor(voucher: VoucherRow | null, amount: number): number {
   if (!voucher) return 0;
+  if (giftDaysFromVoucher(voucher) > 0) return amount;
   const byPercent = Math.round(amount * Math.max(0, n(voucher.discount_percent)) / 100);
   const byAmount = Math.round(Math.max(0, n(voucher.discount_amount)));
   return Math.min(amount, Math.max(byPercent, byAmount));
 }
 
+/** Effective Pro duration: gift days if present, else package duration. */
+function effectiveDurationDays(pkg: UserPackage, voucher: VoucherRow | null): number {
+  const gift = giftDaysFromVoucher(voucher);
+  if (gift > 0) return gift;
+  return pkg.duration_days;
+}
+
 function mapVoucher(v: VoucherRow) {
   const meta = metadata(v);
+  const giftDays = giftDaysFromVoucher(v);
   return {
     id: String(v.id),
     code: String(v.code ?? ""),
@@ -125,6 +151,7 @@ function mapVoucher(v: VoucherRow) {
     valid_until: v.valid_until ?? null,
     applicability: String(meta.applicability ?? "hotel_places"),
     billing_cycle: String(meta.billing_cycle ?? "both"),
+    gift_days: giftDays > 0 ? giftDays : null,
     is_saved: true,
   };
 }
@@ -189,7 +216,12 @@ export async function getUserSubscriptionOverview(userId: string) {
     .filter((v) => String(v.valid_from ?? "0000-01-01") <= today && String(v.valid_until ?? "9999-12-31") >= today)
     .filter((v) => {
       const applicability = String(metadata(v).applicability ?? "hotel_places");
-      return applicability === "user_subscription" || applicability === "pro_plan";
+      // Include gift-duration vouchers even if applicability was mis-set.
+      return (
+        applicability === "user_subscription" ||
+        applicability === "pro_plan" ||
+        giftDaysFromVoucher(v) > 0
+      );
     })
     .map(mapVoucher);
 
@@ -237,15 +269,30 @@ export async function activateUserSubscriptionByTransaction(txId: string) {
   if (!tx?.user_id) return null;
   const meta = metadata(tx as VoucherRow);
   const pkg = packageFor(String(meta.package_id));
-  const starts = new Date();
-  const ends = new Date(starts.getTime() + pkg.duration_days * 86400000);
+  const giftDays = n(meta.gift_days);
+  const durationDays =
+    n(meta.duration_days) > 0 ? Math.round(n(meta.duration_days)) : pkg.duration_days;
+
+  // Stack remaining Pro time when already premium, instead of resetting from now.
+  const profile = await fetchSubscriptionProfile(tx.user_id);
+  const now = Date.now();
+  let startsMs = now;
+  const existingExpires = profile?.subscription_expires_at
+    ? new Date(String(profile.subscription_expires_at)).getTime()
+    : 0;
+  if (isProfilePro(profile) && Number.isFinite(existingExpires) && existingExpires > now) {
+    startsMs = existingExpires;
+  }
+  const ends = new Date(startsMs + durationDays * 86400000);
+
   await sb
     .from("profiles")
     .update({
       is_premium: true,
       subscription_tier: "pro",
       subscription_expires_at: ends.toISOString(),
-      subscription_auto_renew: true,
+      // Free gift periods should not auto-charge after expiry.
+      subscription_auto_renew: giftDays > 0 ? false : true,
     })
     .eq("id", tx.user_id);
   await sb.from("platform_transactions").update({ status: "captured" }).eq("id", txId);
@@ -253,7 +300,13 @@ export async function activateUserSubscriptionByTransaction(txId: string) {
     level: "success",
     title: "User subscription activated",
     source: "payment",
-    metadata: { user_id: tx.user_id, package_id: pkg.id, transaction_id: txId },
+    metadata: {
+      user_id: tx.user_id,
+      package_id: pkg.id,
+      transaction_id: txId,
+      duration_days: durationDays,
+      gift_days: giftDays > 0 ? giftDays : null,
+    },
   });
   return { ok: true, tier: "pro", subscription_expires_at: ends.toISOString() };
 }
@@ -288,11 +341,18 @@ export async function purchaseUserSubscription(userId: string, input: { package_
       .maybeSingle();
     voucher = (Array.isArray(saved?.vouchers) ? saved?.vouchers[0] : saved?.vouchers) as VoucherRow | null;
     if (!voucher || !voucherApplies(voucher, pkg)) throw new Error("voucher_not_applicable");
+    // Enforce voucher validity window at purchase time.
+    const today = new Date().toISOString().slice(0, 10);
+    const from = String(voucher.valid_from ?? "0000-01-01");
+    const until = String(voucher.valid_until ?? "9999-12-31");
+    if (from > today || until < today) throw new Error("voucher_expired");
   }
 
   const originalAmount = Math.round(pkg.price_vnd);
+  const giftDays = giftDaysFromVoucher(voucher);
   const discountAmount = discountFor(voucher, originalAmount);
   const amount = Math.max(0, originalAmount - discountAmount);
+  const durationDays = effectiveDurationDays(pkg, voucher);
   const orderCode = Number(`${Date.now()}`.slice(-12));
   const { data: tx, error } = await sb
     .from("platform_transactions")
@@ -305,13 +365,15 @@ export async function purchaseUserSubscription(userId: string, input: { package_
       net_amount: amount,
       currency: "VND",
       status: "pending",
-      description: `Mua ${pkg.name}`,
+      description: giftDays > 0 ? `Nhận ${pkg.name} (quà ${giftDays} ngày)` : `Mua ${pkg.name}`,
       metadata: {
         package_id: pkg.id,
         billing_cycle: pkg.billing_cycle,
-        duration_days: pkg.duration_days,
+        duration_days: durationDays,
+        gift_days: giftDays > 0 ? giftDays : null,
         order_code: orderCode,
         voucher_id: voucher?.id ?? null,
+        voucher_code: voucher?.code ?? null,
         original_amount: originalAmount,
         discount_amount: discountAmount,
       },
@@ -327,6 +389,8 @@ export async function purchaseUserSubscription(userId: string, input: { package_
       amount,
       original_amount: originalAmount,
       discount_amount: discountAmount,
+      duration_days: durationDays,
+      gift_days: giftDays > 0 ? giftDays : null,
       transaction_id: tx.id,
       subscription: activated,
     };
@@ -347,6 +411,8 @@ export async function purchaseUserSubscription(userId: string, input: { package_
     amount: link.amount ?? amount,
     original_amount: originalAmount,
     discount_amount: discountAmount,
+    duration_days: durationDays,
+    gift_days: giftDays > 0 ? giftDays : null,
     transfer_content: link.description ?? null,
     order_code: orderCode,
     transaction_id: tx.id,
