@@ -17,18 +17,18 @@ object FormatUtils {
         return vnd.format(n)
     }
 
-    /** Compact VND for dashboard metrics — e.g. 24.011.976 → "24tr". */
+    /** Compact VND for dashboard metrics — e.g. 20_000_000 → "20M". */
     fun formatCompactVnd(n: Double?): String {
         if (n == null || !n.isFinite()) return "—"
         val abs = kotlin.math.abs(n)
         return when {
             abs >= 1_000_000_000 -> {
                 val v = n / 1_000_000_000
-                "${trimOneDecimal(v)} tỷ"
+                "${trimOneDecimal(v)}B"
             }
             abs >= 1_000_000 -> {
                 val v = n / 1_000_000
-                "${trimOneDecimal(v)}tr ₫"
+                "${trimOneDecimal(v)}M"
             }
             abs >= 1_000 -> "${kotlin.math.round(n / 1_000).toInt()}k"
             else -> NumberFormat.getIntegerInstance(Locale("vi", "VN")).format(n.toLong())
