@@ -1513,6 +1513,17 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
                                             color = PremiumColors.Muted,
                                             fontSize = 13.sp,
                                         )
+                                        data.subscription_expires_at
+                                            ?.take(10)
+                                            ?.takeIf { it.isNotBlank() }
+                                            ?.let { exp ->
+                                                Text(
+                                                    "Hết hạn Pro: $exp",
+                                                    color = PremiumColors.Accent,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                )
+                                            }
                                     }
                                 }
                             }
@@ -1589,8 +1600,21 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
                                                 fontSize = 13.sp,
                                             )
                                         }
+                                        estimatedProExpiryDate(durationDays)?.let { exp ->
+                                            Row(Modifier.fillMaxWidth()) {
+                                                Text("Hết hạn sau kích hoạt", fontSize = 13.sp, color = PremiumColors.Muted, modifier = Modifier.weight(1f))
+                                                Text(exp, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Accent)
+                                            }
+                                        }
                                         voucherValidityText(voucher)?.let { validity ->
-                                            Text(validity, fontSize = 12.sp, color = PremiumColors.TextMuted)
+                                            Text("Hạn dùng mã: $validity", fontSize = 12.sp, color = PremiumColors.TextMuted)
+                                        }
+                                        if (giftDays > 0 && selectedPackage?.billing_cycle == "yearly") {
+                                            Text(
+                                                "Mã quà Pro chỉ áp dụng gói tháng — hãy chọn gói tháng.",
+                                                fontSize = 12.sp,
+                                                color = PremiumColors.LogoutRed,
+                                            )
                                         }
                                         Row(Modifier.fillMaxWidth()) {
                                             Text("Thanh toán", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -1732,14 +1756,24 @@ private fun applicableUpgradeVouchers(overview: UserSubscriptionOverview, packag
 }
 
 private fun voucherAppliesToUpgradePackage(voucher: Promotion, billingCycle: String?): Boolean {
-    // Gift-duration vouchers always apply to Pro packages.
-    if ((voucher.gift_days ?: 0) > 0) return true
+    val giftDays = voucher.gift_days ?: 0
+    val fullFree = giftDays > 0 || (voucher.discount_percent ?: 0.0) >= 100.0
+    val cycle = (voucher.billing_cycle ?: "both").lowercase()
+    // Full free gift (BANMOI) only against monthly package so yearly is never free 12 months.
+    if (fullFree) {
+        return when (voucher.applicability ?: "hotel_places") {
+            "user_subscription", "pro_plan" -> {
+                when (cycle) {
+                    "yearly", "monthly" -> cycle == billingCycle
+                    else -> billingCycle == "monthly"
+                }
+            }
+            else -> false
+        }
+    }
     return when (voucher.applicability ?: "hotel_places") {
         "user_subscription" -> true
-        "pro_plan" -> {
-            val cycle = voucher.billing_cycle ?: "both"
-            cycle == "both" || cycle == billingCycle
-        }
+        "pro_plan" -> cycle == "both" || cycle == billingCycle
         else -> false
     }
 }
@@ -1764,6 +1798,14 @@ private fun upgradeVoucherLabel(voucher: Promotion): String {
         }
     }
     return promotionDiscountText(voucher)
+}
+
+/** Estimated Pro expiry after activating for [durationDays] from today (yyyy-MM-dd). */
+private fun estimatedProExpiryDate(durationDays: Int): String? {
+    if (durationDays <= 0) return null
+    return runCatching {
+        java.time.LocalDate.now().plusDays(durationDays.toLong()).toString()
+    }.getOrNull()
 }
 
 @Composable

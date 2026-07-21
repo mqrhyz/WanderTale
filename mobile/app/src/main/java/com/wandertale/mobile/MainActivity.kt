@@ -1,6 +1,7 @@
 package com.wandertale.mobile
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -14,6 +15,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
+        // Force light UI mode even if the system/device is dark (no dark theme in app).
+        val config = Configuration(resources.configuration)
+        config.uiMode = (config.uiMode and Configuration.UI_MODE_NIGHT_MASK.inv()) or Configuration.UI_MODE_NIGHT_NO
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(config, resources.displayMetrics)
         enableEdgeToEdge()
 
         val app = application as WanderTaleApp

@@ -441,14 +441,29 @@ struct UserUpgradeSheet: View {
                     )
                 }
                 .font(.system(size: 13))
+                if let exp = Calendar.current.date(byAdding: .day, value: durationDays, to: Date()) {
+                    HStack {
+                        Text("Hết hạn sau kích hoạt")
+                        Spacer()
+                        Text(exp.formatted(.dateTime.year().month().day()))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(PremiumTheme.accent)
+                    }
+                    .font(.system(size: 13))
+                }
                 if let from = voucher?.valid_from, let until = voucher?.valid_until, !from.isEmpty, !until.isEmpty {
-                    Text("Áp dụng từ \(from) đến \(until)")
+                    Text("Hạn dùng mã: từ \(from) đến \(until)")
                         .font(.system(size: 12))
                         .foregroundStyle(PremiumTheme.textMuted)
                 } else if let until = voucher?.valid_until, !until.isEmpty {
-                    Text("Hết hạn \(until)")
+                    Text("Hạn dùng mã: hết hạn \(until)")
                         .font(.system(size: 12))
                         .foregroundStyle(PremiumTheme.textMuted)
+                }
+                if giftDays > 0, pkg.billing_cycle == "yearly" {
+                    Text("Mã quà Pro chỉ áp dụng gói tháng — hãy chọn gói tháng.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
                 }
                 HStack {
                     Text("Thanh toán")
@@ -562,12 +577,24 @@ private func upgradeDiscountAmount(_ promo: Promotion?, original: Double) -> Dou
 }
 
 private func voucherAppliesToPackage(_ voucher: Promotion, billingCycle: String?) -> Bool {
-    if let days = voucher.gift_days, days > 0 { return true }
+    let giftDays = voucher.gift_days ?? 0
+    let fullFree = giftDays > 0 || (voucher.discount_percent ?? 0) >= 100
+    let cycle = (voucher.billing_cycle ?? "both").lowercased()
+    if fullFree {
+        switch voucher.applicability ?? "hotel_places" {
+        case "user_subscription", "pro_plan":
+            if cycle == "yearly" || cycle == "monthly" {
+                return cycle == billingCycle
+            }
+            return billingCycle == "monthly"
+        default:
+            return false
+        }
+    }
     switch voucher.applicability ?? "hotel_places" {
     case "user_subscription":
         return true
     case "pro_plan":
-        let cycle = voucher.billing_cycle ?? "both"
         return cycle == "both" || cycle == billingCycle
     default:
         return false

@@ -36,7 +36,7 @@ struct AdminPortalView: View {
             adminTopBar
             ScrollView {
                 if loading {
-                    ProgressView().tint(.white).padding(.top, 40)
+                    ProgressView().tint(AdminPortalStyle.purple).padding(.top, 40)
                 } else if let error {
                     Text(error).foregroundStyle(.red).padding()
                 } else {

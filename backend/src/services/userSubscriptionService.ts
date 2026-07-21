@@ -99,12 +99,30 @@ function packageFor(id: string): UserPackage {
 function voucherApplies(voucher: VoucherRow, pkg: UserPackage): boolean {
   const meta = metadata(voucher);
   const applicability = String(meta.applicability ?? "hotel_places");
-  const cycle = String(meta.billing_cycle ?? "both");
-  // Gift-duration vouchers always apply to Pro packages (BANMOI-style).
-  if (giftDaysFromVoucher(voucher) > 0) return true;
+  const cycle = String(meta.billing_cycle ?? "both").toLowerCase().trim();
+  const gift = giftDaysFromVoucher(voucher) > 0;
+
+  // Pure gift vouchers (BANMOI = 3 months free) only redeem against the monthly package,
+  // so yearly is never "free for 12 months" via a short gift code.
+  if (gift && n(voucher.discount_percent) >= 100) {
+    if (applicability === "hotel_places") return false;
+    if (cycle === "yearly" || cycle === "monthly") {
+      return cycle === pkg.billing_cycle;
+    }
+    // cycle both / unset → monthly only for full free gift
+    return pkg.billing_cycle === "monthly";
+  }
+
+  if (gift) {
+    // Partial gift still restricted by applicability + cycle.
+    if (applicability === "user_subscription") return true;
+    if (applicability !== "pro_plan" && applicability !== "user_subscription") return false;
+    return cycle === "both" || cycle === "" || cycle === pkg.billing_cycle;
+  }
+
   if (applicability === "user_subscription") return true;
   if (applicability !== "pro_plan") return false;
-  return cycle === "both" || cycle === pkg.billing_cycle;
+  return cycle === "both" || cycle === "" || cycle === pkg.billing_cycle;
 }
 
 /** Free Pro duration from gift voucher (gift_days / gift_months). */
@@ -120,20 +138,24 @@ function giftDaysFromVoucher(voucher: VoucherRow | null): number {
 
 /**
  * Monetary discount for a Pro package.
- * Gift-duration vouchers (BANMOI = 3 months free) zero out the price entirely.
+ * Gift-duration vouchers with 100% (or gift_days) zero price only when applicable.
+ * Percent/amount discounts still work on matching packages.
  */
 function discountFor(voucher: VoucherRow | null, amount: number): number {
   if (!voucher) return 0;
-  if (giftDaysFromVoucher(voucher) > 0) return amount;
+  // Free gift (gift_days or 100%) → full discount when voucherApplies already passed.
+  if (giftDaysFromVoucher(voucher) > 0 || n(voucher.discount_percent) >= 100) return amount;
   const byPercent = Math.round(amount * Math.max(0, n(voucher.discount_percent)) / 100);
   const byAmount = Math.round(Math.max(0, n(voucher.discount_amount)));
   return Math.min(amount, Math.max(byPercent, byAmount));
 }
 
-/** Effective Pro duration: gift days if present, else package duration. */
+/** Effective Pro duration: gift days if present, else package duration. Never use package years for a 3-month gift. */
 function effectiveDurationDays(pkg: UserPackage, voucher: VoucherRow | null): number {
   const gift = giftDaysFromVoucher(voucher);
   if (gift > 0) return gift;
+  // 100% free without gift_days: grant the selected package length (paid free month/year).
+  if (voucher && n(voucher.discount_percent) >= 100) return pkg.duration_days;
   return pkg.duration_days;
 }
 
