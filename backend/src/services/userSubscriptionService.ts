@@ -55,9 +55,18 @@ function monthStart(): string {
   return d.toISOString();
 }
 
+function truthyFlag(v: unknown): boolean {
+  if (v === true || v === 1) return true;
+  if (typeof v === "string") {
+    const s = v.trim().toLowerCase();
+    return s === "true" || s === "t" || s === "1" || s === "yes" || s === "pro" || s === "premium";
+  }
+  return false;
+}
+
 /**
  * PRO active if either premium flag or tier says so, and expiry (when set) is still in the future.
- * Previously required BOTH is_premium AND tier=pro — partial/admin updates left PRO users capped at Free (5 trips/month).
+ * Partial profile rows (only is_premium or only subscription_tier) must still unlock unlimited trips.
  */
 function isProfilePro(profile: Record<string, unknown> | null): boolean {
   if (!profile) return false;
@@ -65,12 +74,13 @@ function isProfilePro(profile: Record<string, unknown> | null): boolean {
   const tier = String(profile.subscription_tier ?? "")
     .toLowerCase()
     .trim();
-  const premiumFlag =
-    profile.is_premium === true ||
-    profile.is_premium === 1 ||
-    profile.is_premium === "true" ||
-    profile.is_premium === "t";
-  const tierPro = tier === "pro" || tier === "premium";
+  const premiumFlag = truthyFlag(profile.is_premium);
+  const tierPro =
+    tier === "pro" ||
+    tier === "premium" ||
+    tier === "wander-pro" ||
+    tier === "wander_pro" ||
+    tier.includes("pro");
   if (!premiumFlag && !tierPro) return false;
 
   const expiresRaw = profile.subscription_expires_at;
@@ -159,19 +169,18 @@ export async function getUserSubscriptionOverview(userId: string) {
   ]);
 
   const active = isProfilePro(profile);
-  // Heal partial PRO rows (e.g. only is_premium or only subscription_tier set).
+  // Heal partial / inconsistent PRO rows so subsequent checks and UI stay in sync.
   if (active && profile?.id) {
     const tier = String(profile.subscription_tier ?? "").toLowerCase().trim();
     const needsPremiumFlag = profile.is_premium !== true;
     const needsTier = tier !== "pro" && tier !== "premium";
     if (needsPremiumFlag || needsTier) {
-      await sb
-        .from("profiles")
-        .update({
-          is_premium: true,
-          subscription_tier: needsTier ? "pro" : profile.subscription_tier,
-        })
-        .eq("id", profile.id);
+      const healed = {
+        is_premium: true,
+        subscription_tier: needsTier ? "pro" : profile.subscription_tier,
+      };
+      await sb.from("profiles").update(healed).eq("id", profile.id);
+      Object.assign(profile, healed);
     }
   }
   const vouchers = (saved ?? [])
@@ -201,11 +210,18 @@ export async function getUserSubscriptionOverview(userId: string) {
 
 export async function assertCanCreateTrip(userId: string) {
   const overview = await getUserSubscriptionOverview(userId);
-  if (overview.is_premium) return overview;
-  if (overview.monthly_trip_count >= FREE_MONTHLY_TRIP_LIMIT) {
+  // Null monthly_trip_limit means unlimited (PRO). Never cap PRO at Free's 5 trips.
+  if (overview.is_premium || overview.monthly_trip_limit == null) {
+    return overview;
+  }
+  const limit = overview.monthly_trip_limit ?? FREE_MONTHLY_TRIP_LIMIT;
+  if (overview.monthly_trip_count >= limit) {
     const err = new Error("free_trip_limit_reached");
     (err as Error & { statusCode?: number; details?: unknown }).statusCode = 402;
-    (err as Error & { statusCode?: number; details?: unknown }).details = overview;
+    (err as Error & { statusCode?: number; details?: unknown }).details = {
+      ...overview,
+      reason: "free_monthly_cap",
+    };
     throw err;
   }
   return overview;
