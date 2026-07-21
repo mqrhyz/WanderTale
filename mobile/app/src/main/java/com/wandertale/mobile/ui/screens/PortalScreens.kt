@@ -324,12 +324,29 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         overview?.let {
                                             PortalMetricCard("Trong trip AI", compactNumber(it.suggested_count), "lượt được gợi ý", Modifier.weight(1f))
-                                            PortalMetricCard("Ngân sách còn", compactVnd(it.remaining_budget_vnd), "${it.active_ad_campaigns} chiến dịch chạy", Modifier.weight(1f))
+                                            PortalMetricCard(
+                                                "Ngân sách còn",
+                                                compactVnd(it.remaining_budget_vnd),
+                                                "${activeCampaignCount(campaigns)} đang chạy",
+                                                Modifier.weight(1f),
+                                            )
                                         }
                                     }
                                 }
                                 item { PortalSectionTitle("LƯỢT HIỂN THỊ 7 NGÀY") }
                                 item { BusinessImpressionChart(campaigns, overview) }
+                                item { PortalSectionTitle("CHIẾN DỊCH ĐANG CHẠY") }
+                                val activeCampaigns = campaigns.filter {
+                                    val s = it.status?.trim()?.lowercase(Locale.ROOT).orEmpty()
+                                    s.isEmpty() || s == "active" || s == "running" || s == "đang chạy"
+                                }
+                                if (activeCampaigns.isEmpty()) {
+                                    item { EmptyPortalText("Chưa có chiến dịch đang chạy.") }
+                                } else {
+                                    items(activeCampaigns.take(3), key = { "active-${it.id}" }) { campaign ->
+                                        BusinessCampaignCard(campaign)
+                                    }
+                                }
                                 item { PortalSectionTitle("VOUCHER ĐANG CHẠY") }
                                 if (vouchers.isEmpty()) item { EmptyPortalText("Chưa có voucher đang chạy.") }
                                 items(vouchers.take(2), key = { it.id }) { voucher -> BusinessVoucherCompactRow(voucher) }
@@ -342,14 +359,42 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         overview?.let {
                                             PortalMetricCard("Tổng hiển thị", compactNumber(it.impressions), "đã đồng bộ", Modifier.weight(1f))
-                                            PortalMetricCard("Ngân sách còn", compactVnd(it.remaining_budget_vnd), "${it.active_ad_campaigns} chiến dịch", Modifier.weight(1f))
+                                            PortalMetricCard(
+                                                "Chiến dịch",
+                                                "${activeCampaignCount(campaigns)}",
+                                                "đang chạy / ${campaigns.size} tổng",
+                                                Modifier.weight(1f),
+                                            )
                                         }
+                                    }
+                                }
+                                item {
+                                    overview?.let {
+                                        PortalMetricCard(
+                                            "Ngân sách còn",
+                                            compactVnd(it.remaining_budget_vnd),
+                                            "gói quảng bá còn hiệu lực",
+                                            Modifier.fillMaxWidth(),
+                                        )
                                     }
                                 }
                                 item { PortalSectionTitle("CHIẾN DỊCH ĐANG CHẠY") }
                                 item { PremiumAccentButton("+  Tạo chiến dịch mới", onClick = { showCampaignForm = true }, height = 48.dp) }
-                                if (campaigns.isEmpty()) item { EmptyPortalText("Chưa có chiến dịch quảng cáo.") }
-                                items(campaigns, key = { it.id }) { campaign -> BusinessCampaignCard(campaign) }
+                                val active = campaigns.filter { isCampaignActive(it) }
+                                val inactive = campaigns.filterNot { isCampaignActive(it) }
+                                if (active.isEmpty() && inactive.isEmpty()) {
+                                    item { EmptyPortalText("Chưa có chiến dịch quảng cáo.") }
+                                } else {
+                                    if (active.isNotEmpty()) {
+                                        items(active, key = { it.id }) { campaign -> BusinessCampaignCard(campaign) }
+                                    } else {
+                                        item { EmptyPortalText("Không có chiến dịch đang chạy.") }
+                                    }
+                                    if (inactive.isNotEmpty()) {
+                                        item { PortalSectionTitle("CHIẾN DỊCH KHÁC") }
+                                        items(inactive, key = { "other-${it.id}" }) { campaign -> BusinessCampaignCard(campaign) }
+                                    }
+                                }
                                 if (packages.isNotEmpty()) {
                                     item { PortalSectionTitle("GÓI QUẢNG CÁO") }
                                     items(packages, key = { it.id }) { pkg ->
@@ -599,7 +644,8 @@ private fun BusinessImpressionChart(campaigns: List<BusinessCampaignRow>, overvi
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(92.dp),
+                .height(108.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.Bottom,
         ) {
@@ -608,8 +654,8 @@ private fun BusinessImpressionChart(campaigns: List<BusinessCampaignRow>, overvi
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .height(((value.toFloat() / maxValue) * 58).dp.coerceAtLeast(8.dp))
-                            .clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
+                            .height(((value.toFloat() / maxValue) * 62).dp.coerceAtLeast(8.dp))
+                            .clip(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
                             .background(PortalGreen.copy(alpha = if (index == padded.lastIndex) 0.95f else 0.35f)),
                     )
                     Text(listOf("T2", "T3", "T4", "T5", "T6", "T7", "CN")[index], color = portalMuted(), fontSize = 11.sp)
@@ -621,73 +667,213 @@ private fun BusinessImpressionChart(campaigns: List<BusinessCampaignRow>, overvi
 
 @Composable
 private fun BusinessVoucherCompactRow(voucher: BusinessVoucherRow) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.size(46.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFEDEAFF)),
-            contentAlignment = Alignment.Center,
-        ) { Icon(Icons.Filled.ConfirmationNumber, contentDescription = null, tint = PortalPurple, modifier = Modifier.size(22.dp)) }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(voucher.code ?: "Voucher", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            Text(voucherSubtitle(voucher), color = portalMuted(), fontSize = 13.sp)
+    DarkPortalCard {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(Color(0xFFEDEAFF)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.ConfirmationNumber, contentDescription = null, tint = PortalPurple, modifier = Modifier.size(22.dp))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    voucher.code ?: "Voucher",
+                    color = portalText(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    voucherSubtitle(voucher),
+                    color = portalMuted(),
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            BusinessStatusPill(voucherStatusText(voucher.status))
         }
-        BusinessStatusPill(voucherStatusText(voucher.status))
     }
 }
 
 @Composable
 private fun BusinessCampaignCard(campaign: BusinessCampaignRow) {
+    val active = isCampaignActive(campaign)
     DarkPortalCard {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(Icons.Filled.Campaign, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(20.dp))
-                    Text(campaign.name ?: "Chiến dịch", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+        Column(
+            Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (active) Color(0xFFE8FBF4) else Color(0xFFF3F1EC)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Campaign,
+                        contentDescription = null,
+                        tint = if (active) PortalGreen else portalMuted(),
+                        modifier = Modifier.size(22.dp),
+                    )
                 }
-                BusinessStatusPill(campaign.status ?: "—")
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        campaign.name?.takeIf { it.isNotBlank() } ?: "Chiến dịch",
+                        color = portalText(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        listOfNotNull(
+                            campaign.target_type?.takeIf { it.isNotBlank() },
+                            campaign.region?.takeIf { it.isNotBlank() },
+                            campaign.season?.takeIf { it.isNotBlank() },
+                        ).joinToString(" · ").ifBlank { "Chưa có target" },
+                        color = portalMuted(),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                BusinessStatusPill(campaignStatusLabel(campaign.status))
             }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${compactNumber(campaign.impressions)}", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("hiển thị", color = portalMuted(), fontSize = 11.sp)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${compactNumber(campaign.clicks)}", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("click", color = portalMuted(), fontSize = 11.sp)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("${compactNumber(campaign.suggested_count)}", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Text("gợi ý", color = portalMuted(), fontSize = 11.sp)
-                }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(portalBg())
+                    .padding(horizontal = 10.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CampaignStatCell("Hiển thị", compactNumber(campaign.impressions), Modifier.weight(1f))
+                CampaignStatCell("Click", compactNumber(campaign.clicks), Modifier.weight(1f))
+                CampaignStatCell("Gợi ý AI", compactNumber(campaign.suggested_count), Modifier.weight(1f))
             }
-            HorizontalDivider(color = portalStroke(), thickness = 0.5.dp)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("${campaign.target_type ?: "Target"} · ${campaign.region ?: "Khu vực"} · ${campaign.season ?: ""}", color = portalMuted(), fontSize = 12.sp)
+
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                CampaignInfoChip(
+                    text = "${formatPortalDate(campaign.starts_at)} – ${formatPortalDate(campaign.ends_at)}",
+                    modifier = Modifier.weight(1f),
+                )
+                CampaignInfoChip(
+                    text = campaign.budget_vnd?.let { compactVnd(it) } ?: "—",
+                )
             }
-            Text("${formatPortalDate(campaign.starts_at)} — ${formatPortalDate(campaign.ends_at)} · ${formatPlatformVnd(campaign.budget_vnd)}", color = PortalGreen, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
         }
+    }
+}
+
+@Composable
+private fun CampaignStatCell(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = portalText(), fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+        Text(label, color = portalMuted(), fontSize = 11.sp, maxLines = 1)
+    }
+}
+
+@Composable
+private fun CampaignInfoChip(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        color = portalText(),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color(0xFFF0EFEA))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    )
+}
+
+private fun isCampaignActive(campaign: BusinessCampaignRow): Boolean {
+    val s = campaign.status?.trim()?.lowercase(Locale.ROOT).orEmpty()
+    return s.isEmpty() || s == "active" || s == "running" || s == "live" || s == "đang chạy"
+}
+
+private fun activeCampaignCount(campaigns: List<BusinessCampaignRow>): Int =
+    campaigns.count { isCampaignActive(it) }
+
+private fun campaignStatusLabel(status: String?): String {
+    val s = status?.trim().orEmpty()
+    if (s.isBlank()) return "Đang chạy"
+    return when (s.lowercase(Locale.ROOT)) {
+        "active", "running", "live" -> "Đang chạy"
+        "paused" -> "Tạm dừng"
+        "ended", "completed", "done" -> "Đã kết thúc"
+        "draft" -> "Nháp"
+        else -> s.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale("vi")) else it.toString() }
     }
 }
 
 @Composable
 private fun BusinessVoucherCard(voucher: BusinessVoucherRow) {
     DarkPortalCard {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(voucher.code ?: "Voucher", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        Column(
+            Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(
+                        voucher.code ?: "Voucher",
+                        color = portalText(),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        voucherSubtitle(voucher),
+                        color = portalMuted(),
+                        fontSize = 13.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 BusinessStatusPill(voucherStatusText(voucher.status))
             }
-            Text(voucherSubtitle(voucher), color = portalMuted(), fontSize = 13.sp)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Hết hạn", color = portalMuted(), fontWeight = FontWeight.SemiBold)
-                Text(formatPortalDate(voucher.valid_until), color = portalText(), fontWeight = FontWeight.Bold)
+                Text("Hết hạn", color = portalMuted(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                Text(formatPortalDate(voucher.valid_until), color = portalText(), fontWeight = FontWeight.Bold, fontSize = 13.sp)
             }
             val limit = voucher.usage_limit ?: voucher.used_count.coerceAtLeast(1)
             val ratio = (voucher.used_count.toFloat() / limit.coerceAtLeast(1)).coerceIn(0f, 1f)
-            Box(Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(50)).background(portalBg())) {
-                Box(Modifier.fillMaxWidth(ratio).height(5.dp).clip(RoundedCornerShape(50)).background(if (ratio > 0.8f) Color(0xFFFFA51F) else PortalGreen))
+            Box(Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)).background(portalBg())) {
+                Box(Modifier.fillMaxWidth(ratio).height(6.dp).clip(RoundedCornerShape(50)).background(if (ratio > 0.8f) Color(0xFFFFA51F) else PortalGreen))
             }
-            Text("${voucher.used_count}/$limit lượt dùng", color = portalMuted(), fontSize = 12.sp, modifier = Modifier.align(Alignment.End))
+            Text(
+                "${voucher.used_count}/$limit lượt dùng",
+                color = portalMuted(),
+                fontSize = 12.sp,
+                modifier = Modifier.align(Alignment.End),
+            )
         }
     }
 }
@@ -2043,15 +2229,29 @@ private fun MiniMetaChip(text: String) {
 
 @Composable
 private fun BusinessStatusPill(label: String) {
+    val normalized = label.trim().lowercase(Locale.ROOT)
+    val (fg, bg) = when {
+        normalized.contains("chạy") || normalized == "active" || normalized == "running" || normalized == "live" ->
+            Color(0xFF0B6B4F) to Color(0xFFD8FFF0)
+        normalized.contains("tạm") || normalized.contains("pause") || normalized == "paused" ->
+            Color(0xFF8A5A00) to Color(0xFFFFF1D8)
+        normalized.contains("kết thúc") || normalized.contains("end") || normalized.contains("done") || normalized == "ended" ->
+            Color(0xFF5C5A55) to Color(0xFFEEECE7)
+        normalized.contains("nháp") || normalized == "draft" ->
+            Color(0xFF4A3FB0) to Color(0xFFEDEAFF)
+        else -> Color(0xFF704000) to Color(0xFFFFF1D8)
+    }
     Text(
         label,
-        color = Color(0xFF704000),
-        fontSize = 12.sp,
+        color = fg,
+        fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFFFFF1D8))
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .background(bg)
+            .padding(horizontal = 10.dp, vertical = 5.dp),
     )
 }
 
@@ -2199,9 +2399,15 @@ private fun formatPortalDateTime(raw: String?): String {
 }
 
 private fun compactVnd(value: Double): String = when {
-    value >= 1_000_000 -> "đ${"%.1f".format(value / 1_000_000)}M"
-    value >= 1_000 -> "đ${"%.0f".format(value / 1_000)}K"
-    else -> "đ${value.toInt()}"
+    value >= 1_000_000_000 -> "${trimOne(value / 1_000_000_000)}B"
+    value >= 1_000_000 -> "${trimOne(value / 1_000_000)}M"
+    value >= 1_000 -> "${"%.0f".format(value / 1_000)}K"
+    else -> "${value.toInt()}"
+}
+
+private fun trimOne(v: Double): String {
+    val r = kotlin.math.round(v * 10) / 10.0
+    return if (r % 1.0 == 0.0) r.toLong().toString() else "%.1f".format(r)
 }
 
 private fun initials(name: String?): String {
@@ -2972,10 +3178,38 @@ private fun PortalTextField(
 @Composable
 private fun PortalMetricCard(title: String, value: String, subtitle: String? = null, modifier: Modifier = Modifier) {
     DarkPortalCard(modifier = modifier) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(title, fontSize = 12.sp, color = portalMuted(), fontWeight = FontWeight.SemiBold)
-            Text(value, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = portalText())
-            subtitle?.let { Text(it, fontSize = 11.sp, color = PortalGreen) }
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(
+                title,
+                fontSize = 12.sp,
+                color = portalMuted(),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                value,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = portalText(),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            subtitle?.let {
+                Text(
+                    it,
+                    fontSize = 11.sp,
+                    color = PortalGreen,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 14.sp,
+                )
+            }
         }
     }
 }
@@ -2985,9 +3219,9 @@ private fun DarkPortalCard(modifier: Modifier = Modifier, content: @Composable (
     Box(
         modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(portalCard())
-            .border(1.dp, portalStroke(), RoundedCornerShape(14.dp)),
+            .border(1.dp, portalStroke(), RoundedCornerShape(16.dp)),
     ) {
         content()
     }

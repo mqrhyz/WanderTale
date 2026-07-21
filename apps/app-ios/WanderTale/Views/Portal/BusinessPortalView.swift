@@ -491,11 +491,26 @@ struct BusinessPortalView: View {
     }
 
     private var adsSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        let active = campaigns.filter { isCampaignActive($0) }
+        let inactive = campaigns.filter { !isCampaignActive($0) }
+        return VStack(alignment: .leading, spacing: 18) {
             HStack(spacing: 12) {
-                metricCard("Tổng hiển thị", compactNumber(overview?.impressions ?? campaigns.reduce(0) { $0 + ($1.impressions ?? 0) }), subtitle: "+\(weeklyGrowthEstimate)% tuần này")
-                metricCard("Ngân sách còn", formatPlatformVnd(overview?.remaining_budget_vnd ?? 0), subtitle: remainingBudgetSubtitle)
+                metricCard(
+                    "Tổng hiển thị",
+                    compactNumber(overview?.impressions ?? campaigns.reduce(0) { $0 + ($1.impressions ?? 0) }),
+                    subtitle: "đã đồng bộ"
+                )
+                metricCard(
+                    "Chiến dịch",
+                    "\(active.count)",
+                    subtitle: "đang chạy / \(campaigns.count) tổng"
+                )
             }
+            metricCard(
+                "Ngân sách còn",
+                compactMoney(overview?.remaining_budget_vnd ?? 0),
+                subtitle: "gói quảng bá còn hiệu lực"
+            )
             sectionTitle("CHIẾN DỊCH ĐANG CHẠY")
             Button {
                 showingCampaignForm = true
@@ -508,40 +523,26 @@ struct BusinessPortalView: View {
                 }
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 58)
-                .background(BusinessPortalStyle.accent.opacity(0.78))
+                .frame(height: 54)
+                .background(BusinessPortalStyle.accent)
                 .clipShape(RoundedRectangle(cornerRadius: 13))
             }
             .buttonStyle(.plain)
+
             if campaigns.isEmpty {
                 darkEmptyState("Chưa có chiến dịch quảng cáo.")
+            } else if active.isEmpty {
+                darkEmptyState("Không có chiến dịch đang chạy.")
             } else {
-                ForEach(campaigns) { c in
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text(c.name)
-                                .font(.system(size: 17, weight: .bold))
-                                .foregroundStyle(BusinessPortalStyle.text)
-                            Spacer()
-                            statusChip(c.status ?? "active")
-                        }
-                        Text("\(c.target_type ?? "Target") · \(c.region ?? "Toàn quốc") · \(c.season ?? "Luôn bật")")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(BusinessPortalStyle.muted)
-                        HStack {
-                            Text("Hiển thị \(c.impressions ?? 0)")
-                            Text("Click \(c.clicks ?? 0)")
-                            Text("Gợi ý \(c.suggested_count ?? 0)")
-                        }
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(BusinessPortalStyle.accent)
-                        Text("Ngân sách: \(formatPlatformVnd(c.budget_vnd))")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(BusinessPortalStyle.text)
-                    }
-                    .padding(16)
-                    .background(BusinessPortalStyle.card)
-                    .clipShape(RoundedRectangle(cornerRadius: 13))
+                ForEach(active) { c in
+                    campaignCard(c)
+                }
+            }
+
+            if !inactive.isEmpty {
+                sectionTitle("CHIẾN DỊCH KHÁC")
+                ForEach(inactive) { c in
+                    campaignCard(c)
                 }
             }
 
@@ -559,6 +560,7 @@ struct BusinessPortalView: View {
                             Text(pkg.name)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundStyle(BusinessPortalStyle.text)
+                                .lineLimit(1)
                             if isCurrent {
                                 Text("Đang dùng")
                                     .font(.system(size: 11, weight: .bold))
@@ -573,6 +575,7 @@ struct BusinessPortalView: View {
                             Text(desc)
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundStyle(BusinessPortalStyle.muted)
+                                .lineLimit(2)
                         }
                         HStack {
                             Text(formatPlatformVnd(pkg.price_vnd))
@@ -608,22 +611,122 @@ struct BusinessPortalView: View {
                                 .foregroundStyle(.white)
                                 .frame(maxWidth: .infinity)
                                 .frame(height: 42)
-                                .background(purchaseLoading ? BusinessPortalStyle.accent.opacity(0.6) : BusinessPortalStyle.accent)
+                                .background(BusinessPortalStyle.accent)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
+                            .buttonStyle(.plain)
                             .disabled(purchaseLoading)
                         }
                     }
                     .padding(16)
                     .background(BusinessPortalStyle.card)
-                    .clipShape(RoundedRectangle(cornerRadius: 13))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 13)
-                            .stroke(isCurrent ? BusinessPortalStyle.accent : Color.clear, lineWidth: 1.5)
-                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(BusinessPortalStyle.stroke))
                 }
             }
         }
+    }
+
+    private func campaignCard(_ c: BusinessCampaignRow) -> some View {
+        let active = isCampaignActive(c)
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 10) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(active ? BusinessPortalStyle.accentSoft : BusinessPortalStyle.bg)
+                        .frame(width: 42, height: 42)
+                    Image(systemName: "megaphone.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(active ? BusinessPortalStyle.accent : BusinessPortalStyle.muted)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(c.name.isEmpty ? "Chiến dịch" : c.name)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(BusinessPortalStyle.text)
+                        .lineLimit(2)
+                    Text({
+                        let parts = [c.target_type, c.region, c.season].compactMap { $0 }.filter { !$0.isEmpty }
+                        return parts.isEmpty ? "Chưa có target" : parts.joined(separator: " · ")
+                    }())
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BusinessPortalStyle.muted)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                statusChip(campaignStatusLabel(c.status))
+            }
+
+            HStack(spacing: 8) {
+                campaignStat("Hiển thị", compactNumber(c.impressions ?? 0))
+                campaignStat("Click", compactNumber(c.clicks ?? 0))
+                campaignStat("Gợi ý AI", compactNumber(c.suggested_count ?? 0))
+            }
+
+            HStack(spacing: 8) {
+                infoChip("\(formatPortalDate(c.starts_at)) – \(formatPortalDate(c.ends_at))")
+                infoChip(compactMoney(c.budget_vnd ?? 0))
+            }
+        }
+        .padding(14)
+        .background(BusinessPortalStyle.card)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(BusinessPortalStyle.stroke))
+    }
+
+    private func campaignStat(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 3) {
+            Text(value)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundStyle(BusinessPortalStyle.text)
+                .lineLimit(1)
+            Text(label)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(BusinessPortalStyle.muted)
+                .lineLimit(1)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 10)
+        .background(BusinessPortalStyle.bg)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func infoChip(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(BusinessPortalStyle.text)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(BusinessPortalStyle.bg)
+            .clipShape(Capsule())
+    }
+
+    private func isCampaignActive(_ c: BusinessCampaignRow) -> Bool {
+        let s = (c.status ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return s.isEmpty || s == "active" || s == "running" || s == "live"
+    }
+
+    private func campaignStatusLabel(_ status: String?) -> String {
+        let s = (status ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        switch s {
+        case "", "active", "running", "live": return "Đang chạy"
+        case "paused": return "Tạm dừng"
+        case "ended", "completed", "done": return "Đã kết thúc"
+        case "draft": return "Nháp"
+        default: return status?.capitalized ?? "Đang chạy"
+        }
+    }
+
+    private func compactMoney(_ value: Double) -> String {
+        if value >= 1_000_000_000 { return String(format: "%.1fB", value / 1_000_000_000) }
+        if value >= 1_000_000 { return String(format: "%.1fM", value / 1_000_000) }
+        if value >= 1_000 { return String(format: "%.0fK", value / 1_000) }
+        return String(format: "%.0f", value)
+    }
+
+    private func formatPortalDate(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "—" }
+        return String(raw.prefix(10))
     }
 
     private var currentPackageExpiryText: String {
