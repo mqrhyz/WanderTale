@@ -1,5 +1,6 @@
+import { existsSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import { chromium, type Browser, type BrowserContext, type Page } from "playwright";
+import { chromium, type Browser, type BrowserContext, type LaunchOptions, type Page } from "playwright";
 import type { BookingSiteId } from "../state.js";
 import { getHotelAgentEnv } from "../config/env.js";
 import {
@@ -21,28 +22,84 @@ const BROWSER_ARGS = [
   "--disable-gpu",
   "--disable-extensions",
   "--disable-software-rasterizer",
+  "--disable-setuid-sandbox",
 ];
 
-export async function getBrowser(): Promise<Browser> {
-  if (!browser) {
-    const env = getHotelAgentEnv();
-    browser = await chromium.launch({
-      headless: env.HOTEL_AGENT_HEADLESS,
-      args: [...BROWSER_ARGS, "--blink-settings=imagesEnabled=false"],
-    });
+function missingBrowserHelp(err: unknown): Error {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/Executable doesn't exist|browserType\.launch|playwright install/i.test(msg)) {
+    return new Error(
+      [
+        "Playwright Chromium chưa được cài (hoặc version lệch).",
+        "Chạy: pnpm --filter @wander-tale/hotel-booking-agent playwright:install",
+        "Hoặc: cd packages/hotel-booking-agent && pnpm exec playwright install chromium",
+        `Chi tiết: ${msg}`,
+      ].join(" "),
+    );
   }
+  return err instanceof Error ? err : new Error(msg);
+}
+
+function launchOptions(headless: boolean, extraArgs: string[] = []): LaunchOptions {
+  // Cloud Run / small containers sometimes need single-process Chromium.
+  const singleProcess =
+    process.env.PLAYWRIGHT_SINGLE_PROCESS === "1" ||
+    process.env.PLAYWRIGHT_SINGLE_PROCESS === "true" ||
+    (process.env.K_SERVICE != null && process.env.PLAYWRIGHT_SINGLE_PROCESS !== "0");
+  const args = [
+    ...BROWSER_ARGS,
+    ...(singleProcess ? ["--single-process"] : []),
+    ...extraArgs,
+  ];
+  const opts: LaunchOptions = {
+    // Force headless in production containers unless explicitly disabled.
+    headless: process.env.NODE_ENV === "production" ? true : headless,
+    args,
+  };
+  // Allow overriding browser binary (useful on custom hosts / CI).
+  const exe = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.trim();
+  if (exe && existsSync(exe)) opts.executablePath = exe;
+  return opts;
+}
+
+async function launchChromium(opts: LaunchOptions): Promise<Browser> {
+  try {
+    return await chromium.launch(opts);
+  } catch (e) {
+    throw missingBrowserHelp(e);
+  }
+}
+
+function wireBrowserClose(b: Browser, kind: "main" | "legacy"): Browser {
+  b.on("disconnected", () => {
+    if (kind === "main") browser = null;
+    else legacyBrowser = null;
+  });
+  return b;
+}
+
+export async function getBrowser(): Promise<Browser> {
+  if (browser?.isConnected()) return browser;
+  browser = null;
+  const env = getHotelAgentEnv();
+  browser = wireBrowserClose(
+    await launchChromium(
+      launchOptions(env.HOTEL_AGENT_HEADLESS, ["--blink-settings=imagesEnabled=false"]),
+    ),
+    "main",
+  );
   return browser;
 }
 
 /** Browser headless cho Agoda/Vntrip — giữ CSS, không hiện cửa sổ. */
 export async function getLegacyBrowser(): Promise<Browser> {
-  if (!legacyBrowser) {
-    const env = getHotelAgentEnv();
-    legacyBrowser = await chromium.launch({
-      headless: env.HOTEL_AGENT_HEADLESS_LEGACY,
-      args: BROWSER_ARGS,
-    });
-  }
+  if (legacyBrowser?.isConnected()) return legacyBrowser;
+  legacyBrowser = null;
+  const env = getHotelAgentEnv();
+  legacyBrowser = wireBrowserClose(
+    await launchChromium(launchOptions(env.HOTEL_AGENT_HEADLESS_LEGACY)),
+    "legacy",
+  );
   return legacyBrowser;
 }
 

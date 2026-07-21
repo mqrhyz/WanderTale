@@ -9,7 +9,8 @@
     "build": "pnpm --filter @wander-tale/web build",
     "start": "pnpm --filter @wander-tale/web start",
     "lint": "pnpm --filter @wander-tale/web lint",
-    "typecheck": "pnpm -r exec tsc --noEmit"
+    "typecheck": "pnpm -r exec tsc --noEmit",
+    "playwright:install": "pnpm --filter @wander-tale/hotel-booking-agent playwright:install"
   },
   "engines": {
     "node": ">=20"
