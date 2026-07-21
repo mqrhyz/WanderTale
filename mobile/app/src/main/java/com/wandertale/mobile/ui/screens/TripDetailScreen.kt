@@ -261,9 +261,9 @@ private fun TripDetailContent(
     val otaPending = tripNeedsOtaPolling(trip)
     val pendingMessage = when {
         imageProgress != null && imageProgress.first < imageProgress.second ->
-            "Đang lấy ảnh ${imageProgress.first}/${imageProgress.second}…"
-        otaPending -> "Đang cập nhật giá OTA & ảnh Maps…"
-        pending -> "Đang cập nhật ảnh Maps…"
+            "AI đang chọn ảnh đẹp nhất cho lịch trình (${imageProgress.first}/${imageProgress.second})…"
+        otaPending -> "AI đang tìm khách sạn phù hợp ngân sách và hoàn thiện lịch trình…"
+        pending -> "AI đang hoàn thiện lịch trình cho bạn…"
         else -> null
     }
 
@@ -826,7 +826,10 @@ private fun InfoCardSimple(title: String, subtitle: String) {
 @Composable
 private fun HotelLoadingProgress() {
     val messages = listOf(
-        "Đang quét khách sạn từ các trang đặt phòng…",
+        "AI đang tìm phòng khách sạn phù hợp…",
+        "AI đang so sánh giá và tiện nghi…",
+        "AI đang gợi ý lịch trình chi tiết…",
+        "AI đang hoàn thiện đề xuất cho bạn…",
         "So sánh giá phòng theo ngân sách của bạn…",
         "Lấy ảnh & vị trí từng khách sạn…",
         "Chọn lọc gợi ý phù hợp nhất…",
