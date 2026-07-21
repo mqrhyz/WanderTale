@@ -11,7 +11,7 @@ export async function* streamTripGeneration(
   | { type: "error"; message: string }
 > {
   try {
-    yield { type: "status", message: "Đang sinh lịch skeleton…", phase: "itinerary" };
+    yield { type: "status", message: "AI đang lên lịch trình cho bạn…", phase: "itinerary" };
     const result = await runTripGenerationStaged(userId, body);
     yield {
       type: "done",

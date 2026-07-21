@@ -55,7 +55,7 @@ export type TripGenerationResult = {
 function pendingHotelPricing(): TripHotelPricingResult {
   return {
     status: "skipped",
-    message: "Đang quét giá OTA…",
+    message: "AI đang tìm khách sạn phù hợp ngân sách…",
     offers: [],
     comparison: null,
     siteScans: [],

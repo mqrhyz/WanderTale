@@ -71,7 +71,7 @@ private struct HotelLoadingProgress: View {
     @State private var step = 0
 
     private let messages = [
-        "Đang quét khách sạn từ các trang đặt phòng…",
+        "AI đang tìm phòng khách sạn phù hợp…",
         "So sánh giá phòng theo ngân sách của bạn…",
         "Lấy ảnh & vị trí từng khách sạn…",
         "Chọn lọc gợi ý phù hợp nhất…",
