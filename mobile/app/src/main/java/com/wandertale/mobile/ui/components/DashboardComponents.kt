@@ -12,6 +12,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -477,6 +479,7 @@ fun CompactTripCard(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TallTripListCard(
     trip: TripRecord,
@@ -484,7 +487,6 @@ fun TallTripListCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     showFavoriteHeart: Boolean = false,
-    bookingLabel: String? = null,
 ) {
     val phase = getTripPhase(trip.start_date, trip.end_date)
     val gradient = PremiumColors.TripGradients[index % PremiumColors.TripGradients.size]
@@ -496,10 +498,10 @@ fun TallTripListCard(
 
     val places = tripActivityCount(trip).takeIf { it > 0 } ?: trip.travelers
     val chips = listOf(
-        "📍 $places điểm",
-        "💰 ${tripBudgetChip(trip)}",
+        "$places điểm",
+        tripBudgetChip(trip),
         tripWeatherChip(trip),
-    )
+    ).filter { it.isNotBlank() && it != "—" }
 
     Box(
         modifier = modifier
@@ -542,20 +544,6 @@ fun TallTripListCard(
                     .size(20.dp),
             )
         }
-        bookingLabel?.let {
-            Text(
-                it,
-                color = Color.White,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(14.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.2f))
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-        }
         Column(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
             Text(trip.destination, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(
@@ -565,19 +553,21 @@ fun TallTripListCard(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
                 chips.forEach { chip ->
                     Text(
                         chip,
                         color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Medium,
+                        softWrap = true,
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = 0.18f))
                             .padding(horizontal = 10.dp, vertical = 5.dp),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }

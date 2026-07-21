@@ -332,11 +332,11 @@ fun tripBudgetChip(trip: TripRecord): String {
 fun tripWeatherChip(trip: TripRecord): String {
     val summary = trip.summary?.trim().orEmpty()
     return when {
-        summary.contains("mây", ignoreCase = true) -> "🌤 Nhiều mây"
-        summary.contains("mưa", ignoreCase = true) -> "🌧 Có mưa"
-        summary.contains("nắng", ignoreCase = true) -> "☀ Nắng đẹp"
-        summary.isNotBlank() -> "🌤 ${summary.take(12)}"
-        else -> "🌤 —"
+        summary.contains("mây", ignoreCase = true) -> "Nhiều mây"
+        summary.contains("mưa", ignoreCase = true) -> "Có mưa"
+        summary.contains("nắng", ignoreCase = true) -> "Nắng đẹp"
+        summary.isNotBlank() -> summary
+        else -> "—"
     }
 }
 

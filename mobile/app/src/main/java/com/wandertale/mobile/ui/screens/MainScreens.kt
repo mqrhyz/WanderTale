@@ -972,15 +972,10 @@ fun TripsListScreen(
                     } else {
                         items(segmentTrips.size, key = { segmentTrips[it].id }) { index ->
                             val trip = segmentTrips[index]
-                            val dupes = segmentTrips.filter { it.destination == trip.destination && it.start_date == trip.start_date }
-                            val bookingLabel = if (dupes.size > 1) {
-                                "Booking #${dupes.indexOf(trip) + 1}"
-                            } else null
                             TallTripListCard(
                                 trip = trip,
                                 index = index,
                                 onClick = { onOpenTrip(trip.id) },
-                                bookingLabel = bookingLabel,
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
