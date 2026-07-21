@@ -79,7 +79,7 @@ export async function businessOverview(businessId: string) {
 
   const [businessResult, bookingsResult, activeAdsResult, campaignsResult] = await Promise.all([
     sb.from("businesses")
-      .select("id,name,status,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at")
+      .select("id,name,status,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at,core_profile_changed_at")
       .eq("id", businessId)
       .maybeSingle(),
     sb.from("bookings")
@@ -97,7 +97,10 @@ export async function businessOverview(businessId: string) {
       .eq("business_id", businessId),
   ]);
 
-  const business = businessResult.data;
+  const businessRaw = businessResult.data as Record<string, unknown> | null;
+  const business = businessRaw
+    ? { ...businessRaw, ...profileMeta(businessRaw) }
+    : null;
   const bookings = bookingsResult.data ?? [];
   const confirmed = bookings.filter((b) => b.status === "confirmed");
   const bookingCount = confirmed.length;
@@ -637,17 +640,159 @@ export async function adminUpdateAiConfig(key: string, value: Record<string, unk
 
 // --- Marketplace extensions: business profile/locations, ad-package admin CRUD ---
 
+const BUSINESS_TYPES = [
+  "Khách sạn",
+  "Nhà hàng",
+  "Homestay",
+  "Resort",
+  "Café",
+  "Bar / Pub",
+  "Spa / Wellness",
+  "Tour / Trải nghiệm",
+  "Điểm tham quan",
+  "Cửa hàng quà tặng",
+  "Khác",
+] as const;
+
+/** Vietnamese cities / provinces used for business region dropdown. */
+const VIETNAM_CITIES = [
+  "Hồ Chí Minh",
+  "Hà Nội",
+  "Đà Nẵng",
+  "Đà Lạt",
+  "Nha Trang",
+  "Phú Quốc",
+  "Hội An",
+  "Huế",
+  "Sa Pa",
+  "Hạ Long",
+  "Vũng Tàu",
+  "Mũi Né",
+  "Cần Thơ",
+  "Biên Hòa",
+  "Bình Dương",
+  "Buôn Ma Thuột",
+  "Pleiku",
+  "Quy Nhơn",
+  "Tuy Hòa",
+  "Ninh Bình",
+  "Tam Đảo",
+  "Hải Phòng",
+  "Lào Cai",
+  "Điện Biên Phủ",
+  "Côn Đảo",
+  "Phan Thiết",
+  "Long An",
+  "Bà Rịa - Vũng Tàu",
+  "Khánh Hòa",
+  "Lâm Đồng",
+  "Bình Định",
+  "Phú Yên",
+  "Gia Lai",
+  "Đắk Lắk",
+  "Bình Thuận",
+  "Ninh Thuận",
+  "Bình Phước",
+  "Tây Ninh",
+  "Đồng Nai",
+  "Tiền Giang",
+  "Bến Tre",
+  "Vĩnh Long",
+  "Trà Vinh",
+  "Sóc Trăng",
+  "Bạc Liêu",
+  "Cà Mau",
+  "An Giang",
+  "Kiên Giang",
+  "Hậu Giang",
+  "Đồng Tháp",
+  "Quảng Ninh",
+  "Thanh Hóa",
+  "Nghệ An",
+  "Hà Tĩnh",
+  "Quảng Bình",
+  "Quảng Trị",
+  "Thừa Thiên Huế",
+  "Quảng Nam",
+  "Quảng Ngãi",
+  "Kon Tum",
+  "Đắk Nông",
+  "Sơn La",
+  "Hòa Bình",
+  "Yên Bái",
+  "Tuyên Quang",
+  "Phú Thọ",
+  "Vĩnh Phúc",
+  "Bắc Giang",
+  "Bắc Ninh",
+  "Hải Dương",
+  "Hưng Yên",
+  "Thái Bình",
+  "Nam Định",
+  "Hà Nam",
+  "Thái Nguyên",
+  "Cao Bằng",
+  "Lạng Sơn",
+  "Bắc Kạn",
+] as const;
+
+const CORE_PROFILE_LOCK_DAYS = 30;
+const CORE_PROFILE_FIELDS = ["name", "contact_email", "business_type", "region", "description", "license_no"] as const;
+
+function normalizePhone(raw: string): string {
+  return raw.replace(/[^\d+]/g, "").trim();
+}
+
+function isValidHotline(raw: string): boolean {
+  const digits = raw.replace(/\D/g, "");
+  return digits.length >= 9 && digits.length <= 12;
+}
+
+function profileMeta(row: Record<string, unknown>) {
+  const changedRaw = row.core_profile_changed_at ?? row.updated_at ?? null;
+  const changedMs = changedRaw ? new Date(String(changedRaw)).getTime() : 0;
+  const lockMs = CORE_PROFILE_LOCK_DAYS * 24 * 60 * 60 * 1000;
+  const canEditCore =
+    !Number.isFinite(changedMs) || changedMs <= 0 || Date.now() - changedMs >= lockMs;
+  const nextEditAt =
+    canEditCore || !Number.isFinite(changedMs) || changedMs <= 0
+      ? null
+      : new Date(changedMs + lockMs).toISOString();
+  return {
+    core_profile_changed_at: changedRaw ? String(changedRaw) : null,
+    core_profile_can_edit: canEditCore,
+    core_profile_next_edit_at: nextEditAt,
+    business_type_options: [...BUSINESS_TYPES],
+    region_options: [...VIETNAM_CITIES],
+  };
+}
+
 export async function getBusinessProfile(businessId: string) {
   const { data, error } = await getSupabaseAdmin()
     .from("businesses")
     .select(
-      "id,owner_id,name,contact_email,status,commission_rate,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at",
+      "id,owner_id,name,contact_email,status,commission_rate,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at,core_profile_changed_at",
     )
     .eq("id", businessId)
     .maybeSingle();
-  if (error) throw error;
+  if (error) {
+    // Older DBs may not have core_profile_changed_at yet.
+    if (String(error.message ?? "").includes("core_profile_changed_at")) {
+      const fallback = await getSupabaseAdmin()
+        .from("businesses")
+        .select(
+          "id,owner_id,name,contact_email,status,commission_rate,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at",
+        )
+        .eq("id", businessId)
+        .maybeSingle();
+      if (fallback.error) throw fallback.error;
+      if (!fallback.data) throw new Error("business_not_found");
+      return { ...fallback.data, ...profileMeta(fallback.data as Record<string, unknown>) };
+    }
+    throw error;
+  }
   if (!data) throw new Error("business_not_found");
-  return data;
+  return { ...data, ...profileMeta(data as Record<string, unknown>) };
 }
 
 export async function updateBusinessProfile(
@@ -662,19 +807,88 @@ export async function updateBusinessProfile(
     license_no?: string;
   },
 ) {
+  const current = await getBusinessProfile(businessId);
   const patch: Record<string, unknown> = {};
-  for (const key of ["name", "contact_email", "business_type", "region", "hotline", "description", "license_no"] as const) {
-    if (typeof body[key] === "string") patch[key] = body[key];
+
+  // Hotline can always be updated (numeric phone).
+  if (typeof body.hotline === "string") {
+    const phone = normalizePhone(body.hotline);
+    if (phone && !isValidHotline(phone)) throw new Error("invalid_hotline");
+    patch.hotline = phone || null;
   }
+
+  const corePatch: Record<string, unknown> = {};
+  if (typeof body.name === "string" && body.name.trim()) corePatch.name = body.name.trim();
+  if (typeof body.contact_email === "string") corePatch.contact_email = body.contact_email.trim() || null;
+  if (typeof body.description === "string") corePatch.description = body.description.trim() || null;
+  if (typeof body.license_no === "string") corePatch.license_no = body.license_no.trim() || null;
+
+  if (typeof body.business_type === "string") {
+    const type = body.business_type.trim();
+    if (type && !(BUSINESS_TYPES as readonly string[]).includes(type)) {
+      throw new Error("invalid_business_type");
+    }
+    corePatch.business_type = type || null;
+  }
+  if (typeof body.region === "string") {
+    const city = body.region.trim();
+    if (city && !(VIETNAM_CITIES as readonly string[]).includes(city)) {
+      throw new Error("invalid_region");
+    }
+    corePatch.region = city || null;
+  }
+
+  // Only apply core fields that actually changed.
+  const changedCore: Record<string, unknown> = {};
+  for (const key of CORE_PROFILE_FIELDS) {
+    if (!(key in corePatch)) continue;
+    const next = corePatch[key];
+    const prev = (current as Record<string, unknown>)[key] ?? null;
+    if (String(next ?? "") !== String(prev ?? "")) changedCore[key] = next;
+  }
+
+  if (Object.keys(changedCore).length > 0) {
+    if (!current.core_profile_can_edit) {
+      const err = new Error("core_profile_locked");
+      (err as Error & { details?: unknown }).details = {
+        next_edit_at: current.core_profile_next_edit_at,
+        lock_days: CORE_PROFILE_LOCK_DAYS,
+      };
+      throw err;
+    }
+    Object.assign(patch, changedCore);
+    patch.core_profile_changed_at = new Date().toISOString();
+  }
+
   if (Object.keys(patch).length === 0) throw new Error("nothing_to_update");
+
   const { data, error } = await getSupabaseAdmin()
     .from("businesses")
     .update(patch)
     .eq("id", businessId)
-    .select("*")
+    .select(
+      "id,owner_id,name,contact_email,status,commission_rate,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at,core_profile_changed_at",
+    )
     .single();
-  if (error) throw error;
-  return data;
+  if (error) {
+    // Retry without core_profile_changed_at if column missing.
+    if (String(error.message ?? "").includes("core_profile_changed_at")) {
+      const fallbackPatch = { ...patch };
+      delete fallbackPatch.core_profile_changed_at;
+      const retry = await getSupabaseAdmin()
+        .from("businesses")
+        .update(fallbackPatch)
+        .eq("id", businessId)
+        .select(
+          "id,owner_id,name,contact_email,status,commission_rate,business_type,region,hotline,description,license_no,rating_avg,rating_count,created_at,updated_at",
+        )
+        .single();
+      if (retry.error) throw retry.error;
+      return { ...retry.data, ...profileMeta(retry.data as Record<string, unknown>) };
+    }
+    throw error;
+  }
+  return { ...data, ...profileMeta(data as Record<string, unknown>) };
 }
 
 export async function updateBusinessLocation(

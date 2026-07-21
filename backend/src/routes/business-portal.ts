@@ -260,6 +260,22 @@ export async function businessPortalRoutes(app: FastifyInstance) {
         return await updateBusinessProfile(req.businessId!, req.body as never);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "error";
+        const details = (e as Error & { details?: unknown }).details;
+        if (msg === "core_profile_locked") {
+          return reply.code(429).send({
+            error: msg,
+            message: "Loại hình / khu vực chỉ được đổi 1 lần mỗi 30 ngày. Hotline vẫn sửa được.",
+            details,
+          });
+        }
+        if (
+          msg === "invalid_business_type" ||
+          msg === "invalid_region" ||
+          msg === "invalid_hotline" ||
+          msg === "nothing_to_update"
+        ) {
+          return reply.code(400).send({ error: msg, details });
+        }
         return reply.code(400).send({ error: msg });
       }
     },

@@ -23,6 +23,7 @@ struct BusinessPortalView: View {
     @State private var showingVoucherForm = false
     @State private var showingLocationForm = false
     @State private var showingMediaForm = false
+    @State private var showingProfileEdit = false
     @State private var adPayResponse: AdPurchaseResponse?
     @State private var purchaseLoading = false
     @State private var voucherFilter = "active"
@@ -101,6 +102,12 @@ struct BusinessPortalView: View {
                     _ = try await ApiService.uploadBusinessMedia(input)
                 }
                 purchaseMessage = "Đã gửi \(min(inputs.count, 6)) media. Chờ admin duyệt."
+                await load()
+            }
+        }
+        .sheet(isPresented: $showingProfileEdit) {
+            BusinessProfileEditForm(initial: overview?.business) { _ in
+                purchaseMessage = "Đã cập nhật thông tin doanh nghiệp."
                 await load()
             }
         }
@@ -185,7 +192,7 @@ struct BusinessPortalView: View {
         switch section {
         case 1: return "plus"
         case 2: return "plus"
-        case 3: return "plus"
+        case 3: return "pencil"
         default: return "bell"
         }
     }
@@ -197,9 +204,9 @@ struct BusinessPortalView: View {
         case 2:
             showingVoucherForm = true
         case 3:
-            showingLocationForm = true
+            showingProfileEdit = true
         default:
-            purchaseMessage = reviews.first(where: { ($0.reply ?? "").isEmpty })?.comment ?? "Chưa có thông báo mới."
+            showNotifications = true
         }
     }
 
@@ -910,7 +917,13 @@ struct BusinessPortalView: View {
 
                 premiumStatusBanner
 
-                sectionTitle("THÔNG TIN DOANH NGHIỆP")
+                HStack {
+                    sectionTitle("THÔNG TIN DOANH NGHIỆP")
+                    Spacer()
+                    Button("Sửa") { showingProfileEdit = true }
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(BusinessPortalStyle.accent)
+                }
                 VStack(spacing: 0) {
                     businessInfoRow("Loại hình", business.business_type ?? "—")
                     darkDivider
@@ -928,6 +941,16 @@ struct BusinessPortalView: View {
                 .background(BusinessPortalStyle.card)
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .overlay(RoundedRectangle(cornerRadius: 16).stroke(BusinessPortalStyle.stroke))
+
+                if business.core_profile_can_edit == false, let next = business.core_profile_next_edit_at {
+                    Text("Loại hình / khu vực đổi lại được sau \(formatPortalDate(next)) (30 ngày/lần). Hotline sửa bất cứ lúc nào.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BusinessPortalStyle.muted)
+                } else {
+                    Text("Loại hình & khu vực chỉ được đổi 1 lần / 30 ngày. Hotline có thể sửa bất cứ lúc nào.")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(BusinessPortalStyle.muted)
+                }
             }
             sectionTitle("ĐỊA ĐIỂM ĐÃ ĐĂNG KÝ")
             if locations.isEmpty {
@@ -1519,6 +1542,165 @@ private enum BusinessPortalStyle {
     static let muted = Color(red: 0.43, green: 0.42, blue: 0.38)
     static let accent = Color(red: 0.05, green: 0.75, blue: 0.58)
     static let accentSoft = Color(red: 0.86, green: 1.0, blue: 0.95)
+}
+
+private let defaultBusinessTypes = [
+    "Khách sạn", "Nhà hàng", "Homestay", "Resort", "Café", "Bar / Pub",
+    "Spa / Wellness", "Tour / Trải nghiệm", "Điểm tham quan", "Cửa hàng quà tặng", "Khác",
+]
+
+private let defaultVietnamCities = [
+    "Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Đà Lạt", "Nha Trang",
+    "Phú Quốc", "Hội An", "Huế", "Sa Pa", "Hạ Long",
+    "Vũng Tàu", "Mũi Né", "Cần Thơ", "Biên Hòa", "Bình Dương",
+    "Buôn Ma Thuột", "Pleiku", "Quy Nhơn", "Tuy Hòa", "Ninh Bình",
+    "Tam Đảo", "Hải Phòng", "Lào Cai", "Điện Biên Phủ", "Côn Đảo",
+    "Phan Thiết", "Long An", "Bà Rịa - Vũng Tàu", "Khánh Hòa", "Lâm Đồng",
+    "Bình Định", "Phú Yên", "Gia Lai", "Đắk Lắk", "Bình Thuận",
+    "Ninh Thuận", "Bình Phước", "Tây Ninh", "Đồng Nai", "Tiền Giang",
+    "Bến Tre", "Vĩnh Long", "Trà Vinh", "Sóc Trăng", "Bạc Liêu",
+    "Cà Mau", "An Giang", "Kiên Giang", "Hậu Giang", "Đồng Tháp",
+    "Quảng Ninh", "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Quảng Bình",
+    "Quảng Trị", "Thừa Thiên Huế", "Quảng Nam", "Quảng Ngãi", "Kon Tum",
+    "Đắk Nông", "Sơn La", "Hòa Bình", "Yên Bái", "Tuyên Quang",
+    "Phú Thọ", "Vĩnh Phúc", "Bắc Giang", "Bắc Ninh", "Hải Dương",
+    "Hưng Yên", "Thái Bình", "Nam Định", "Hà Nam", "Thái Nguyên",
+    "Cao Bằng", "Lạng Sơn", "Bắc Kạn",
+]
+
+private struct BusinessProfileEditForm: View {
+    @Environment(\.dismiss) private var dismiss
+    let initial: BusinessProfileRow?
+    let onSaved: (BusinessProfileRow) async -> Void
+
+    @State private var loaded: BusinessProfileRow?
+    @State private var businessType = ""
+    @State private var region = ""
+    @State private var hotline = ""
+    @State private var loading = true
+    @State private var saving = false
+    @State private var error: String?
+
+    private var typeOptions: [String] {
+        let opts = loaded?.business_type_options ?? []
+        return opts.isEmpty ? defaultBusinessTypes : opts
+    }
+    private var regionOptions: [String] {
+        let opts = loaded?.region_options ?? []
+        return opts.isEmpty ? defaultVietnamCities : opts
+    }
+    private var canEditCore: Bool { loaded?.core_profile_can_edit != false }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                if loading {
+                    ProgressView("Đang tải…")
+                } else {
+                    if !canEditCore {
+                        Text("Loại hình & khu vực đang khoá đến \(formatDate(loaded?.core_profile_next_edit_at)). Hotline vẫn sửa được.")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.orange)
+                    } else {
+                        Text("Loại hình & khu vực chỉ được đổi 1 lần / 30 ngày.")
+                            .font(.system(size: 13))
+                            .foregroundStyle(BusinessPortalStyle.muted)
+                    }
+
+                    Picker("Loại hình", selection: $businessType) {
+                        Text("Chọn loại hình").tag("")
+                        ForEach(typeOptions, id: \.self) { Text($0).tag($0) }
+                    }
+                    .disabled(!canEditCore)
+
+                    Picker("Khu vực (thành phố)", selection: $region) {
+                        Text("Chọn thành phố").tag("")
+                        ForEach(regionOptions, id: \.self) { Text($0).tag($0) }
+                    }
+                    .disabled(!canEditCore)
+
+                    TextField("Hotline", text: $hotline)
+                        .keyboardType(.phonePad)
+                        .onChange(of: hotline) { _, newValue in
+                            hotline = String(newValue.filter { $0.isNumber || $0 == "+" }.prefix(12))
+                        }
+
+                    if let error {
+                        Text(error).foregroundStyle(.red).font(.system(size: 13, weight: .semibold))
+                    }
+                }
+            }
+            .navigationTitle("Sửa thông tin DN")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Huỷ") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(saving ? "Đang lưu…" : "Lưu") {
+                        Task { await save() }
+                    }
+                    .disabled(saving || loading)
+                }
+            }
+            .task { await load() }
+        }
+    }
+
+    private func formatDate(_ raw: String?) -> String {
+        guard let raw, !raw.isEmpty else { return "—" }
+        return String(raw.prefix(10))
+    }
+
+    private func load() async {
+        loading = true
+        defer { loading = false }
+        do {
+            let profile = try await ApiService.businessProfile()
+            loaded = profile
+            if businessType.isEmpty { businessType = profile.business_type ?? "" }
+            if region.isEmpty { region = profile.region ?? "" }
+            if hotline.isEmpty { hotline = profile.hotline ?? "" }
+        } catch {
+            self.error = formatApiError(error, fallback: "Không tải được hồ sơ")
+            if let initial {
+                loaded = initial
+                businessType = initial.business_type ?? ""
+                region = initial.region ?? ""
+                hotline = initial.hotline ?? ""
+            }
+        }
+    }
+
+    private func save() async {
+        saving = true
+        defer { saving = false }
+        error = nil
+        do {
+            let updated = try await ApiService.updateBusinessProfile(
+                BusinessProfilePatch(
+                    name: nil,
+                    contact_email: nil,
+                    business_type: businessType.isEmpty ? nil : businessType,
+                    region: region.isEmpty ? nil : region,
+                    hotline: hotline.isEmpty ? nil : hotline,
+                    description: nil,
+                    license_no: nil
+                )
+            )
+            await onSaved(updated)
+            dismiss()
+        } catch {
+            let text = formatApiError(error, fallback: "Không lưu được")
+            if text.localizedCaseInsensitiveContains("core_profile_locked") {
+                self.error = "Loại hình / khu vực chỉ đổi 1 lần mỗi 30 ngày. Hotline vẫn sửa được."
+            } else if text.localizedCaseInsensitiveContains("invalid_hotline") {
+                self.error = "Hotline không hợp lệ (9–12 chữ số)."
+            } else {
+                self.error = text
+            }
+        }
+    }
 }
 
 private struct BusinessCampaignForm: View {

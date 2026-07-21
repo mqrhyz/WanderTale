@@ -325,6 +325,12 @@ struct BusinessProfileRow: Codable, Identifiable {
     var rating_avg: Double?
     var rating_count: Int?
     var created_at: String?
+    var updated_at: String?
+    var core_profile_changed_at: String?
+    var core_profile_can_edit: Bool?
+    var core_profile_next_edit_at: String?
+    var business_type_options: [String]?
+    var region_options: [String]?
 }
 
 struct BusinessCampaignRow: Codable, Identifiable {

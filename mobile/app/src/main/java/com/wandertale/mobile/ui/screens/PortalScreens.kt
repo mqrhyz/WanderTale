@@ -196,6 +196,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
     var replyTarget by remember { mutableStateOf<BusinessReviewRow?>(null) }
     var showBusinessMenu by remember { mutableStateOf(false) }
     var showBusinessAccountInfo by remember { mutableStateOf(false) }
+    var showBusinessProfileEdit by remember { mutableStateOf(false) }
     var notifications by remember { mutableStateOf<List<com.wandertale.mobile.data.model.BusinessNotification>>(emptyList()) }
     var showNotifications by remember { mutableStateOf(false) }
     var voucherFilter by remember { mutableStateOf("active") }
@@ -274,7 +275,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                 when (tab) {
                     1 -> showCampaignForm = true
                     2 -> showVoucherForm = true
-                    3 -> showLocationForm = true
+                    3 -> showBusinessProfileEdit = true
                     else -> showNotifications = true
                 }
             },
@@ -456,6 +457,7 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                             ?: overview?.ad_package_expiry,
                                         hasActivePremium = overview?.has_active_premium == true
                                             || overview?.active_ad_package != null,
+                                        onEdit = { showBusinessProfileEdit = true },
                                     )
                                 }
                                 item { PortalSectionTitle("ĐỊA ĐIỂM ĐÃ ĐĂNG KÝ") }
@@ -613,6 +615,17 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
             accountInfo = DashboardHomeCache.accountInfo,
             businessName = overview?.business?.name,
             onDismiss = { showBusinessAccountInfo = false },
+        )
+    }
+    if (showBusinessProfileEdit) {
+        BusinessProfileEditDialog(
+            initial = overview?.business,
+            onDismiss = { showBusinessProfileEdit = false },
+            onSaved = { updated ->
+                showBusinessProfileEdit = false
+                scope.launch { load() }
+                purchaseMessage = "Đã cập nhật thông tin doanh nghiệp."
+            },
         )
     }
     adPayInfo?.let { info ->
@@ -907,6 +920,7 @@ private fun BusinessProfileCard(
     activePackageName: String? = null,
     packageExpiry: String? = null,
     hasActivePremium: Boolean = false,
+    onEdit: (() -> Unit)? = null,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         BusinessIdentityCard(business, if (hasActivePremium) activePackageName else null)
@@ -915,7 +929,18 @@ private fun BusinessProfileCard(
             packageName = activePackageName,
             expiry = packageExpiry,
         )
-        PortalSectionTitle("THÔNG TIN DOANH NGHIỆP")
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            PortalSectionTitle("THÔNG TIN DOANH NGHIỆP")
+            if (onEdit != null) {
+                TextButton(onClick = onEdit) {
+                    Text("Sửa", color = PortalGreen, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
         DarkPortalCard {
             Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
                 BusinessInfoRow("Loại hình", business?.business_type ?: "—")
@@ -930,6 +955,19 @@ private fun BusinessProfileCard(
                     valueColor = Color(0xFFD4820A),
                 )
             }
+        }
+        if (business?.core_profile_can_edit == false && !business.core_profile_next_edit_at.isNullOrBlank()) {
+            Text(
+                "Loại hình / khu vực đổi lại được sau ${formatPortalDate(business.core_profile_next_edit_at)} (30 ngày/lần). Hotline sửa bất cứ lúc nào.",
+                color = portalMuted(),
+                fontSize = 12.sp,
+            )
+        } else {
+            Text(
+                "Loại hình & khu vực chỉ được đổi 1 lần / 30 ngày. Hotline có thể sửa bất cứ lúc nào.",
+                color = portalMuted(),
+                fontSize = 12.sp,
+            )
         }
     }
 }
@@ -3360,6 +3398,264 @@ private fun PortalChoiceGroup(label: String, options: List<String>, selected: St
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { option ->
                 PortalFilterChip(option, selected == option) { onSelect(option) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessProfileEditDialog(
+    initial: com.wandertale.mobile.data.model.BusinessProfileRow?,
+    onDismiss: () -> Unit,
+    onSaved: (com.wandertale.mobile.data.model.BusinessProfileRow) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    var loaded by remember { mutableStateOf(initial) }
+    var loading by remember { mutableStateOf(initial == null) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    var businessType by remember { mutableStateOf(initial?.business_type.orEmpty()) }
+    var region by remember { mutableStateOf(initial?.region.orEmpty()) }
+    var hotline by remember { mutableStateOf(initial?.hotline.orEmpty()) }
+
+    val typeOptions = remember(loaded) {
+        loaded?.business_type_options?.takeIf { it.isNotEmpty() } ?: DEFAULT_BUSINESS_TYPES
+    }
+    val regionOptions = remember(loaded) {
+        loaded?.region_options?.takeIf { it.isNotEmpty() } ?: DEFAULT_VIETNAM_CITIES
+    }
+    val canEditCore = loaded?.core_profile_can_edit != false
+
+    LaunchedEffect(Unit) {
+        loading = true
+        runCatching { ApiClient.businessProfile() }
+            .onSuccess { profile ->
+                loaded = profile
+                if (businessType.isBlank()) businessType = profile.business_type.orEmpty()
+                if (region.isBlank()) region = profile.region.orEmpty()
+                if (hotline.isBlank()) hotline = profile.hotline.orEmpty()
+            }
+            .onFailure { error = it.message ?: "Không tải được hồ sơ doanh nghiệp" }
+        loading = false
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        confirmButton = {
+            TextButton(
+                enabled = !saving && !loading,
+                onClick = {
+                    scope.launch {
+                        saving = true
+                        error = null
+                        runCatching {
+                            ApiClient.updateBusinessProfile(
+                                com.wandertale.mobile.data.model.BusinessProfilePatch(
+                                    business_type = businessType.ifBlank { null },
+                                    region = region.ifBlank { null },
+                                    hotline = hotline.filter { it.isDigit() || it == '+' }.ifBlank { null },
+                                ),
+                            )
+                        }.onSuccess {
+                            onSaved(it)
+                        }.onFailure {
+                            val msg = it.message.orEmpty()
+                            error = when {
+                                msg.contains("core_profile_locked", ignoreCase = true) ->
+                                    "Loại hình / khu vực chỉ đổi 1 lần mỗi 30 ngày. Hotline vẫn sửa được."
+                                msg.contains("invalid_hotline", ignoreCase = true) ->
+                                    "Hotline không hợp lệ (9–12 chữ số)."
+                                msg.contains("invalid_business_type", ignoreCase = true) ->
+                                    "Loại hình không hợp lệ."
+                                msg.contains("invalid_region", ignoreCase = true) ->
+                                    "Khu vực không hợp lệ."
+                                else -> msg.ifBlank { "Không lưu được thông tin." }
+                            }
+                        }
+                        saving = false
+                    }
+                },
+            ) { Text(if (saving) "Đang lưu…" else "Lưu") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Huỷ") } },
+        title = { Text("Sửa thông tin doanh nghiệp") },
+        text = {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .height(420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (loading) {
+                    Box(Modifier.fillMaxWidth().height(80.dp), contentAlignment = Alignment.Center) {
+                        OrangeLoadingSpinner()
+                    }
+                } else {
+                    if (!canEditCore) {
+                        Text(
+                            "Loại hình & khu vực đang khoá đến ${formatPortalDate(loaded?.core_profile_next_edit_at)}. Hotline vẫn sửa được.",
+                            color = Color(0xFF8A5A00),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    } else {
+                        Text(
+                            "Loại hình & khu vực chỉ được đổi 1 lần / 30 ngày.",
+                            color = portalMuted(),
+                            fontSize = 12.sp,
+                        )
+                    }
+                    PortalDropdownField(
+                        label = "Loại hình",
+                        value = businessType,
+                        options = typeOptions,
+                        enabled = canEditCore,
+                        onSelect = { businessType = it },
+                    )
+                    PortalDropdownField(
+                        label = "Khu vực (thành phố)",
+                        value = region,
+                        options = regionOptions,
+                        enabled = canEditCore,
+                        searchable = true,
+                        onSelect = { region = it },
+                    )
+                    PortalTextField(
+                        label = "Hotline",
+                        value = hotline,
+                        placeholder = "Ví dụ: 0901234567",
+                        keyboardType = KeyboardType.Phone,
+                    ) { input ->
+                        hotline = input.filter { ch -> ch.isDigit() || ch == '+' }.take(12)
+                    }
+                    error?.let { Text(it, color = PremiumColors.LogoutRed, fontSize = 12.sp) }
+                }
+            }
+        },
+    )
+}
+
+private val DEFAULT_BUSINESS_TYPES = listOf(
+    "Khách sạn", "Nhà hàng", "Homestay", "Resort", "Café", "Bar / Pub",
+    "Spa / Wellness", "Tour / Trải nghiệm", "Điểm tham quan", "Cửa hàng quà tặng", "Khác",
+)
+
+private val DEFAULT_VIETNAM_CITIES = listOf(
+    "Hồ Chí Minh", "Hà Nội", "Đà Nẵng", "Đà Lạt", "Nha Trang",
+    "Phú Quốc", "Hội An", "Huế", "Sa Pa", "Hạ Long",
+    "Vũng Tàu", "Mũi Né", "Cần Thơ", "Biên Hòa", "Bình Dương",
+    "Buôn Ma Thuột", "Pleiku", "Quy Nhơn", "Tuy Hòa", "Ninh Bình",
+    "Tam Đảo", "Hải Phòng", "Lào Cai", "Điện Biên Phủ", "Côn Đảo",
+    "Phan Thiết", "Long An", "Bà Rịa - Vũng Tàu", "Khánh Hòa", "Lâm Đồng",
+    "Bình Định", "Phú Yên", "Gia Lai", "Đắk Lắk", "Bình Thuận",
+    "Ninh Thuận", "Bình Phước", "Tây Ninh", "Đồng Nai", "Tiền Giang",
+    "Bến Tre", "Vĩnh Long", "Trà Vinh", "Sóc Trăng", "Bạc Liêu",
+    "Cà Mau", "An Giang", "Kiên Giang", "Hậu Giang", "Đồng Tháp",
+    "Quảng Ninh", "Thanh Hóa", "Nghệ An", "Hà Tĩnh", "Quảng Bình",
+    "Quảng Trị", "Thừa Thiên Huế", "Quảng Nam", "Quảng Ngãi", "Kon Tum",
+    "Đắk Nông", "Sơn La", "Hòa Bình", "Yên Bái", "Tuyên Quang",
+    "Phú Thọ", "Vĩnh Phúc", "Bắc Giang", "Bắc Ninh", "Hải Dương",
+    "Hưng Yên", "Thái Bình", "Nam Định", "Hà Nam", "Thái Nguyên",
+    "Cao Bằng", "Lạng Sơn", "Bắc Kạn",
+)
+
+@Composable
+private fun PortalDropdownField(
+    label: String,
+    value: String,
+    options: List<String>,
+    enabled: Boolean = true,
+    searchable: Boolean = false,
+    onSelect: (String) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var query by remember { mutableStateOf("") }
+    val filtered = remember(options, query, searchable) {
+        if (!searchable || query.isBlank()) options
+        else options.filter { it.contains(query, ignoreCase = true) }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(label, color = portalMuted(), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (enabled) portalCard() else portalBg())
+                .border(1.dp, portalStroke(), RoundedCornerShape(12.dp))
+                .clickable(enabled = enabled) { expanded = true }
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    value.ifBlank { "Chọn $label" },
+                    color = if (value.isBlank()) portalMuted() else portalText(),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 14.sp,
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text("▾", color = portalMuted())
+            }
+        }
+        if (expanded) {
+            Dialog(onDismissRequest = { expanded = false; query = "" }) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(portalCard())
+                        .border(1.dp, portalStroke(), RoundedCornerShape(16.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(label, color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    if (searchable) {
+                        OutlinedTextField(
+                            value = query,
+                            onValueChange = { query = it },
+                            label = { Text("Tìm thành phố") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(320.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        filtered.forEach { option ->
+                            val selected = option == value
+                            Text(
+                                option,
+                                color = if (selected) PortalGreen else portalText(),
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .background(if (selected) Color(0xFFE8FBF4) else Color.Transparent)
+                                    .clickable {
+                                        onSelect(option)
+                                        expanded = false
+                                        query = ""
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                            )
+                        }
+                        if (filtered.isEmpty()) {
+                            Text("Không có kết quả", color = portalMuted(), fontSize = 13.sp)
+                        }
+                    }
+                    TextButton(onClick = { expanded = false; query = "" }, modifier = Modifier.align(Alignment.End)) {
+                        Text("Đóng")
+                    }
+                }
             }
         }
     }

@@ -232,6 +232,12 @@ data class BusinessProfileRow(
     val rating_avg: Double? = null,
     val rating_count: Int? = null,
     val created_at: String? = null,
+    val updated_at: String? = null,
+    val core_profile_changed_at: String? = null,
+    val core_profile_can_edit: Boolean? = null,
+    val core_profile_next_edit_at: String? = null,
+    val business_type_options: List<String> = emptyList(),
+    val region_options: List<String> = emptyList(),
 )
 
 @Serializable
