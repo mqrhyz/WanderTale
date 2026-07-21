@@ -73,6 +73,9 @@ export async function getActiveBusinessDetail(businessId: string) {
 
 export async function businessOverview(businessId: string) {
   const sb = getSupabaseAdmin();
+  // Expire past packages before reading — prevents "active forever" after ends_at.
+  await expirePastBusinessAdOrders(businessId);
+  const nowIso = new Date().toISOString();
 
   const [businessResult, bookingsResult, activeAdsResult, campaignsResult] = await Promise.all([
     sb.from("businesses")
@@ -87,6 +90,7 @@ export async function businessOverview(businessId: string) {
       .select("id,package_id,ends_at,ad_packages(name)")
       .eq("business_id", businessId)
       .eq("status", "active")
+      .gt("ends_at", nowIso)
       .order("ends_at", { ascending: false }),
     sb.from("business_ad_campaigns")
       .select("id,impressions,clicks,suggested_count,budget_vnd,spent_vnd,status,starts_at,ends_at")
@@ -109,8 +113,6 @@ export async function businessOverview(businessId: string) {
   const budget = activeCampaigns.reduce((s, c) => s + n(c.budget_vnd), 0);
   const spent = activeCampaigns.reduce((s, c) => s + n(c.spent_vnd), 0);
 
-  const adPackageExpiry = await businessAdExpiry(businessId);
-
   const activeOrders = activeAdsResult.data ?? [];
   const topOrder = activeOrders[0] as
     | { package_id?: string; ends_at?: string; ad_packages?: { name?: string } | { name?: string }[] }
@@ -123,21 +125,23 @@ export async function businessOverview(businessId: string) {
         ends_at: topOrder.ends_at ?? null,
       }
     : null;
+  const adPackageExpiry = activeAdPackage?.ends_at ?? null;
 
   return {
     business,
     booking_count: bookingCount,
     gross_revenue_vnd: grossRevenue,
     net_revenue_vnd: netRevenue,
-    active_ad_campaigns: activeOrders.length,
+    active_ad_campaigns: activeCampaigns.length,
     active_ad_package: activeAdPackage,
-    campaign_count: activeCampaigns.length,
+    campaign_count: campaigns.length,
     impressions,
     clicks,
     ctr: impressions > 0 ? clicks / impressions : 0,
     suggested_count: suggested,
     remaining_budget_vnd: Math.max(0, budget - spent),
     ad_package_expiry: adPackageExpiry,
+    has_active_premium: Boolean(activeAdPackage),
   };
 }
 
@@ -182,6 +186,10 @@ export async function createBusinessCampaign(
   },
 ) {
   if (!body.name?.trim()) throw new Error("campaign_name_required");
+  // Premium package must still be valid to run campaigns.
+  const hasPremium = await businessHasActivePremium(businessId);
+  if (!hasPremium) throw new Error("premium_package_required");
+
   const { data, error } = await getSupabaseAdmin()
     .from("business_ad_campaigns")
     .insert({
@@ -693,13 +701,46 @@ export async function updateBusinessLocation(
   return data;
 }
 
-/** Active ad order expiry (ends_at of the latest active order) for dashboard. */
+/** Mark past active ad packages as expired; optionally scoped to one business. */
+export async function expirePastBusinessAdOrders(businessId?: string): Promise<number> {
+  const sb = getSupabaseAdmin();
+  const nowIso = new Date().toISOString();
+  let q = sb
+    .from("business_ad_orders")
+    .update({ status: "expired" })
+    .eq("status", "active")
+    .lt("ends_at", nowIso);
+  if (businessId) q = q.eq("business_id", businessId);
+  const { data, error } = await q.select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+/** True when business has an unexpired active premium/ad package. */
+export async function businessHasActivePremium(businessId: string): Promise<boolean> {
+  await expirePastBusinessAdOrders(businessId);
+  const nowIso = new Date().toISOString();
+  const { data } = await getSupabaseAdmin()
+    .from("business_ad_orders")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("status", "active")
+    .gt("ends_at", nowIso)
+    .limit(1)
+    .maybeSingle();
+  return Boolean(data?.id);
+}
+
+/** Active ad order expiry (ends_at of the latest unexpired active order) for dashboard. */
 export async function businessAdExpiry(businessId: string): Promise<string | null> {
+  await expirePastBusinessAdOrders(businessId);
+  const nowIso = new Date().toISOString();
   const { data } = await getSupabaseAdmin()
     .from("business_ad_orders")
     .select("ends_at")
     .eq("business_id", businessId)
     .eq("status", "active")
+    .gt("ends_at", nowIso)
     .order("ends_at", { ascending: false })
     .limit(1)
     .maybeSingle();

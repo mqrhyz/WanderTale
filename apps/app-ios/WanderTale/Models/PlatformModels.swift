@@ -14,6 +14,13 @@ struct BusinessOverview: Codable {
     var suggested_count: Int = 0
     var remaining_budget_vnd: Double = 0
     var ad_package_expiry: String?
+    var has_active_premium: Bool?
+
+    /// Resolved premium state: explicit flag, or presence of unexpired package.
+    var isPremiumActive: Bool {
+        if let has_active_premium { return has_active_premium }
+        return active_ad_package != nil
+    }
 }
 
 struct ActiveAdPackage: Codable {

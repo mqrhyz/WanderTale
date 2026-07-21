@@ -379,7 +379,14 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                                     }
                                 }
                                 item { PortalSectionTitle("CHIẾN DỊCH ĐANG CHẠY") }
-                                item { PremiumAccentButton("+  Tạo chiến dịch mới", onClick = { showCampaignForm = true }, height = 48.dp) }
+                                item {
+                                    val hasPremium = overview?.has_active_premium == true || overview?.active_ad_package != null
+                                    if (hasPremium) {
+                                        PremiumAccentButton("+  Tạo chiến dịch mới", onClick = { showCampaignForm = true }, height = 48.dp)
+                                    } else {
+                                        EmptyPortalText("Gói premium đã hết hạn — mua gói quảng cáo bên dưới để tạo chiến dịch.")
+                                    }
+                                }
                                 val active = campaigns.filter { isCampaignActive(it) }
                                 val inactive = campaigns.filterNot { isCampaignActive(it) }
                                 if (active.isEmpty() && inactive.isEmpty()) {
@@ -441,7 +448,16 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                             }
                             else -> {
                                 val filteredReviews = filteredBusinessReviews(reviews, reviewFilter)
-                                item { BusinessProfileCard(overview?.business, overview?.active_ad_package?.name) }
+                                item {
+                                    BusinessProfileCard(
+                                        business = overview?.business,
+                                        activePackageName = overview?.active_ad_package?.name,
+                                        packageExpiry = overview?.active_ad_package?.ends_at
+                                            ?: overview?.ad_package_expiry,
+                                        hasActivePremium = overview?.has_active_premium == true
+                                            || overview?.active_ad_package != null,
+                                    )
+                                }
                                 item { PortalSectionTitle("ĐỊA ĐIỂM ĐÃ ĐĂNG KÝ") }
                                 if (locations.isEmpty()) item { EmptyPortalText("Chưa có địa điểm.") }
                                 items(locations, key = { it.id }) { loc -> BusinessLocationCard(loc) }
@@ -496,7 +512,14 @@ fun BusinessPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? =
                         ApiClient.createBusinessCampaign(body)
                         showCampaignForm = false
                         load()
-                    }.onFailure { error = it.message }
+                    }.onFailure {
+                        val msg = it.message.orEmpty()
+                        error = if (msg.contains("premium_package_required", ignoreCase = true)) {
+                            "Gói premium đã hết hạn. Vui lòng mua gói quảng cáo để tạo chiến dịch."
+                        } else {
+                            msg.ifBlank { "Không tạo được chiến dịch" }
+                        }
+                    }
                 }
             },
         )
@@ -879,28 +902,147 @@ private fun BusinessVoucherCard(voucher: BusinessVoucherRow) {
 }
 
 @Composable
-private fun BusinessProfileCard(business: com.wandertale.mobile.data.model.BusinessProfileRow?, activePackageName: String? = null) {
+private fun BusinessProfileCard(
+    business: com.wandertale.mobile.data.model.BusinessProfileRow?,
+    activePackageName: String? = null,
+    packageExpiry: String? = null,
+    hasActivePremium: Boolean = false,
+) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        BusinessIdentityCard(business, activePackageName)
+        BusinessIdentityCard(business, if (hasActivePremium) activePackageName else null)
+        PremiumPackageStatusBanner(
+            hasActivePremium = hasActivePremium,
+            packageName = activePackageName,
+            expiry = packageExpiry,
+        )
         PortalSectionTitle("THÔNG TIN DOANH NGHIỆP")
-        UserInfoRow("Loại hình", business?.business_type ?: "—")
-        UserInfoRow("Khu vực", business?.region ?: "—")
-        UserInfoRow("Hotline", business?.hotline ?: "—")
-        UserInfoRow("Rating", "★ ${"%.1f".format(business?.rating_avg ?: 0.0)} (${business?.rating_count ?: 0} đánh giá)")
+        DarkPortalCard {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 4.dp)) {
+                BusinessInfoRow("Loại hình", business?.business_type ?: "—")
+                HorizontalDivider(color = portalStroke(), thickness = 0.5.dp)
+                BusinessInfoRow("Khu vực", business?.region ?: "—")
+                HorizontalDivider(color = portalStroke(), thickness = 0.5.dp)
+                BusinessInfoRow("Hotline", business?.hotline ?: "—", valueColor = PortalGreen)
+                HorizontalDivider(color = portalStroke(), thickness = 0.5.dp)
+                BusinessInfoRow(
+                    "Rating",
+                    "★ ${"%.1f".format(business?.rating_avg ?: 0.0)} (${business?.rating_count ?: 0})",
+                    valueColor = Color(0xFFD4820A),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PremiumPackageStatusBanner(
+    hasActivePremium: Boolean,
+    packageName: String?,
+    expiry: String?,
+) {
+    val bg = if (hasActivePremium) Color(0xFFE8FBF4) else Color(0xFFFFF1D8)
+    val fg = if (hasActivePremium) Color(0xFF0B6B4F) else Color(0xFF8A5A00)
+    val title = if (hasActivePremium) {
+        "Premium đang hoạt động${packageName?.let { " · $it" } ?: ""}"
+    } else {
+        "Premium đã hết hạn"
+    }
+    val subtitle = if (hasActivePremium) {
+        expiry?.let { "Hết hạn ${formatPortalDate(it)}" } ?: "Gói quảng cáo còn hiệu lực"
+    } else {
+        "Mua gói ở tab Quảng cáo để chạy chiến dịch / hiển thị gợi ý"
+    }
+    DarkPortalCard {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(bg)
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.7f)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    if (hasActivePremium) Icons.Filled.CheckCircle else Icons.Filled.ShoppingCart,
+                    contentDescription = null,
+                    tint = fg,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(title, color = fg, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                Text(subtitle, color = fg.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BusinessInfoRow(label: String, value: String, valueColor: Color = Color.Unspecified) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, color = portalMuted(), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Text(
+            value,
+            color = if (valueColor == Color.Unspecified) portalText() else valueColor,
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp,
+            textAlign = TextAlign.End,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(start = 16.dp)
+                .weight(1f, fill = false),
+        )
     }
 }
 
 @Composable
 private fun BusinessLocationCard(location: BusinessLocationRow) {
     DarkPortalCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(portalCard()), contentAlignment = Alignment.Center) {
-                Icon(Icons.Filled.Place, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(26.dp))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFE8FBF4)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Filled.Place, contentDescription = null, tint = PortalGreen, modifier = Modifier.size(24.dp))
             }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(location.name ?: "Địa điểm", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(listOfNotNull(location.address, location.category).joinToString(" · ").ifBlank { "—" }, color = portalMuted(), fontSize = 13.sp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    location.name ?: "Địa điểm",
+                    color = portalText(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    listOfNotNull(location.address, location.category).joinToString(" · ").ifBlank { "—" },
+                    color = portalMuted(),
+                    fontSize = 12.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
             BusinessStatusPill(location.status ?: "Live")
         }
@@ -928,13 +1070,34 @@ private fun BusinessReviewCompactRow(review: BusinessReviewRow, onReply: () -> U
 @Composable
 private fun BusinessReviewCard(review: BusinessReviewRow, onReply: () -> Unit) {
     DarkPortalCard {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(review.user_name ?: "Người dùng", color = portalText(), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Text(stars(review.rating), color = Color(0xFFD4820A), fontSize = 14.sp)
+        Column(
+            Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    review.user_name ?: "Người dùng",
+                    color = portalText(),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Text(stars(review.rating), color = Color(0xFFD4820A), fontSize = 13.sp)
             }
             Text(formatPortalDate(review.created_at), color = portalMuted(), fontSize = 12.sp)
-            Text(review.content ?: "—", color = portalMuted(), fontSize = 13.sp)
+            Text(
+                review.content ?: "—",
+                color = portalMuted(),
+                fontSize = 13.sp,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+            )
             if (review.reply.isNullOrBlank()) {
                 OutlinedButton(onClick = onReply) { Text("Phản hồi ngay", fontSize = 12.sp) }
             } else {
@@ -2715,18 +2878,33 @@ private fun mediaStatusLabel(status: String?): String = when (status?.lowercase(
 @Composable
 private fun BusinessMediaCard(media: BusinessMediaRow) {
     DarkPortalCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFEDEAFF)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(if (media.type == "video") "🎬" else "🖼", fontSize = 18.sp)
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
-                    (if (media.type == "video") "🎬 " else "🖼 ") + (media.url),
+                    media.url,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = PremiumColors.Ink,
+                    color = portalText(),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 media.rejection_reason?.takeIf { it.isNotBlank() }?.let {
-                    Text("Lý do: $it", fontSize = 11.sp, color = PremiumColors.LogoutRed)
+                    Text("Lý do: $it", fontSize = 11.sp, color = PremiumColors.LogoutRed, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
             }
             BusinessStatusPill(mediaStatusLabel(media.status))
@@ -2737,18 +2915,38 @@ private fun BusinessMediaCard(media: BusinessMediaRow) {
 @Composable
 private fun BusinessTransactionRow(tx: PlatformTransaction) {
     DarkPortalCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(tx.description ?: tx.kind ?: "Giao dịch", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = PremiumColors.Ink)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    tx.description ?: tx.kind ?: "Giao dịch",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = portalText(),
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Text(
                     "${tx.kind ?: "-"} · ${tx.created_at?.take(10) ?: ""}",
                     fontSize = 11.sp,
                     color = portalMuted(),
+                    maxLines = 1,
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(compactVnd(tx.net_amount ?: tx.gross_amount ?: 0.0), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = PortalGreen)
-                Text(tx.status ?: "", fontSize = 11.sp, color = portalMuted())
+                Text(
+                    compactVnd(tx.net_amount ?: tx.gross_amount ?: 0.0),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = PortalGreen,
+                    maxLines = 1,
+                )
+                Text(tx.status ?: "", fontSize = 11.sp, color = portalMuted(), maxLines = 1)
             }
         }
     }
@@ -2757,9 +2955,21 @@ private fun BusinessTransactionRow(tx: PlatformTransaction) {
 @Composable
 private fun BusinessPayoutRow(payout: PayoutRecord) {
     DarkPortalCard {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(compactVnd(payout.amount ?: 0.0), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PremiumColors.Ink)
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    compactVnd(payout.amount ?: 0.0),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = portalText(),
+                    maxLines = 1,
+                )
                 Text(payout.created_at?.take(10) ?: "", fontSize = 11.sp, color = portalMuted())
             }
             BusinessStatusPill(payoutStatusLabel(payout.status))

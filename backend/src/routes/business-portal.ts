@@ -72,6 +72,12 @@ export async function businessPortalRoutes(app: FastifyInstance) {
       return await createBusinessCampaign(businessId, req.body as never);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "error";
+      if (msg === "premium_package_required") {
+        return reply.code(402).send({
+          error: "premium_package_required",
+          message: "Gói premium đã hết hạn. Vui lòng mua gói quảng cáo để tạo chiến dịch.",
+        });
+      }
       return reply.code(500).send({ error: msg });
     }
   });

@@ -512,22 +512,26 @@ struct BusinessPortalView: View {
                 subtitle: "gói quảng bá còn hiệu lực"
             )
             sectionTitle("CHIẾN DỊCH ĐANG CHẠY")
-            Button {
-                showingCampaignForm = true
-            } label: {
-                HStack(spacing: 10) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .bold))
-                    Text("Tạo chiến dịch mới")
-                        .font(.system(size: 17, weight: .bold))
+            if overview?.isPremiumActive == true {
+                Button {
+                    showingCampaignForm = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .bold))
+                        Text("Tạo chiến dịch mới")
+                            .font(.system(size: 17, weight: .bold))
+                    }
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 54)
+                    .background(BusinessPortalStyle.accent)
+                    .clipShape(RoundedRectangle(cornerRadius: 13))
                 }
-                .foregroundStyle(.white)
-                .frame(maxWidth: .infinity)
-                .frame(height: 54)
-                .background(BusinessPortalStyle.accent)
-                .clipShape(RoundedRectangle(cornerRadius: 13))
+                .buttonStyle(.plain)
+            } else {
+                darkEmptyState("Gói premium đã hết hạn — mua gói quảng cáo để tạo chiến dịch.")
             }
-            .buttonStyle(.plain)
 
             if campaigns.isEmpty {
                 darkEmptyState("Chưa có chiến dịch quảng cáo.")
@@ -872,50 +876,39 @@ struct BusinessPortalView: View {
     }
 
     private var profileSection: some View {
-        VStack(alignment: .leading, spacing: 22) {
+        VStack(alignment: .leading, spacing: 18) {
             if let business = overview?.business {
-                HStack(spacing: 16) {
+                HStack(spacing: 14) {
                     Text(initials(for: business.name))
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 20, weight: .bold))
                         .foregroundStyle(Color(red: 0.0, green: 0.22, blue: 0.18))
-                        .frame(width: 82, height: 82)
-                        .background(Color(red: 0.37, green: 0.80, blue: 0.66))
+                        .frame(width: 64, height: 64)
+                        .background(Color(red: 0.85, green: 0.98, blue: 0.94))
                         .clipShape(RoundedRectangle(cornerRadius: 16))
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text(business.name ?? "Doanh nghiệp")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(Color(red: 0.02, green: 0.22, blue: 0.18))
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(BusinessPortalStyle.text)
+                            .lineLimit(2)
                         HStack(spacing: 4) {
-                            Image(systemName: "checkmark.seal")
+                            Image(systemName: "checkmark.seal.fill")
                             Text(statusLabel(business.status ?? "pending"))
                         }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.0, green: 0.48, blue: 0.38))
+                        .foregroundStyle(BusinessPortalStyle.accent)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(Color(red: 0.66, green: 0.90, blue: 0.82))
+                        .background(BusinessPortalStyle.accentSoft)
                         .clipShape(Capsule())
-                        Text("Tham gia \(formatBusinessJoinDate(business.created_at))")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Color(red: 0.0, green: 0.43, blue: 0.34))
-                        if let pkgName = overview?.active_ad_package?.name {
-                            HStack(spacing: 4) {
-                                Image(systemName: "crown.fill")
-                                Text(pkgName)
-                            }
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color(red: 0.0, green: 0.48, blue: 0.38))
-                            .clipShape(Capsule())
-                        }
                     }
-                    Spacer()
+                    Spacer(minLength: 0)
                 }
-                .padding(22)
-                .background(BusinessPortalStyle.accentSoft)
-                .clipShape(RoundedRectangle(cornerRadius: 17))
+                .padding(16)
+                .background(BusinessPortalStyle.card)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(BusinessPortalStyle.stroke))
+
+                premiumStatusBanner
 
                 sectionTitle("THÔNG TIN DOANH NGHIỆP")
                 VStack(spacing: 0) {
@@ -925,37 +918,46 @@ struct BusinessPortalView: View {
                     darkDivider
                     businessInfoRow("Hotline", business.hotline ?? "—", valueColor: BusinessPortalStyle.accent)
                     darkDivider
-                    businessInfoRow("Rating", "★ \(String(format: "%.1f", business.rating_avg ?? 0)) (\(business.rating_count ?? 0) đánh giá)", valueColor: .orange)
+                    businessInfoRow(
+                        "Rating",
+                        "★ \(String(format: "%.1f", business.rating_avg ?? 0)) (\(business.rating_count ?? 0))",
+                        valueColor: .orange
+                    )
                 }
+                .padding(.horizontal, 14)
+                .background(BusinessPortalStyle.card)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .overlay(RoundedRectangle(cornerRadius: 16).stroke(BusinessPortalStyle.stroke))
             }
             sectionTitle("ĐỊA ĐIỂM ĐÃ ĐĂNG KÝ")
             if locations.isEmpty {
                 darkEmptyState("Chưa có địa điểm.")
             } else {
                 ForEach(locations) { loc in
-                    HStack(spacing: 14) {
-                        Image(systemName: (loc.category ?? "").localizedCaseInsensitiveContains("tour") ? "storefront" : "mappin.circle")
-                            .font(.system(size: 26, weight: .semibold))
-                            .foregroundStyle(BusinessPortalStyle.text)
-                            .frame(width: 68, height: 68)
-                            .background(BusinessPortalStyle.card)
-                            .clipShape(RoundedRectangle(cornerRadius: 11))
-                        VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 12) {
+                        Image(systemName: (loc.category ?? "").localizedCaseInsensitiveContains("tour") ? "storefront" : "mappin.circle.fill")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(BusinessPortalStyle.accent)
+                            .frame(width: 44, height: 44)
+                            .background(BusinessPortalStyle.accentSoft)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                        VStack(alignment: .leading, spacing: 4) {
                             Text(loc.name)
-                                .font(.system(size: 17, weight: .bold))
+                                .font(.system(size: 15, weight: .bold))
                                 .foregroundStyle(BusinessPortalStyle.text)
+                                .lineLimit(1)
                             Text([loc.address, loc.category].compactMap { $0 }.joined(separator: " · "))
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(BusinessPortalStyle.muted)
                                 .lineLimit(2)
                         }
-                        Spacer()
+                        Spacer(minLength: 0)
                         statusChip(loc.status ?? "live")
                     }
-                    .padding(18)
-                    .background(BusinessPortalStyle.bg)
-                    .clipShape(RoundedRectangle(cornerRadius: 13))
-                    .overlay(RoundedRectangle(cornerRadius: 13).stroke(BusinessPortalStyle.stroke))
+                    .padding(14)
+                    .background(BusinessPortalStyle.card)
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(RoundedRectangle(cornerRadius: 14).stroke(BusinessPortalStyle.stroke))
                 }
             }
             Button {
@@ -965,11 +967,11 @@ struct BusinessPortalView: View {
                     Image(systemName: "plus")
                     Text("Thêm địa điểm mới")
                 }
-                .font(.system(size: 17, weight: .bold))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
-                .frame(height: 58)
-                .background(BusinessPortalStyle.accent.opacity(0.78))
+                .frame(height: 52)
+                .background(BusinessPortalStyle.accent)
                 .clipShape(RoundedRectangle(cornerRadius: 13))
             }
             .buttonStyle(.plain)
@@ -986,7 +988,7 @@ struct BusinessPortalView: View {
                 .foregroundStyle(.white)
                 .frame(maxWidth: .infinity)
                 .frame(height: 52)
-                .background(BusinessPortalStyle.accent.opacity(0.78))
+                .background(BusinessPortalStyle.accent)
                 .clipShape(RoundedRectangle(cornerRadius: 13))
             }
             .buttonStyle(.plain)
@@ -1019,6 +1021,39 @@ struct BusinessPortalView: View {
             sectionTitle("ĐÁNH GIÁ")
             reviewsManagementSection
         }
+    }
+
+    private var premiumStatusBanner: some View {
+        let active = overview?.isPremiumActive == true
+        let title = active
+            ? "Premium đang hoạt động\(overview?.active_ad_package?.name.map { " · \($0)" } ?? "")"
+            : "Premium đã hết hạn"
+        let subtitle = active
+            ? (overview?.active_ad_package?.ends_at.map { "Hết hạn \(formatPortalDate($0))" } ?? "Gói quảng cáo còn hiệu lực")
+            : "Mua gói ở tab Quảng cáo để chạy chiến dịch / hiển thị gợi ý"
+        return HStack(spacing: 12) {
+            Image(systemName: active ? "checkmark.seal.fill" : "exclamationmark.triangle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(active ? BusinessPortalStyle.accent : Color.orange)
+                .frame(width: 40, height: 40)
+                .background(Color.white.opacity(0.7))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(active ? BusinessPortalStyle.accent : Color.orange)
+                    .lineLimit(2)
+                Text(subtitle)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(active ? BusinessPortalStyle.accent.opacity(0.85) : Color.orange.opacity(0.85))
+                    .lineLimit(2)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(14)
+        .background(active ? BusinessPortalStyle.accentSoft : Color.orange.opacity(0.12))
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(BusinessPortalStyle.stroke))
     }
 
     private func mediaRow(_ item: BusinessMediaRow) -> some View {

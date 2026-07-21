@@ -20,6 +20,7 @@ data class BusinessOverview(
     val suggested_count: Int = 0,
     val remaining_budget_vnd: Double = 0.0,
     val ad_package_expiry: String? = null,
+    val has_active_premium: Boolean = false,
 )
 
 @Serializable
