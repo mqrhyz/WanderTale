@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -1222,11 +1224,16 @@ fun ProfileScreen(
         refreshProStatus()
     }
 
+    // Scrollable so logout/settings stay reachable above floating bottom nav.
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = PremiumDesign.ScreenPadding)
-            .padding(contentPadding),
+            .padding(
+                top = contentPadding.calculateTopPadding(),
+                bottom = contentPadding.calculateBottomPadding() + 24.dp,
+            ),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         ProfileCompactHeader(
@@ -1322,12 +1329,12 @@ fun ProfileScreen(
                     onLogout()
                 }
             },
-            modifier = Modifier.padding(top = 2.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 2.dp, bottom = 8.dp),
         ) {
             Text("Đăng xuất", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = PremiumColors.LogoutRed)
         }
-
-        Spacer(Modifier.weight(1f))
     }
 
     if (showUpgrade) {
