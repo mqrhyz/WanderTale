@@ -27,10 +27,12 @@ import { emitTripEvent, type TripEventType } from "../lib/tripEvents.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
   enqueueTripEnrichment,
+  scheduleLocalTripEnrichment,
   markTripEnrichmentJobComplete,
   markTripEnrichmentJobFailed,
   recordTripProgress,
   tryStartTripEnrichmentJob,
+  TRIP_ENRICHMENT_MAX_ATTEMPTS,
 } from "./tripEnrichmentJobService.js";
 
 function countAgendaImageSlots(itinerary: GeneratedItinerary): number {
@@ -322,6 +324,10 @@ export async function enrichTripWithOtaInBackground(params: {
 export async function processTripEnrichment(tripId: string): Promise<{ status: string }> {
   const job = await tryStartTripEnrichmentJob(tripId);
   if (!job) return { status: "skipped" };
+  if (job.attempts > TRIP_ENRICHMENT_MAX_ATTEMPTS) {
+    await markTripEnrichmentJobFailed(tripId, "max_attempts_exceeded");
+    return { status: "failed" };
+  }
 
   const { data: trip, error } = await getSupabase()
     .from("trips")
@@ -406,14 +412,9 @@ export async function runTripGenerationStaged(
       suggestedPlaces: [],
       loadSuggestedPlaces: true,
     });
-    // TODO: attach a Cloud Tasks HTTP target to call processTripEnrichment(tripId).
-    // Until Cloud Tasks is configured, this starts a best-effort local worker while
-    // the durable DB row keeps the job retryable after redeploy/instance death.
-    setTimeout(() => {
-      void processTripEnrichment(tripId).catch((error) => {
-        console.warn("[trip-job] local worker failed:", error);
-      });
-    }, 0);
+    // Local best-effort + durable DB row. Prefer Cloud Scheduler:
+    // POST /api/internal/trips/enrichment/sweep with x-worker-token.
+    scheduleLocalTripEnrichment(tripId, processTripEnrichment);
   }
 
   console.info(

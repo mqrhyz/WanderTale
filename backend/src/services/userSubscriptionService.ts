@@ -247,7 +247,7 @@ export async function getUserSubscriptionOverview(userId: string) {
       }
     }
   }
-  const vouchers = (saved ?? [])
+  const savedVouchers = (saved ?? [])
     .map((r) => (Array.isArray(r.vouchers) ? r.vouchers[0] : r.vouchers) as VoucherRow | null)
     .filter((v): v is VoucherRow => Boolean(v?.id))
     .filter((v) => String(v.valid_from ?? "0000-01-01") <= today && String(v.valid_until ?? "9999-12-31") >= today)
@@ -259,7 +259,20 @@ export async function getUserSubscriptionOverview(userId: string) {
         applicability === "pro_plan" ||
         giftDaysFromVoucher(v) > 0
       );
-    })
+    });
+  // Hide already-redeemed vouchers from upgrade UI.
+  let redeemedIds = new Set<string>();
+  try {
+    const { data: redeemed } = await sb
+      .from("voucher_redemptions")
+      .select("voucher_id")
+      .eq("user_id", userId);
+    redeemedIds = new Set((redeemed ?? []).map((r) => String(r.voucher_id)));
+  } catch {
+    /* table may not exist yet */
+  }
+  const vouchers = savedVouchers
+    .filter((v) => !redeemedIds.has(String(v.id)))
     .map(mapVoucher);
 
   return {
@@ -333,6 +346,10 @@ export async function activateUserSubscriptionByTransaction(txId: string) {
     })
     .eq("id", tx.user_id);
   await sb.from("platform_transactions").update({ status: "captured" }).eq("id", txId);
+  const voucherId = meta.voucher_id ? String(meta.voucher_id) : "";
+  if (voucherId && tx.user_id) {
+    await recordVoucherRedemption(String(tx.user_id), voucherId, txId);
+  }
   await logSystemEvent({
     level: "success",
     title: "User subscription activated",
@@ -365,6 +382,44 @@ export async function finalizeUserSubscriptionByOrderCode(orderCode: number, ref
   return { already: false };
 }
 
+
+async function assertVoucherNotRedeemed(userId: string, voucherId: string) {
+  const { data, error } = await getSupabaseAdmin()
+    .from("voucher_redemptions")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("voucher_id", voucherId)
+    .maybeSingle();
+  if (error && !String(error.message ?? "").includes("voucher_redemptions")) {
+    // Table missing in older envs — skip hard fail, still allow purchase.
+    console.warn("[subscription] voucher_redemptions check:", error.message);
+    return;
+  }
+  if (data?.id) throw new Error("voucher_already_redeemed");
+}
+
+async function recordVoucherRedemption(userId: string, voucherId: string, transactionId: string) {
+  const { error } = await getSupabaseAdmin().from("voucher_redemptions").upsert(
+    {
+      user_id: userId,
+      voucher_id: voucherId,
+      transaction_id: transactionId,
+      redeemed_at: new Date().toISOString(),
+    },
+    { onConflict: "user_id,voucher_id" },
+  );
+  if (error && !String(error.message ?? "").includes("voucher_redemptions")) {
+    console.warn("[subscription] voucher redemption record failed:", error.message);
+    return;
+  }
+  // Remove from saved list after successful redeem so UI no longer offers it.
+  await getSupabaseAdmin()
+    .from("user_saved_vouchers")
+    .delete()
+    .eq("user_id", userId)
+    .eq("voucher_id", voucherId);
+}
+
 export async function purchaseUserSubscription(userId: string, input: { package_id?: string; voucher_id?: string | null }) {
   const pkg = packageFor(String(input.package_id ?? ""));
   const sb = getSupabaseAdmin();
@@ -383,6 +438,7 @@ export async function purchaseUserSubscription(userId: string, input: { package_
     const from = String(voucher.valid_from ?? "0000-01-01");
     const until = String(voucher.valid_until ?? "9999-12-31");
     if (from > today || until < today) throw new Error("voucher_expired");
+    await assertVoucherNotRedeemed(userId, String(voucher.id));
   }
 
   const originalAmount = Math.round(pkg.price_vnd);
@@ -421,6 +477,9 @@ export async function purchaseUserSubscription(userId: string, input: { package_
 
   if (amount <= 0 || env.PAYMENT_SIMULATION_MODE || !isPayosConfigured()) {
     const activated = await activateUserSubscriptionByTransaction(tx.id);
+    if (voucher?.id) {
+      await recordVoucherRedemption(userId, String(voucher.id), tx.id);
+    }
     return {
       payment_status: "paid",
       amount,

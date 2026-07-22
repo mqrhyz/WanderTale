@@ -79,6 +79,7 @@ export async function tryStartTripEnrichmentJob(tripId: string): Promise<JobRow 
   if (!job) return null;
   if (job.status === "running") return null;
   if (job.status === "complete") return null;
+  if (job.attempts >= 5) return null;
 
   const nextAttempts = job.attempts + 1;
   const startedAt = new Date().toISOString();
@@ -193,4 +194,87 @@ export async function getTripProgressSnapshot(tripId: string): Promise<Record<st
     attempts: mem.attempts,
     updated_at: new Date().toISOString(),
   };
+}
+
+/** Max attempts before giving up on an enrichment job. */
+export const TRIP_ENRICHMENT_MAX_ATTEMPTS = 5;
+/** Running jobs older than this are considered stuck (instance death). */
+export const TRIP_ENRICHMENT_STUCK_MS = 12 * 60 * 1000;
+
+/**
+ * Reclaim jobs stuck in "running" (Cloud Run instance died mid-job)
+ * back to "queued" so a worker/sweep can retry.
+ */
+export async function reclaimStuckTripEnrichmentJobs(olderThanMs = TRIP_ENRICHMENT_STUCK_MS): Promise<number> {
+  const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+  let count = 0;
+  try {
+    const { data, error } = await getSupabase()
+      .from("trip_enrichment_jobs")
+      .update({
+        status: "queued",
+        error: "reclaimed_stuck_running",
+        locked_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("status", "running")
+      .lt("updated_at", cutoff)
+      .select("trip_id");
+    if (!error && data) {
+      count = data.length;
+      for (const row of data) {
+        const id = String((row as { trip_id: string }).trip_id);
+        const mem = memoryJobs.get(id);
+        if (mem) memoryJobs.set(id, { ...mem, status: "queued" });
+      }
+    }
+  } catch (e) {
+    console.warn("[trip-job] reclaim stuck failed:", e);
+  }
+  return count;
+}
+
+/** List jobs eligible for retry (queued/failed, under max attempts). */
+export async function listRetryableTripEnrichmentJobs(limit = 10): Promise<JobRow[]> {
+  await reclaimStuckTripEnrichmentJobs();
+  try {
+    const { data, error } = await getSupabase()
+      .from("trip_enrichment_jobs")
+      .select("trip_id,user_id,status,attempts,payload")
+      .in("status", ["queued", "failed"])
+      .lt("attempts", TRIP_ENRICHMENT_MAX_ATTEMPTS)
+      .order("updated_at", { ascending: true })
+      .limit(limit);
+    if (!error && data?.length) {
+      return data.map((d) => ({
+        trip_id: String(d.trip_id),
+        user_id: String(d.user_id),
+        status: String(d.status),
+        attempts: Number(d.attempts ?? 0),
+        payload: d.payload as TripEnrichmentJobPayload,
+      }));
+    }
+  } catch {
+    /* memory fallback */
+  }
+  const out: JobRow[] = [];
+  for (const job of memoryJobs.values()) {
+    if ((job.status === "queued" || job.status === "failed") && job.attempts < TRIP_ENRICHMENT_MAX_ATTEMPTS) {
+      out.push(job);
+    }
+  }
+  return out.slice(0, limit);
+}
+
+/**
+ * Best-effort: schedule local processing + log that durable sweep should also run.
+ * Prefer Cloud Scheduler hitting POST /api/internal/trips/enrichment/sweep.
+ */
+export function scheduleLocalTripEnrichment(tripId: string, processFn: (id: string) => Promise<unknown>): void {
+  const delayMs = 250;
+  setTimeout(() => {
+    void processFn(tripId).catch((error) => {
+      console.warn("[trip-job] local worker failed:", error);
+    });
+  }, delayMs);
 }

@@ -23,10 +23,17 @@ export async function userSubscriptionRoutes(app: FastifyInstance) {
         const code =
           msg === "voucher_not_applicable" ||
           msg === "voucher_expired" ||
+          msg === "voucher_already_redeemed" ||
           msg === "subscription_package_not_found"
             ? 400
             : 500;
-        return reply.code(code).send({ error: msg });
+        const message =
+          msg === "voucher_already_redeemed"
+            ? "Mã giảm giá này đã được sử dụng."
+            : msg === "voucher_expired"
+              ? "Mã giảm giá đã hết hạn."
+              : undefined;
+        return reply.code(code).send({ error: msg, message });
       }
     },
   );

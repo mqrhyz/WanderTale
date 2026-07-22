@@ -1265,6 +1265,21 @@ fun ProfileScreen(
             }
         }
 
+        // Subscription status (source of truth: /user/subscription via isProMember)
+        PremiumSurfaceCard {
+            Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Trạng thái gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                if (isProMember) {
+                    Text("Pro — tạo chuyến AI không giới hạn", color = PremiumColors.Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    Text("Xem hạn dùng & gia hạn trong Cài đặt.", color = PremiumColors.TextMuted, fontSize = 12.sp)
+                } else {
+                    Text("Free — giới hạn 5 chuyến/tháng (gồm nhân bản)", color = PremiumColors.Muted, fontSize = 13.sp)
+                    Text("Nâng cấp Pro để mở khóa không giới hạn.", color = PremiumColors.TextMuted, fontSize = 12.sp)
+                    PremiumAccentButton("Nâng cấp Pro", onClick = { showUpgrade = true }, height = 40.dp)
+                }
+            }
+        }
+
         PremiumSurfaceCard {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
                 ProfileSettingsRow("Cài đặt", Icons.Filled.Settings) { onNavigate("settings") }
@@ -1272,12 +1287,6 @@ fun ProfileScreen(
                 ProfileSettingsRow("Ưu đãi", Icons.Filled.LocalOffer) { onNavigate("saved_offers") }
                 SettingsDivider()
                 ProfileSettingsRow("Đặt chỗ & thanh toán", Icons.Filled.ShoppingCart) { onNavigate("booking") }
-                SettingsDivider()
-                ProfileSettingsRow("Thông báo", Icons.Filled.Notifications) { }
-                SettingsDivider()
-                ProfileSettingsRow("Trợ giúp & FAQ", Icons.Filled.Help) { }
-                SettingsDivider()
-                ProfileSettingsRow("Điều khoản sử dụng", Icons.Filled.Description) { }
                 if (profile?.is_business == true) {
                     SettingsDivider()
                     ProfileSettingsRow("Doanh nghiệp", Icons.Filled.Apartment) { onNavigate("business") }
@@ -1701,7 +1710,13 @@ private fun UserUpgradeDialog(onDismiss: () -> Unit, onPurchased: () -> Unit) {
                                                     else -> message = "Không tạo được thông tin thanh toán."
                                                 }
                                             }.onFailure {
-                                                message = it.message ?: "Không tạo được thanh toán."
+                                                val m = it.message.orEmpty()
+                                                message = when {
+                                                    m.contains("voucher_already_redeemed", true) -> "Mã giảm giá này đã được sử dụng."
+                                                    m.contains("voucher_expired", true) -> "Mã giảm giá đã hết hạn."
+                                                    m.contains("voucher_not_applicable", true) -> "Mã không áp dụng cho gói này."
+                                                    else -> it.message ?: "Không tạo được thanh toán."
+                                                }
                                             }
                                             paying = false
                                         }
@@ -1916,16 +1931,32 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 )
                             }
                             Text(
-                                "Khi bật, gói sẽ tự gia hạn khi hết hạn. Tắt nếu bạn không muốn gia hạn thêm.",
+                                "Lưu ý: hiện tại app chưa thu phí gia hạn tự động. Hết hạn sẽ về Free — bật/tắt chỉ để ghi nhận lựa chọn.",
                                 color = PremiumColors.TextMuted,
                                 fontSize = 13.sp,
                             )
                         }
-                        else -> Text(
-                            "Bạn đang dùng gói Free. Nâng cấp Pro tại tab Hồ sơ.",
-                            color = PremiumColors.Muted,
-                            fontSize = 14.sp,
-                        )
+                        else -> {
+                            val limit = overview?.monthly_trip_limit ?: 5
+                            val used = overview?.monthly_trip_count ?: 0
+                            val remaining = (limit - used).coerceAtLeast(0)
+                            Text(
+                                "Bạn đang dùng gói Free.",
+                                color = PremiumColors.Muted,
+                                fontSize = 14.sp,
+                            )
+                            Text(
+                                "Còn $remaining/$limit chuyến trong tháng này (gồm nhân bản).",
+                                color = PremiumColors.Accent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                "Nâng cấp Pro tại tab Hồ sơ để tạo không giới hạn.",
+                                color = PremiumColors.TextMuted,
+                                fontSize = 13.sp,
+                            )
+                        }
                     }
                     message?.let {
                         Text(it, color = PremiumColors.Accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)

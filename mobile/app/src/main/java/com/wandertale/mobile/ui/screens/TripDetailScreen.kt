@@ -41,6 +41,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -90,6 +92,7 @@ import com.wandertale.mobile.util.siteLabel
 import com.wandertale.mobile.util.slotFirstImage
 import com.wandertale.mobile.util.slotMapsQueryUrl
 import com.wandertale.mobile.util.tripNeedsOtaPolling
+import com.wandertale.mobile.util.tripIsPartialReady
 import com.wandertale.mobile.util.tripNeedsPolling
 import com.wandertale.mobile.util.withSlotImage
 import kotlinx.coroutines.delay
@@ -112,6 +115,7 @@ fun TripDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var imageProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var sponsoredLocations by remember { mutableStateOf<List<com.wandertale.mobile.data.model.SponsoredLocation>>(emptyList()) }
+    var actionError by remember { mutableStateOf<String?>(null) }
     var selectedLocationId by remember { mutableStateOf<String?>(null) }
     val favIds by WanderTaleApp.instance.preferencesStore.favoriteTripIds.collectAsState(initial = emptySet())
     val isFav = tripId in favIds
@@ -192,7 +196,19 @@ fun TripDetailScreen(
     val t = trip
     val locId = selectedLocationId
     if (locId != null) {
-        LocationDetailScreen(
+        
+    if (actionError != null) {
+        AlertDialog(
+            onDismissRequest = { actionError = null },
+            confirmButton = {
+                TextButton(onClick = { actionError = null }) { Text("Đóng") }
+            },
+            title = { Text("Không thể nhân bản") },
+            text = { Text(actionError ?: "") },
+        )
+    }
+
+LocationDetailScreen(
             locationId = locId,
             tripId = tripId,
             onBack = { selectedLocationId = null },
@@ -225,6 +241,15 @@ fun TripDetailScreen(
                             .onSuccess {
                                 onDataChanged()
                                 onDuplicated(it.id)
+                            }
+                            .onFailure { e ->
+                                val msg = e.message.orEmpty()
+                                actionError = when {
+                                    msg.contains("free_trip_limit_reached", ignoreCase = true) ||
+                                        msg.contains("5 chuyến", ignoreCase = true) ->
+                                        "Tài khoản Free chỉ tạo được 5 chuyến/tháng (gồm nhân bản). Hãy nâng cấp Pro."
+                                    else -> msg.ifBlank { "Không nhân bản được chuyến đi." }
+                                }
                             }
                     }
                 },
@@ -259,11 +284,13 @@ private fun TripDetailContent(
     val activeDay = days.getOrNull(activeDayIndex)
     val pending = tripNeedsPolling(trip)
     val otaPending = tripNeedsOtaPolling(trip)
+    val partialReady = tripIsPartialReady(trip)
     val pendingMessage = when {
         imageProgress != null && imageProgress.first < imageProgress.second ->
             "AI đang chọn ảnh đẹp nhất cho lịch trình (${imageProgress.first}/${imageProgress.second})…"
         otaPending -> "AI đang tìm khách sạn phù hợp ngân sách và hoàn thiện lịch trình…"
         pending -> "AI đang hoàn thiện lịch trình cho bạn…"
+        partialReady -> "AI đã tạo lịch trình. Một số gợi ý khách sạn/ảnh có thể chưa đủ — bạn vẫn xem và dùng được."
         else -> null
     }
 

@@ -217,8 +217,41 @@ export async function tripsRoutes(app: FastifyInstance) {
 
   app.post("/trips/:tripId/duplicate", { preHandler: requireAuth }, async (req, reply) => {
     const { tripId } = req.params as { tripId: string };
-    const dup = await duplicateTrip(req.userId!, tripId);
-    if (!dup) return reply.code(404).send({ error: "not_found" });
-    return dup;
+    try {
+      await assertCanCreateTrip(req.userId!);
+      const dup = await duplicateTrip(req.userId!, tripId);
+      if (!dup) return reply.code(404).send({ error: "not_found" });
+      return dup;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "duplicate_failed";
+      if (msg === "free_trip_limit_reached") {
+        return reply.code(402).send({
+          error: "free_trip_limit_reached",
+          message: "Tài khoản Free chỉ tạo được 5 chuyến đi mỗi tháng (gồm nhân bản). Nâng cấp Pro để không giới hạn.",
+          details: (e as Error & { details?: unknown }).details,
+        });
+      }
+      return reply.code(500).send({ error: msg });
+    }
+  });
+
+  /** Sweep queued/stuck enrichment jobs (Cloud Scheduler / internal cron). */
+  app.post("/internal/trips/enrichment/sweep", async (req, reply) => {
+    if (!env.INTERNAL_WORKER_TOKEN) {
+      return reply.code(503).send({ error: "worker_token_not_configured" });
+    }
+    const token = req.headers["x-worker-token"];
+    if (token !== env.INTERNAL_WORKER_TOKEN) return reply.code(401).send({ error: "unauthorized" });
+    const { reclaimStuckTripEnrichmentJobs, listRetryableTripEnrichmentJobs } = await import(
+      "../services/tripEnrichmentJobService.js"
+    );
+    const reclaimed = await reclaimStuckTripEnrichmentJobs();
+    const jobs = await listRetryableTripEnrichmentJobs(10);
+    const results: Array<{ trip_id: string; status: string }> = [];
+    for (const job of jobs) {
+      const out = await processTripEnrichment(job.trip_id);
+      results.push({ trip_id: job.trip_id, status: out.status });
+    }
+    return { reclaimed, processed: results.length, results };
   });
 }

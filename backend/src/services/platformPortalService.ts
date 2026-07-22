@@ -925,9 +925,35 @@ export async function expirePastBusinessAdOrders(businessId?: string): Promise<n
     .eq("status", "active")
     .lt("ends_at", nowIso);
   if (businessId) q = q.eq("business_id", businessId);
-  const { data, error } = await q.select("id");
+  const { data, error } = await q.select("id,business_id");
   if (error) throw error;
-  return data?.length ?? 0;
+  const expired = data ?? [];
+  const businessIds = Array.from(
+    new Set(
+      (businessId
+        ? [businessId]
+        : expired.map((r) => String((r as { business_id?: string }).business_id ?? ""))
+      ).filter(Boolean),
+    ),
+  );
+  for (const bid of businessIds) {
+    const { data: active } = await sb
+      .from("business_ad_orders")
+      .select("id")
+      .eq("business_id", bid)
+      .eq("status", "active")
+      .gt("ends_at", nowIso)
+      .limit(1)
+      .maybeSingle();
+    if (!active?.id) {
+      await sb
+        .from("business_ad_campaigns")
+        .update({ status: "paused" })
+        .eq("business_id", bid)
+        .eq("status", "active");
+    }
+  }
+  return expired.length;
 }
 
 /** True when business has an unexpired active premium/ad package. */

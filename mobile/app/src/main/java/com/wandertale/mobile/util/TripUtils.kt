@@ -255,7 +255,7 @@ private fun tripWithinEnrichmentWindow(trip: TripRecord): Boolean {
 fun tripNeedsOtaPolling(trip: TripRecord): Boolean {
     val status = trip.generation_status
     if (status == "ready" || status == "failed") return false
-    val otaActive = status in listOf("pricing_pending", "generating") ||
+    val otaActive = status in listOf("pricing_pending", "generating") // partial_ready is terminal-ish ||
         trip.hotel_pricing_status == "pending"
     if (!otaActive) return false
     return tripWithinEnrichmentWindow(trip)
@@ -281,6 +281,13 @@ private fun tripNeedsMediaPolling(trip: TripRecord): Boolean {
 
 fun tripNeedsPolling(trip: TripRecord): Boolean {
     return tripNeedsOtaPolling(trip) || tripNeedsMediaPolling(trip)
+}
+
+/** Trip finished with missing hotel/media enrichment. */
+fun tripIsPartialReady(trip: TripRecord): Boolean {
+    val status = trip.generation_status?.trim().orEmpty()
+    return status == "partial_ready" ||
+        (status == "ready" && trip.hotel_pricing_status in listOf("error", "empty", "timeout"))
 }
 
 val PREFERENCE_OPTIONS = listOf(
