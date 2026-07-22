@@ -1296,7 +1296,7 @@ fun ProfileScreen(
                     }
                     Text("Xem hạn dùng & gia hạn trong Cài đặt.", color = PremiumColors.TextMuted, fontSize = 12.sp)
                 } else {
-                    Text("Free — giới hạn 5 chuyến/tháng (gồm nhân bản)", color = PremiumColors.Muted, fontSize = 13.sp)
+                    Text("Free — giới hạn 5 chuyến/tháng", color = PremiumColors.Muted, fontSize = 13.sp)
                     Text("Nâng cấp Pro để mở khóa không giới hạn.", color = PremiumColors.TextMuted, fontSize = 12.sp)
                     PremiumAccentButton("Nâng cấp Pro", onClick = { showUpgrade = true }, height = 40.dp)
                 }
@@ -1969,7 +1969,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 fontSize = 14.sp,
                             )
                             Text(
-                                "Còn $remaining/$limit chuyến trong tháng này (gồm nhân bản).",
+                                "Còn $remaining/$limit chuyến trong tháng này.",
                                 color = PremiumColors.Accent,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
