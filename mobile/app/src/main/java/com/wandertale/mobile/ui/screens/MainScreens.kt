@@ -1163,7 +1163,8 @@ fun ProfileScreen(
     var saved by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf<String?>(null) }
     var showUpgrade by remember { mutableStateOf(false) }
-    var isProMember by remember { mutableStateOf(false) }
+    var isProMember by remember { mutableStateOf(DashboardHomeCache.isProMember == true) }
+    var subscriptionExpiresAt by remember { mutableStateOf(DashboardHomeCache.subscriptionExpiresAt) }
     val scope = rememberCoroutineScope()
 
     suspend fun refreshProStatus() {
@@ -1181,19 +1182,31 @@ fun ProfileScreen(
         runCatching { ApiClient.userSubscription() }
             .onSuccess {
                 isProMember = it.is_premium
+                subscriptionExpiresAt = it.subscription_expires_at
+                DashboardHomeCache.isProMember = it.is_premium
+                DashboardHomeCache.subscriptionExpiresAt = it.subscription_expires_at
                 // Keep profile badge aligned with subscription overview (source of truth).
                 if (!it.is_premium && profile != null) {
                     profile = profile?.copy(is_premium = false, subscription_tier = "free")
+                } else if (it.is_premium && profile != null) {
+                    profile = profile?.copy(is_premium = true, subscription_tier = "pro", subscription_expires_at = it.subscription_expires_at)
                 }
             }
     }
 
     LaunchedEffect(Unit) {
+        // Keep last known PRO status while refreshing — prevents Free flicker on tab switch.
+        DashboardHomeCache.isProMember?.let { isProMember = it }
+        DashboardHomeCache.subscriptionExpiresAt?.let { subscriptionExpiresAt = it }
         DashboardHomeCache.accountInfo?.let { info ->
             profile = info.profile
             name = info.displayName
             email = info.email
             phone = info.phone
+            if (DashboardHomeCache.isProMember == null) {
+                val tier = info.profile?.subscription_tier?.lowercase()
+                isProMember = info.profile?.is_premium == true || tier == "pro" || tier == "premium"
+            }
         } ?: runCatching {
             WanderTaleApp.instance.profileRepository.getAccountInfo()
         }.onSuccess { info ->
@@ -1271,6 +1284,9 @@ fun ProfileScreen(
                 Text("Trạng thái gói", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                 if (isProMember) {
                     Text("Pro — tạo chuyến AI không giới hạn", color = PremiumColors.Accent, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                    subscriptionExpiresAt?.take(10)?.takeIf { it.isNotBlank() }?.let { exp ->
+                        Text("Hết hạn: $exp", color = PremiumColors.Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    }
                     Text("Xem hạn dùng & gia hạn trong Cài đặt.", color = PremiumColors.TextMuted, fontSize = 12.sp)
                 } else {
                     Text("Free — giới hạn 5 chuyến/tháng (gồm nhân bản)", color = PremiumColors.Muted, fontSize = 13.sp)

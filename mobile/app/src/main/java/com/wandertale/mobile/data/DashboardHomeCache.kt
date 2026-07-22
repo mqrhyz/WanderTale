@@ -16,6 +16,9 @@ object DashboardHomeCache {
     @Volatile var trips: List<TripRecord> = emptyList()
     @Volatile var displayName: String = "Xin chào"
     @Volatile var accountInfo: AccountInfo? = null
+    /** Last known PRO status from /user/subscription (expiry-aware). */
+    @Volatile var isProMember: Boolean? = null
+    @Volatile var subscriptionExpiresAt: String? = null
 
     data class PreloadResult(
         val profileError: String? = null,
@@ -39,6 +42,8 @@ object DashboardHomeCache {
         trips = emptyList()
         displayName = "Xin chào"
         accountInfo = null
+        isProMember = null
+        subscriptionExpiresAt = null
     }
 
     fun updateAccountPhone(phone: String) {
@@ -83,6 +88,12 @@ object DashboardHomeCache {
             .onSuccess { info ->
                 accountInfo = info
                 info.displayName.takeIf { it.isNotBlank() }?.let { displayName = it }
+                // Soft seed from profile flags (may be stale); refreshProStatus overwrites with overview.
+                if (isProMember == null) {
+                    val tier = info.profile?.subscription_tier?.lowercase()
+                    isProMember = info.profile?.is_premium == true || tier == "pro" || tier == "premium"
+                    subscriptionExpiresAt = info.profile?.subscription_expires_at
+                }
                 if (info.profile == null) {
                     profileError = "Không tải được quyền tài khoản. Vui lòng kiểm tra mạng rồi đăng nhập lại."
                 }

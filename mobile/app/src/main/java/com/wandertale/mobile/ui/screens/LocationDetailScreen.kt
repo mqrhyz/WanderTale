@@ -3,6 +3,7 @@ package com.wandertale.mobile.ui.screens
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -316,8 +317,15 @@ fun SponsoredLocationCard(loc: com.wandertale.mobile.data.model.SponsoredLocatio
         )
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(loc.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = PremiumColors.Ink, maxLines = 1)
-                Text("Tài trợ", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.clip(RoundedCornerShape(50)).background(PremiumColors.Accent).padding(horizontal = 6.dp, vertical = 2.dp))
+                Text(
+                    loc.name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PremiumColors.Ink,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f, fill = false),
+                )
+                PartnerBadgeChip()
             }
             loc.category?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 12.sp, color = PremiumColors.Muted, maxLines = 1) }
             if (loc.rating_count > 0) {
@@ -477,4 +485,21 @@ private fun VoucherRow(v: com.wandertale.mobile.data.model.AppliedVoucher?, sele
             if (v != null) Text("Giảm ${FormatUtils.formatVnd(v.discount_vnd)}", fontSize = 12.sp, color = PremiumColors.Accent)
         }
     }
+}
+
+
+@Composable
+fun PartnerBadgeChip(label: String = "Đối tác") {
+    Text(
+        text = label,
+        fontSize = 10.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color(0xFF0B6B4F),
+        maxLines = 1,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color(0xFFD8FFF0))
+            .border(1.dp, Color(0xFF8FE0C2), RoundedCornerShape(50))
+            .padding(horizontal = 8.dp, vertical = 3.dp),
+    )
 }

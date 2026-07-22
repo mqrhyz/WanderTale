@@ -571,11 +571,22 @@ private fun AgendaPlaceCard(
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(
-                        title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        val isPartner = listOfNotNull(slot.summary, slot.notes, slot.category)
+                            .any { it.contains("Đối tác", ignoreCase = true) }
+                        if (isPartner) PartnerBadgeChip()
+                    }
                     slot.summary?.takeIf { it.isNotBlank() }?.let {
                         Text(
                             it,
@@ -711,9 +722,27 @@ private fun HotelCard(hotel: BookingSuggestion, onMaps: (String) -> Unit) {
     PremiumSurfaceCard(Modifier.fillMaxWidth()) {
         Row(Modifier.padding(PremiumDesign.CardPadding), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Column(Modifier.weight(1f)) {
-                Text(hotel.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        hotel.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false),
+                    )
+                    if (hotel.price_source.equals("partner", ignoreCase = true) ||
+                        hotel.reason?.contains("Đối tác", ignoreCase = true) == true
+                    ) {
+                        PartnerBadgeChip()
+                    }
+                }
                 Text(
-                    siteLabel(hotel.site),
+                    if (hotel.price_source.equals("partner", ignoreCase = true)) "Đối tác WanderTale"
+                    else siteLabel(hotel.site),
                     fontSize = 12.sp,
                     color = PremiumColors.TextMuted,
                     modifier = Modifier.padding(top = 4.dp),

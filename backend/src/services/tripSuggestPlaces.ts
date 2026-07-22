@@ -87,7 +87,7 @@ export async function loadSponsoredSuggestedPlaces(
         day: (i % Math.max(numDays, 1)) + 1,
         estimated_cost_vnd: row.price_vnd != null ? Number(row.price_vnd) : undefined,
         duration_minutes: type === "restaurant" ? 90 : 60,
-        note: ["Đối tác WanderTale", desc.slice(0, 140), address ? `Địa chỉ: ${address}` : ""].filter(Boolean).join(" · "),
+        note: [desc.slice(0, 140), address ? `Địa chỉ: ${address}` : ""].filter(Boolean).join(" · "),
       });
       i += 1;
     }

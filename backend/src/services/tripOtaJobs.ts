@@ -31,7 +31,7 @@ async function partnerHotelSuggestions(destination: string) {
           name: String(h.name ?? "Khách sạn đối tác"),
           area: address || destination,
           estimated_cost: h.price_vnd != null ? Number(h.price_vnd) : undefined,
-          reason: [String(h.description ?? "").slice(0, 160), address ? `Địa chỉ: ${address}` : "", "Đối tác WanderTale"]
+          reason: [String(h.description ?? "").slice(0, 160), address ? `Địa chỉ: ${address}` : ""]
             .filter(Boolean)
             .join(" · "),
           maps_url: maps,
