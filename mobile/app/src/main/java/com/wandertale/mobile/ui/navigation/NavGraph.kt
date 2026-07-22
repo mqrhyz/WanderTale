@@ -319,7 +319,6 @@ fun WanderTaleNavHost() {
             TripDetailScreen(
                 tripId = id,
                 onBack = { navController.popBackStack() },
-                onDuplicated = { newId -> navController.navigate(Routes.tripDetail(newId)) { popUpTo(Routes.tripDetail(id)) { inclusive = true } } },
                 onDataChanged = {
                     scope.launch {
                         DashboardHomeCache.preload(

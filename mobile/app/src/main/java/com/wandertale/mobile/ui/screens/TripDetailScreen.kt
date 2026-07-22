@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.outlined.EditNote
@@ -107,7 +106,6 @@ import kotlinx.serialization.json.jsonPrimitive
 fun TripDetailScreen(
     tripId: String,
     onBack: () -> Unit,
-    onDuplicated: (String) -> Unit,
     onDataChanged: () -> Unit = {},
     onOpenBooking: (String) -> Unit = {},
 ) {
@@ -115,7 +113,6 @@ fun TripDetailScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var imageProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var sponsoredLocations by remember { mutableStateOf<List<com.wandertale.mobile.data.model.SponsoredLocation>>(emptyList()) }
-    var actionError by remember { mutableStateOf<String?>(null) }
     var selectedLocationId by remember { mutableStateOf<String?>(null) }
     val favIds by WanderTaleApp.instance.preferencesStore.favoriteTripIds.collectAsState(initial = emptySet())
     val isFav = tripId in favIds
@@ -196,17 +193,6 @@ fun TripDetailScreen(
     val t = trip
     val locId = selectedLocationId
     if (locId != null) {
-        
-    if (actionError != null) {
-        AlertDialog(
-            onDismissRequest = { actionError = null },
-            confirmButton = {
-                TextButton(onClick = { actionError = null }) { Text("Đóng") }
-            },
-            title = { Text("Không thể nhân bản") },
-            text = { Text(actionError ?: "") },
-        )
-    }
 
 LocationDetailScreen(
             locationId = locId,
@@ -235,24 +221,6 @@ LocationDetailScreen(
                 onOpenLocation = { selectedLocationId = it },
                 modifier = padding,
                 onMaps = { url -> context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
-                onDuplicate = {
-                    scope.launch {
-                        runCatching { WanderTaleApp.instance.tripRepository.duplicate(tripId) }
-                            .onSuccess {
-                                onDataChanged()
-                                onDuplicated(it.id)
-                            }
-                            .onFailure { e ->
-                                val msg = e.message.orEmpty()
-                                actionError = when {
-                                    msg.contains("free_trip_limit_reached", ignoreCase = true) ||
-                                        msg.contains("5 chuyến", ignoreCase = true) ->
-                                        "Tài khoản Free chỉ tạo được 5 chuyến/tháng (gồm nhân bản). Hãy nâng cấp Pro."
-                                    else -> msg.ifBlank { "Không nhân bản được chuyến đi." }
-                                }
-                            }
-                    }
-                },
                 onDelete = {
                     scope.launch {
                         WanderTaleApp.instance.tripRepository.delete(tripId)
@@ -273,7 +241,6 @@ private fun TripDetailContent(
     onOpenLocation: (String) -> Unit = {},
     modifier: Modifier = Modifier,
     onMaps: (String) -> Unit,
-    onDuplicate: () -> Unit,
     onDelete: () -> Unit,
 ) {
     val it = trip.itinerary_json
@@ -398,10 +365,7 @@ private fun TripDetailContent(
         }
 
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                PremiumAccentButton("Nhân bản", onDuplicate, modifier = Modifier.weight(1f), icon = Icons.Default.ContentCopy, height = 44.dp)
-                PremiumGhostButton("Xóa", onDelete, modifier = Modifier.weight(1f))
-            }
+            PremiumGhostButton("Xóa chuyến đi", onDelete, modifier = Modifier.fillMaxWidth())
         }
     }
 }

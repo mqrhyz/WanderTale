@@ -301,3 +301,15 @@ export function hotelPricingSummary(comparison: ComparisonResult | null): string
   const r = comparison.recommended;
   return `Phòng đề xuất: ${r.hotelName} (${r.site}) — ${formatVnd(r.priceVnd)}`;
 }
+
+
+/** Prepend partner hotels (business locations) so they appear first in UI. */
+export function prependPartnerHotels(
+  hotels: GeneratedItinerary["hotel_suggestions"],
+  partners: GeneratedItinerary["hotel_suggestions"],
+): GeneratedItinerary["hotel_suggestions"] {
+  if (!partners.length) return hotels;
+  const seen = new Set(partners.map((h) => h.name.trim().toLocaleLowerCase("vi-VN")));
+  const rest = hotels.filter((h) => !seen.has(h.name.trim().toLocaleLowerCase("vi-VN")));
+  return [...partners, ...rest].slice(0, 8);
+}

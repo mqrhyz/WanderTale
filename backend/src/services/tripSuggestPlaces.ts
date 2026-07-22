@@ -2,6 +2,7 @@ import { z } from "zod";
 import { llmGenerateJsonFast, parseModelJsonText, llmContextCharLimit } from "../lib/llm.js";
 import { searchPlacesOptional } from "../lib/placesProvider.js";
 import { getFoodPlacesByCity } from "./placePlacesService.js";
+import { listSponsoredLocations } from "./sponsoredLocationService.js";
 import type { TripGenerateInput } from "../schemas/trip.js";
 import type { TripGenerationContext } from "./tripGenerationContext.js";
 
@@ -47,6 +48,73 @@ export const suggestedPlacesSchema = z.object({
 
 export type SuggestedPlace = z.infer<typeof suggestedPlaceSchema>;
 export type SuggestedPlacesPlan = z.infer<typeof suggestedPlacesSchema>;
+
+function categoryToType(category: string | null | undefined): SuggestedPlace["type"] {
+  const c = (category ?? "").toLowerCase();
+  if (c.includes("khách sạn") || c.includes("hotel") || c.includes("homestay") || c.includes("resort")) {
+    return "activity";
+  }
+  if (c.includes("nhà hàng") || c.includes("restaurant") || c.includes("bbq") || c.includes("ăn")) {
+    return "restaurant";
+  }
+  if (c.includes("café") || c.includes("cafe") || c.includes("coffee") || c.includes("spa")) {
+    return "activity";
+  }
+  return "attraction";
+}
+
+/** Partner venues with active ad package for destination city (food/cafe/activities only). */
+export async function loadSponsoredSuggestedPlaces(
+  destination: string,
+  numDays: number,
+  maxPriceVnd?: number,
+): Promise<SuggestedPlace[]> {
+  try {
+    const rows = await listSponsoredLocations(destination, maxPriceVnd);
+    const places: SuggestedPlace[] = [];
+    let i = 0;
+    for (const row of rows) {
+      const name = String(row.name ?? "").trim();
+      if (!name || isNonTouristPlace(name)) continue;
+      const cat = String(row.category ?? "");
+      if (/khách sạn|hotel|homestay|resort/i.test(cat)) continue; // hotels injected separately
+      const type = categoryToType(cat);
+      const address = row.address ? String(row.address) : "";
+      const desc = row.description ? String(row.description) : "";
+      places.push({
+        name,
+        type,
+        day: (i % Math.max(numDays, 1)) + 1,
+        estimated_cost_vnd: row.price_vnd != null ? Number(row.price_vnd) : undefined,
+        duration_minutes: type === "restaurant" ? 90 : 60,
+        note: ["Đối tác WanderTale", desc.slice(0, 140), address ? `Địa chỉ: ${address}` : ""].filter(Boolean).join(" · "),
+      });
+      i += 1;
+    }
+    return places;
+  } catch (e) {
+    console.warn("[trip-gen] sponsored suggested places failed:", e);
+    return [];
+  }
+}
+
+export function prioritizeSponsoredPlaces(
+  sponsored: SuggestedPlace[],
+  others: SuggestedPlace[],
+  maxTotal = 24,
+): SuggestedPlace[] {
+  const seen = new Set<string>();
+  const out: SuggestedPlace[] = [];
+  for (const p of [...sponsored, ...others]) {
+    const key = p.name.trim().toLocaleLowerCase("vi-VN");
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+    if (out.length >= maxTotal) break;
+  }
+  return out;
+}
+
 
 /** Lọc bỏ địa điểm phi du lịch khỏi danh sách gợi ý (dù từ LLM hay VietMap). */
 export function filterTouristPlaces(places: SuggestedPlace[]): SuggestedPlace[] {
@@ -166,16 +234,30 @@ export async function suggestPlacesForTrip(
     `PLACES_JSON:\n${JSON.stringify(context.places).slice(0, ctx)}`,
   ].join("\n");
 
+  const sponsoredPromise = loadSponsoredSuggestedPlaces(
+    body.destination,
+    numDays,
+    body.budget > 50_000 ? Math.round(body.budget / Math.max(numDays, 1)) : undefined,
+  );
+
+  let base: SuggestedPlace[] = [];
   try {
     const text = await withTimeout(llmGenerateJsonFast(prompt), 12_000, "suggestPlaces");
     const parsed = parseModelJsonText(text);
     const check = suggestedPlacesSchema.safeParse(parsed);
     if (check.success && check.data.places.length > 0) {
-      const filtered = filterTouristPlaces(check.data.places);
-      if (filtered.length > 0) return { places: filtered };
+      base = filterTouristPlaces(check.data.places);
     }
   } catch (error) {
     console.warn("[trip-gen] Gemini suggested places failed, fallback VietMap:", error);
   }
-  return suggestPlacesFromVietMap(body, context);
+  if (base.length === 0) {
+    base = (await suggestPlacesFromVietMap(body, context)).places;
+  }
+  const sponsored = await sponsoredPromise;
+  const places = prioritizeSponsoredPlaces(sponsored, base, Math.max(numDays * 4, 16));
+  if (sponsored.length > 0) {
+    console.info(`[trip-gen] prioritized ${sponsored.length} sponsored partner venues for ${body.destination}`);
+  }
+  return { places };
 }
