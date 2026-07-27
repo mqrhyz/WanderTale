@@ -12,6 +12,7 @@ import com.wandertale.mobile.data.model.AdminBusinessRow
 import com.wandertale.mobile.data.model.AdminOverview
 import com.wandertale.mobile.data.model.AdminUserCreate
 import com.wandertale.mobile.data.model.AdminUserDetail
+import com.wandertale.mobile.data.model.AdminUserDetailResponse
 import com.wandertale.mobile.data.model.AdminUserList
 import com.wandertale.mobile.data.model.AdminUserRow
 import com.wandertale.mobile.data.model.AdPackageList
@@ -340,7 +341,26 @@ object ApiClient {
     suspend fun adminCreateUser(body: AdminUserCreate): AdminUserRow = portalPost("/api/admin/users", body)
     suspend fun adminBusinesses(): AdminBusinessList = portalGet("/api/admin/businesses")
     suspend fun adminAiConfig(): AiConfigList = portalGet("/api/admin/ai-config")
-    suspend fun adminUserDetail(userId: String): AdminUserDetail = portalGet("/api/admin/users/$userId")
+    suspend fun adminUserDetail(userId: String): AdminUserDetail {
+        val response: AdminUserDetailResponse = portalGet("/api/admin/users/$userId")
+        val user = response.user
+        return AdminUserDetail(
+            id = user.id,
+            display_name = user.display_name,
+            email = user.email,
+            phone = user.phone,
+            is_admin = user.is_admin,
+            is_business = user.is_business,
+            is_premium = user.is_premium,
+            subscription_tier = user.subscription_tier,
+            status = user.status,
+            last_login_at = user.last_login_at,
+            last_device = user.last_device,
+            created_at = user.created_at,
+            trip_count = response.trips.size,
+            recent_trips = response.trips,
+        )
+    }
     suspend fun adminSystemLogs(): SystemLogList = portalGet("/api/admin/system-logs")
     suspend fun adminPromotionVouchers(): PromotionList = portalGet("/api/admin/promotion-vouchers")
     suspend fun adminCreatePromotionVoucher(body: PromotionVoucherCreate): Promotion =

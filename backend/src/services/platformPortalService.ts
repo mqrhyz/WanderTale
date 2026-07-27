@@ -473,7 +473,7 @@ export async function adminTransactions(limit = 100) {
 export async function adminListUsers(limit = 100) {
   const { data } = await getSupabaseAdmin()
     .from("profiles")
-    .select("id,display_name,email,phone,is_admin,is_business,status,last_login_at,last_device,created_at")
+    .select("id,display_name,email,phone,is_admin,is_business,is_premium,subscription_tier,status,last_login_at,last_device,created_at")
     .order("created_at", { ascending: false })
     .limit(limit);
   return data ?? [];
@@ -536,7 +536,7 @@ export async function adminCreateUser(input: {
 export async function adminUserDetail(userId: string) {
   const { data: user, error } = await getSupabaseAdmin()
     .from("profiles")
-    .select("id,display_name,email,phone,is_admin,is_business,status,last_login_at,last_device,created_at")
+    .select("id,display_name,email,phone,is_admin,is_business,is_premium,subscription_tier,status,last_login_at,last_device,created_at")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;

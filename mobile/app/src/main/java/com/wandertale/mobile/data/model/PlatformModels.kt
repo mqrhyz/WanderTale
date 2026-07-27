@@ -3,6 +3,7 @@
 package com.wandertale.mobile.data.model
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.json.JsonElement
 
 @Serializable
@@ -358,7 +359,14 @@ data class AdminTripBrief(
     val destination: String? = null,
     val start_date: String? = null,
     val end_date: String? = null,
+    @SerialName("travelers")
     val people: Int? = null,
+)
+
+@Serializable
+data class AdminUserDetailResponse(
+    val user: AdminUserRow,
+    val trips: List<AdminTripBrief> = emptyList(),
 )
 
 @Serializable

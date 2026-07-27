@@ -1404,8 +1404,12 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                 item {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                         overview?.let {
-                                            PortalMetricCard("Doanh thu tháng", compactVnd(it.total_revenue_vnd), "đã đồng bộ", Modifier.weight(1f))
-                                            PortalMetricCard("Business hoạt động", "${it.business_count}", "${it.pending_business_count} chờ duyệt", Modifier.weight(1f))
+                                            PortalMetricCard(
+                                                "Business hoạt động",
+                                                "${it.business_count}",
+                                                "${it.pending_business_count} chờ duyệt",
+                                                Modifier.fillMaxWidth(),
+                                            )
                                         }
                                     }
                                 }
@@ -1453,7 +1457,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                         Modifier.horizontalScroll(rememberScrollState()),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                                     ) {
-                                        listOf("Tất cả", "Active", "Banned", "Business").forEach { filter ->
+                                        listOf("Tất cả", "Active", "Banned", "Business", "Pro", "Free").forEach { filter ->
                                             PortalFilterChip(filter, selected = userFilter == filter) { userFilter = filter }
                                         }
                                     }
@@ -2562,6 +2566,8 @@ private fun filteredAdminUsers(users: List<AdminUserRow>, query: String, filter:
             "Active" -> user.status != "banned"
             "Banned" -> user.status == "banned"
             "Business" -> user.is_business
+            "Pro" -> isPremiumAdminUser(user)
+            "Free" -> !user.is_admin && !user.is_business && !isPremiumAdminUser(user)
             else -> true
         }
         val queryMatches = q.isBlank() || listOf(user.display_name, user.email, user.phone, user.id)
@@ -2569,6 +2575,11 @@ private fun filteredAdminUsers(users: List<AdminUserRow>, query: String, filter:
             .any { it.lowercase(Locale.ROOT).contains(q) }
         filterMatches && queryMatches
     }
+}
+
+private fun isPremiumAdminUser(user: AdminUserRow): Boolean {
+    val tier = user.subscription_tier?.trim()?.lowercase(Locale.ROOT)
+    return user.is_premium == true || tier == "premium" || tier == "pro"
 }
 
 private fun formatPortalDate(raw: String?): String {
