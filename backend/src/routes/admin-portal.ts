@@ -4,6 +4,7 @@ import {
   adminGetAiConfig,
   adminCreateAdPackage,
   adminCreateUser,
+  adminDeleteUser,
   adminListAdPackages,
   adminListBusinesses,
   adminListUsers,
@@ -107,6 +108,23 @@ export async function adminPortalRoutes(app: FastifyInstance) {
       } catch (e) {
         const msg = e instanceof Error ? e.message : "error";
         return reply.code(500).send({ error: msg });
+      }
+    },
+  );
+
+  app.delete<{ Params: { userId: string } }>(
+    "/admin/users/:userId",
+    { preHandler: requireAdmin },
+    async (req, reply) => {
+      if (req.params.userId === req.userId) {
+        return reply.code(400).send({ error: "cannot_delete_current_admin" });
+      }
+      try {
+        return await adminDeleteUser(req.params.userId);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : "error";
+        const status = msg === "user_not_found" ? 404 : msg === "cannot_delete_admin" ? 400 : 500;
+        return reply.code(status).send({ error: msg });
       }
     },
   );

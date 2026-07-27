@@ -383,6 +383,9 @@ object ApiClient {
     suspend fun adminUpdateUserStatus(userId: String, status: String): AdminUserRow =
         portalPatch("/api/admin/users/$userId/status", UserStatusPatch(status))
 
+    suspend fun adminDeleteUser(userId: String): Map<String, Boolean> =
+        portalDelete("/api/admin/users/$userId")
+
     suspend fun adminUpdateBusinessStatus(businessId: String, status: String): AdminBusinessRow =
         portalPatch("/api/admin/businesses/$businessId/status", BusinessStatusPatch(status))
 

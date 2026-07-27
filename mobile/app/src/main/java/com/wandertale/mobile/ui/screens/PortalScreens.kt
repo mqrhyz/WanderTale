@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.GridView
@@ -1444,6 +1446,7 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                 items(users.take(3), key = { it.id }) { user -> AdminUserCompactRow(user) }
                             }
                             1 -> {
+                                val filterScopeUsers = filteredAdminUsers(users, "", userFilter)
                                 val filteredUsers = filteredAdminUsers(users, userSearch, userFilter)
                                 item {
                                     PortalSearchField(
@@ -1464,8 +1467,20 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                                 }
                                 item {
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        PortalMetricCard("Tổng user", "${overview?.user_count ?: users.size}", modifier = Modifier.weight(1f))
-                                        PortalMetricCard("Bị banned", "${overview?.banned_user_count ?: users.count { it.status == "banned" }}", modifier = Modifier.weight(1f))
+                                        val totalLabel = when (userFilter) {
+                                            "Pro" -> "Tổng user Pro"
+                                            "Free" -> "Tổng user Free"
+                                            "Business" -> "Tổng business"
+                                            "Banned" -> "Tổng bị banned"
+                                            "Active" -> "Tổng active"
+                                            else -> "Tổng user"
+                                        }
+                                        PortalMetricCard(totalLabel, "${filterScopeUsers.size}", modifier = Modifier.weight(1f))
+                                        PortalMetricCard(
+                                            "Bị banned",
+                                            "${filterScopeUsers.count { it.status == "banned" }}",
+                                            modifier = Modifier.weight(1f),
+                                        )
                                     }
                                 }
                                 item { PortalSectionTitle("DANH SÁCH") }
@@ -1602,6 +1617,16 @@ fun AdminPortalScreen(onBack: (() -> Unit)? = null, onLogout: (() -> Unit)? = nu
                         selectedUser = ApiClient.adminUserDetail(detail.id)
                         load()
                     }.onFailure { actionMessage = it.message }
+                }
+            },
+            onDelete = {
+                scope.launch {
+                    runCatching {
+                        ApiClient.adminDeleteUser(detail.id)
+                        selectedUser = null
+                        actionMessage = "Đã xóa tài khoản ${detail.email ?: detail.display_name ?: detail.id}."
+                        load()
+                    }.onFailure { actionMessage = it.message ?: "Không thể xóa tài khoản." }
                 }
             },
         )
@@ -2566,7 +2591,7 @@ private fun filteredAdminUsers(users: List<AdminUserRow>, query: String, filter:
             "Active" -> user.status != "banned"
             "Banned" -> user.status == "banned"
             "Business" -> user.is_business
-            "Pro" -> isPremiumAdminUser(user)
+            "Pro" -> !user.is_admin && !user.is_business && isPremiumAdminUser(user)
             "Free" -> !user.is_admin && !user.is_business && !isPremiumAdminUser(user)
             else -> true
         }
@@ -3297,88 +3322,272 @@ private fun AdminUserDetailDialog(
     onDismiss: () -> Unit,
     onToggleRole: () -> Unit,
     onToggleBan: () -> Unit,
+    onDelete: () -> Unit,
 ) {
+    var showDeleteConfirmation by remember(detail.id) { mutableStateOf(false) }
+
     Dialog(onDismissRequest = onDismiss) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(22.dp))
+                .heightIn(max = 760.dp)
+                .clip(RoundedCornerShape(20.dp))
                 .background(portalBg())
-                .border(1.dp, portalStroke(), RoundedCornerShape(22.dp))
-                .padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .border(1.dp, portalStroke(), RoundedCornerShape(20.dp)),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("‹", color = portalText(), fontSize = 28.sp, modifier = Modifier.clickable(onClick = onDismiss))
-                Spacer(Modifier.weight(1f))
-                Text("Chi tiết user", color = portalText(), fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                Spacer(Modifier.width(28.dp))
-            }
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Color(0xFFE7E4FF))
-                    .padding(20.dp),
+                    .padding(horizontal = 18.dp, vertical = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
+                Box(
+                    Modifier
+                        .size(40.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(portalCard())
+                        .clickable(onClick = onDismiss),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Đóng", tint = portalText())
+                }
                 Text(
-                    initials(detail.display_name ?: detail.email),
-                    color = PortalPurple,
-                    fontSize = 26.sp,
+                    "Chi tiết người dùng",
+                    color = portalText(),
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .size(72.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFA9A0E8))
-                        .padding(top = 20.dp),
-                )
-                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                    Text(detail.display_name ?: detail.email ?: detail.id, color = Color(0xFF33267D), fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                    Text(detail.email ?: "—", color = PortalPurple, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        RoleChip(if (detail.status == "banned") "Banned" else "Active", detail.status != "banned")
-                        RoleChip(userPlanLabel(detail), true)
-                    }
-                }
-            }
-            PortalSectionTitle("THÔNG TIN")
-            UserInfoRow("Ngày đăng ký", formatPortalDate(detail.created_at))
-            UserInfoRow("Lần đăng nhập cuối", formatPortalDateTime(detail.last_login_at))
-            UserInfoRow("Thiết bị", detail.last_device ?: "—")
-            UserInfoRow("Tổng chuyến đi", "${detail.trip_count} chuyến")
-            UserInfoRow("Role", if (detail.is_admin) "Admin" else if (detail.is_business) "Business" else "User")
-            PortalSectionTitle("CHUYẾN ĐI GẦN NHẤT")
-            if (detail.recent_trips.isEmpty()) {
-                EmptyPortalText("User chưa có chuyến đi.")
-            } else {
-                detail.recent_trips.take(3).forEach { trip ->
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("⌖", color = PortalGreen, fontSize = 22.sp)
-                        Column(Modifier.weight(1f)) {
-                            Text(trip.destination ?: "Chuyến đi", color = portalText(), fontWeight = FontWeight.Bold)
-                            Text("${formatPortalDate(trip.start_date)}-${formatPortalDate(trip.end_date)} · ${trip.people ?: 1} người", color = portalMuted(), fontSize = 12.sp)
-                        }
-                        RoleChip("AI trip", true)
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = onToggleRole, modifier = Modifier.weight(1f)) {
-                    Text(if (detail.is_business) "Thu hồi role" else "Đổi role")
-                }
-                Button(
-                    onClick = onToggleBan,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = PortalDanger, contentColor = Color(0xFF8A1D1D)),
+                )
+                Spacer(Modifier.width(40.dp))
+            }
+
+            HorizontalDivider(color = portalStroke())
+
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .weight(1f, fill = false)
+                    .verticalScroll(rememberScrollState())
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFFECEAFF))
+                        .padding(18.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    Text(if (detail.status == "banned") "Mở ban" else "Ban user")
+                    Box(
+                        Modifier
+                            .size(68.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFFB8B0F3)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            initials(detail.display_name ?: detail.email),
+                            color = Color(0xFF4437A3),
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            detail.display_name ?: detail.email ?: detail.id,
+                            color = Color(0xFF2F2678),
+                            fontSize = 19.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            detail.email ?: "Chưa có email",
+                            color = Color(0xFF6558C7),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Row(
+                            Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(7.dp),
+                        ) {
+                            RoleChip(if (detail.status == "banned") "Banned" else "Active", detail.status != "banned")
+                            RoleChip(userPlanLabel(detail), true)
+                            RoleChip(
+                                if (detail.is_admin) "Admin" else if (detail.is_business) "Business" else "User",
+                                true,
+                            )
+                        }
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AdminDetailStatCard("Chuyến đi", "${detail.trip_count}", Modifier.weight(1f))
+                    AdminDetailStatCard("Gói", userPlanLabel(detail), Modifier.weight(1f))
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PortalSectionTitle("THÔNG TIN TÀI KHOẢN")
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(portalCard())
+                            .border(1.dp, portalStroke(), RoundedCornerShape(14.dp))
+                            .padding(horizontal = 14.dp),
+                    ) {
+                        UserInfoRow("Ngày đăng ký", formatPortalDate(detail.created_at))
+                        HorizontalDivider(color = portalStroke())
+                        UserInfoRow("Đăng nhập gần nhất", formatPortalDateTime(detail.last_login_at))
+                        HorizontalDivider(color = portalStroke())
+                        UserInfoRow("Thiết bị", detail.last_device ?: "Chưa ghi nhận")
+                        detail.phone?.takeIf { it.isNotBlank() }?.let {
+                            HorizontalDivider(color = portalStroke())
+                            UserInfoRow("Số điện thoại", it)
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PortalSectionTitle("CHUYẾN ĐI GẦN NHẤT")
+                    if (detail.recent_trips.isEmpty()) {
+                        Box(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(portalCard())
+                                .padding(20.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text("Người dùng chưa có chuyến đi.", color = portalMuted(), fontSize = 13.sp)
+                        }
+                    } else {
+                        detail.recent_trips.take(3).forEach { trip ->
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(portalCard())
+                                    .border(1.dp, portalStroke(), RoundedCornerShape(14.dp))
+                                    .padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(40.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color(0xFFDFFFF4)),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(Icons.Filled.Place, contentDescription = null, tint = PortalGreen)
+                                }
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(
+                                        trip.destination ?: "Chuyến đi",
+                                        color = portalText(),
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        "${formatPortalDate(trip.start_date)} – ${formatPortalDate(trip.end_date)} · ${trip.people ?: 1} người",
+                                        color = portalMuted(),
+                                        fontSize = 11.sp,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    PortalSectionTitle("QUẢN TRỊ TÀI KHOẢN")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        OutlinedButton(onClick = onToggleRole, modifier = Modifier.weight(1f)) {
+                            Text(if (detail.is_business) "Thu hồi role" else "Đổi role")
+                        }
+                        Button(
+                            onClick = onToggleBan,
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = PortalDanger,
+                                contentColor = Color(0xFF8A1D1D),
+                            ),
+                        ) {
+                            Text(if (detail.status == "banned") "Mở khóa" else "Khóa user")
+                        }
+                    }
+                    OutlinedButton(
+                        onClick = { showDeleteConfirmation = true },
+                        enabled = !detail.is_admin,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFC62828)),
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (detail.is_admin) "Không thể xóa Admin" else "Xóa tài khoản vĩnh viễn")
+                    }
+                    Text(
+                        "Xóa tài khoản sẽ xóa quyền đăng nhập và dữ liệu liên quan. Thao tác này không thể hoàn tác.",
+                        color = portalMuted(),
+                        fontSize = 11.sp,
+                        lineHeight = 16.sp,
+                    )
                 }
             }
         }
+    }
+
+    if (showDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmation = false },
+            title = { Text("Xóa tài khoản?") },
+            text = {
+                Text(
+                    "Bạn sắp xóa vĩnh viễn ${detail.email ?: detail.display_name ?: "tài khoản này"}. " +
+                        "Người dùng sẽ không thể đăng nhập lại và dữ liệu liên quan sẽ bị xóa.",
+                )
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmation = false }) {
+                    Text("Hủy")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDeleteConfirmation = false
+                        onDelete()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFC62828),
+                        contentColor = Color.White,
+                    ),
+                ) {
+                    Text("Xóa vĩnh viễn")
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun AdminDetailStatCard(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(portalCard())
+            .border(1.dp, portalStroke(), RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(label, color = portalMuted(), fontSize = 11.sp)
+        Text(value, color = portalText(), fontSize = 18.sp, fontWeight = FontWeight.Bold)
     }
 }
 

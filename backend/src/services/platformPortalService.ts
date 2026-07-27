@@ -561,6 +561,29 @@ export async function adminUpdateUserStatus(userId: string, status: string) {
   return data;
 }
 
+export async function adminDeleteUser(userId: string) {
+  const sb = getSupabaseAdmin();
+  const { data: profile, error: profileError } = await sb
+    .from("profiles")
+    .select("id,email,is_admin")
+    .eq("id", userId)
+    .maybeSingle();
+  if (profileError) throw profileError;
+  if (!profile) throw new Error("user_not_found");
+  if (profile.is_admin) throw new Error("cannot_delete_admin");
+
+  const { error } = await sb.auth.admin.deleteUser(userId);
+  if (error) throw error;
+
+  await logSystemEvent({
+    level: "warning",
+    title: "User account deleted",
+    source: "admin",
+    metadata: { user_id: userId, email: profile.email },
+  });
+  return { deleted: true };
+}
+
 export async function adminUpdateUserRole(
   userId: string,
   patch: { is_admin?: boolean; is_business?: boolean },
