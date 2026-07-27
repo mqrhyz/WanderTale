@@ -470,7 +470,7 @@ export async function adminTransactions(limit = 100) {
   return data ?? [];
 }
 
-export async function adminListUsers(limit = 100) {
+export async function adminListUsers(limit = 1000) {
   const { data } = await getSupabaseAdmin()
     .from("profiles")
     .select("id,display_name,email,phone,is_admin,is_business,is_premium,subscription_tier,status,last_login_at,last_device,created_at")
