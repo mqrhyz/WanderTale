@@ -1,4 +1,4 @@
-# WanderTale — Web (EXE202)
+# WanderTale — Web adn App (EXE202)
 
 Frontend Next.js cho dự án WanderTale. Gọi backend API riêng (Fastify) — không nằm trong repo này.
 
